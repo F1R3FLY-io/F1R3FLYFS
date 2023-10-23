@@ -13,6 +13,9 @@ import ru.serce.jnrfuse.struct.FileStat;
 import ru.serce.jnrfuse.struct.FuseFileInfo;
 import ru.serce.jnrfuse.struct.Statvfs;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
@@ -82,6 +85,7 @@ public class MemoryFS extends FuseStubFS {
         }
 
         public synchronized void mkfile(String lastComponent) {
+            System.out.println("mkfile: " + lastComponent);
             contents.add(new MemoryFile(lastComponent, this));
         }
 
@@ -214,13 +218,14 @@ public class MemoryFS extends FuseStubFS {
                 default:
                     path = "/tmp/mntm";
             }
-            memfs.mount(Paths.get(path), true, true);
+            
+            memfs.mount(Paths.get(path), true, false);
         } finally {
             memfs.umount();
         }
     }
 
-    private MemoryDirectory rootDirectory = new MemoryDirectory("");
+    private MemoryDirectory rootDirectory = new MemoryDirectory("mountedFromJava");
 
     public MemoryFS() {
         // Sprinkle some files around
@@ -237,20 +242,25 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int create(String path, @mode_t long mode, FuseFileInfo fi) {
+        System.out.println("create() called with arguments: path = " + path + ", mode = " + mode + ", fi = " + fi);
         if (getPath(path) != null) {
             return -ErrorCodes.EEXIST();
         }
         MemoryPath parent = getParentPath(path);
+        System.out.println("parent: " + parent.toString());
         if (parent instanceof MemoryDirectory) {
+            System.out.println("is instance");
             ((MemoryDirectory) parent).mkfile(getLastComponent(path));
             return 0;
         }
+        System.out.println("ERROR: " + ErrorCodes.ENOENT());
         return -ErrorCodes.ENOENT();
     }
 
 
     @Override
     public int getattr(String path, FileStat stat) {
+        System.out.println("getattr() called with arguments: path = " + path);// + ", stat = " + stat);
         MemoryPath p = getPath(path);
         if (p != null) {
             p.getattr(stat);
@@ -280,6 +290,7 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int mkdir(String path, @mode_t long mode) {
+        System.out.println("mkdir() called with arguments: path = " + path + ", mode = " + mode);
         if (getPath(path) != null) {
             return -ErrorCodes.EEXIST();
         }
@@ -294,6 +305,7 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
+        System.out.println("read() called with arguments: path = " + path);// + ", buf = " + buf + ", size = " + size + ", offset = " + offset + ", fi = " + fi);
         MemoryPath p = getPath(path);
         if (p == null) {
             return -ErrorCodes.ENOENT();
@@ -306,6 +318,7 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int readdir(String path, Pointer buf, FuseFillDir filter, @off_t long offset, FuseFileInfo fi) {
+        System.out.println("readdir() called with arguments: path = " + path);// + ", buf = " + buf + ", filter = " + filter + ", offset = " + offset + ", fi = " + fi);
         MemoryPath p = getPath(path);
         if (p == null) {
             return -ErrorCodes.ENOENT();
@@ -322,6 +335,7 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int statfs(String path, Statvfs stbuf) {
+        System.out.println("statfs() called with arguments: path = " + path);// + ", stbuf = " + stbuf);
         if (Platform.getNativePlatform().getOS() == WINDOWS) {
             // statfs needs to be implemented on Windows in order to allow for copying
             // data from other devices because winfsp calculates the volume size based
@@ -338,6 +352,7 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int rename(String path, String newName) {
+        System.out.println("rename() called with arguments: path = " + path + ", newName = " + newName);
         MemoryPath p = getPath(path);
         if (p == null) {
             return -ErrorCodes.ENOENT();
@@ -357,6 +372,7 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int rmdir(String path) {
+        System.out.println("rmdir() called with argument: path = " + path);
         MemoryPath p = getPath(path);
         if (p == null) {
             return -ErrorCodes.ENOENT();
@@ -370,6 +386,7 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int truncate(String path, long offset) {
+        System.out.println("truncate() called with arguments: path = " + path + ", offset = " + offset);
         MemoryPath p = getPath(path);
         if (p == null) {
             return -ErrorCodes.ENOENT();
@@ -383,6 +400,7 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int unlink(String path) {
+        System.out.println("unlink() called with argument: path = " + path);
         MemoryPath p = getPath(path);
         if (p == null) {
             return -ErrorCodes.ENOENT();
@@ -393,11 +411,13 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int open(String path, FuseFileInfo fi) {
+        System.out.println("open() called with arguments: path = " + path);// + ", fi = " + fi);
         return 0;
     }
 
     @Override
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
+        System.out.println("write() called with arguments: path = " + path + /* ", buf = " + buf + */ ", size = " + size);// + ", offset = " + offset + ", fi = " + fi);
         MemoryPath p = getPath(path);
         if (p == null) {
             return -ErrorCodes.ENOENT();
@@ -405,6 +425,56 @@ public class MemoryFS extends FuseStubFS {
         if (!(p instanceof MemoryFile)) {
             return -ErrorCodes.EISDIR();
         }
+
+        if (path.contains("abc.txt")) {
+            try{
+
+            String binaryPath = System.getProperty("user.home") + "/f1r3fly/node/target/universal/stage/bin/rnode";
+            String fPath = System.getProperty("user.home") + "/f1r3fly/rholang/examples/hello_world_again.rho";
+            ProcessBuilder processBuilder = new ProcessBuilder(binaryPath, "eval", fPath);
+            //ProcessBuilder processBuilder = new ProcessBuilder(binaryPath, "repl", "{}");
+
+            // Set the working directory
+            //String flyPath = System.getProperty("user.home") + "/f1r3fly/";
+            File binaryDirectory = new File(binaryPath).getParentFile();
+            processBuilder.directory(binaryDirectory);
+
+
+
+            // ProcessBuilder processBuilder = new ProcessBuilder(
+            //     System.getProperty("user.home") + "/f1r3fly/node/target/universal/stage/bin/rnode",
+            //     "-Djava.library.path=/opt/homebrew/Cellar/lmdb/0.9.31/lib",
+            //     "eval",
+            //     "~/f1r3fly/rholang/examples/hello_world_again.rho"
+            // );
+            
+            Process process = processBuilder.start();
+
+            // Read the output stream
+            try (BufferedReader outputReader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = outputReader.readLine()) != null) {
+                    System.out.println(line);
+                }
+            }
+
+            // Read the error stream
+            try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+                String line;
+                while ((line = errorReader.readLine()) != null) {
+                    System.err.println(line);
+                }
+            }
+
+            int exitCode = process.waitFor();
+            System.out.println("Process exited with code: " + exitCode);
+            
+            } catch (Exception e) {
+                System.out.println("error: " + e.getStackTrace());
+            }
+        }
+
+        System.out.println("WRITING: " + size);
         return ((MemoryFile) p).write(buf, size, offset);
     }
 }
