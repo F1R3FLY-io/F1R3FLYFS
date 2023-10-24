@@ -3,9 +3,12 @@ package ru.serce.jnrfuse.examples;
 
 import jnr.ffi.Platform;
 import jnr.ffi.Pointer;
+import jnr.ffi.types.dev_t;
+import jnr.ffi.types.gid_t;
 import jnr.ffi.types.mode_t;
 import jnr.ffi.types.off_t;
 import jnr.ffi.types.size_t;
+import jnr.ffi.types.uid_t;
 import ru.serce.jnrfuse.ErrorCodes;
 import ru.serce.jnrfuse.FuseFillDir;
 import ru.serce.jnrfuse.FuseStubFS;
@@ -18,6 +21,7 @@ import java.io.File;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,23 +34,28 @@ public class MemoryFS extends FuseStubFS {
 
         private MemoryDirectory(String name) {
             super(name);
+            System.out.println("MemoryDirectory: " + name);
         }
 
         private MemoryDirectory(String name, MemoryDirectory parent) {
             super(name, parent);
+            System.out.println("MemoryDirectory: " + parent + " > " + name);
         }
 
         public synchronized void add(MemoryPath p) {
+            System.out.println("add MemoryPath: " + p.name);
             contents.add(p);
             p.parent = this;
         }
 
         private synchronized void deleteChild(MemoryPath child) {
+            System.out.println("deleteChild MemoryPath: " + child);
             contents.remove(child);
         }
 
         @Override
         protected MemoryPath find(String path) {
+            //System.out.println("find MemoryPath: " + path);
             if (super.find(path) != null) {
                 return super.find(path);
             }
@@ -113,6 +122,7 @@ public class MemoryFS extends FuseStubFS {
                 byte[] contentBytes = text.getBytes("UTF-8");
                 contents = ByteBuffer.wrap(contentBytes);
             } catch (UnsupportedEncodingException e) {
+                System.out.println("UnsupportedEncodingException e: " + e.toString());
                 // Not going to happen
             }
         }
@@ -168,7 +178,7 @@ public class MemoryFS extends FuseStubFS {
     }
 
     private abstract class MemoryPath {
-        private String name;
+        protected String name;
         private MemoryDirectory parent;
 
         private MemoryPath(String name) {
@@ -242,11 +252,11 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int create(String path, @mode_t long mode, FuseFileInfo fi) {
-        System.out.println("create() called with arguments: path = " + path + ", mode = " + mode + ", fi = " + fi);
         if (getPath(path) != null) {
             return -ErrorCodes.EEXIST();
         }
         MemoryPath parent = getParentPath(path);
+        System.out.println("create() called with arguments: path = " + path + ", mode = " + mode + ", fi = " + fi);
         System.out.println("parent: " + parent.toString());
         if (parent instanceof MemoryDirectory) {
             System.out.println("is instance");
@@ -260,9 +270,9 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int getattr(String path, FileStat stat) {
-        System.out.println("getattr() called with arguments: path = " + path);// + ", stat = " + stat);
         MemoryPath p = getPath(path);
         if (p != null) {
+            System.out.println("getattr() called with arguments: path = " + path);// + ", stat = " + stat);
             p.getattr(stat);
             return 0;
         }
@@ -305,7 +315,6 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        System.out.println("read() called with arguments: path = " + path);// + ", buf = " + buf + ", size = " + size + ", offset = " + offset + ", fi = " + fi);
         MemoryPath p = getPath(path);
         if (p == null) {
             return -ErrorCodes.ENOENT();
@@ -313,12 +322,12 @@ public class MemoryFS extends FuseStubFS {
         if (!(p instanceof MemoryFile)) {
             return -ErrorCodes.EISDIR();
         }
+        System.out.println("read() called with arguments: path = " + path);// + ", buf = " + buf + ", size = " + size + ", offset = " + offset + ", fi = " + fi);
         return ((MemoryFile) p).read(buf, size, offset);
     }
 
     @Override
     public int readdir(String path, Pointer buf, FuseFillDir filter, @off_t long offset, FuseFileInfo fi) {
-        System.out.println("readdir() called with arguments: path = " + path);// + ", buf = " + buf + ", filter = " + filter + ", offset = " + offset + ", fi = " + fi);
         MemoryPath p = getPath(path);
         if (p == null) {
             return -ErrorCodes.ENOENT();
@@ -328,6 +337,7 @@ public class MemoryFS extends FuseStubFS {
         }
         filter.apply(buf, ".", null, 0);
         filter.apply(buf, "..", null, 0);
+        System.out.println("readdir() called with arguments: path = " + path);// + ", buf = " + buf + ", filter = " + filter + ", offset = " + offset + ", fi = " + fi);
         ((MemoryDirectory) p).read(buf, filter);
         return 0;
     }
@@ -335,7 +345,6 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int statfs(String path, Statvfs stbuf) {
-        System.out.println("statfs() called with arguments: path = " + path);// + ", stbuf = " + stbuf);
         if (Platform.getNativePlatform().getOS() == WINDOWS) {
             // statfs needs to be implemented on Windows in order to allow for copying
             // data from other devices because winfsp calculates the volume size based
@@ -347,6 +356,8 @@ public class MemoryFS extends FuseStubFS {
                 stbuf.f_bfree.set(1024 * 1024);  // free blocks in fs
             }
         }
+        //called all the time...too much spam on printouts
+        //System.out.println("statfs() called with arguments: path = " + path);// + ", stbuf = " + stbuf);
         return super.statfs(path, stbuf);
     }
 
@@ -386,7 +397,6 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int truncate(String path, long offset) {
-        System.out.println("truncate() called with arguments: path = " + path + ", offset = " + offset);
         MemoryPath p = getPath(path);
         if (p == null) {
             return -ErrorCodes.ENOENT();
@@ -394,6 +404,7 @@ public class MemoryFS extends FuseStubFS {
         if (!(p instanceof MemoryFile)) {
             return -ErrorCodes.EISDIR();
         }
+        System.out.println("truncate() called with arguments: path = " + path + ", offset = " + offset);
         ((MemoryFile) p).truncate(offset);
         return 0;
     }
@@ -417,7 +428,6 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        System.out.println("write() called with arguments: path = " + path + /* ", buf = " + buf + */ ", size = " + size);// + ", offset = " + offset + ", fi = " + fi);
         MemoryPath p = getPath(path);
         if (p == null) {
             return -ErrorCodes.ENOENT();
@@ -426,9 +436,79 @@ public class MemoryFS extends FuseStubFS {
             return -ErrorCodes.EISDIR();
         }
 
+        System.out.println("write() called with arguments: path = " + path + /* ", buf = " + buf + */ ", size = " + size);// + ", offset = " + offset + ", fi = " + fi);
+        byte[] data = new byte[(int)size];
+        buf.get(0, data, 0, data.length);
+        //data can now be passed into rho
+        String str = new String(data, StandardCharsets.UTF_8);
+        System.out.println(str);
+        //problems: 
+        //get multiple writes() per file...2 different names
+        //._filename.txt and filename.txt for example
+        //even filename.txt named correctly gets 2 events
+        //i can read the file data from the buf value
+        //in theory i could send the raw bytes onto the rchain node
+        //need a contract that can take a directory string for the path and the filename
+        //the contract should take the directory+filename string and store the data there
+        //when trying to open a file it should do the reverse and retrieve the data
+        //all those events will require more rholang hits to get directories and pass data
+        //still dont know if i can even have the ui work with it
+        //might be able to demo one laptop creating and saving a file
+        //the other laptop running the same software connected to the node could pull it down
+        //drag and drop i only get the ._filename one due to the disk full error from timestamp
         if (path.contains("abc.txt")) {
-            try{
+            sendRholangCode(path,data);
+        }
 
+        System.out.println("WRITING: " + size);
+        return ((MemoryFile) p).write(buf, size, offset);
+    }
+
+    @Override
+     public int readlink(String path, Pointer buf, @size_t long size) {
+         System.out.println("readlink() called with path: " + path);
+         return -ErrorCodes.ENOSYS();
+     }
+
+     @Override
+     public int symlink(String oldpath, String newpath) {
+         System.out.println("symlink() called with oldpath: " + oldpath + ", newpath: " + newpath);
+         return -ErrorCodes.ENOSYS();
+     }
+
+     @Override
+     public int link(String oldpath, String newpath) {
+         System.out.println("link() called with oldpath: " + oldpath + ", newpath: " + newpath);
+         return -ErrorCodes.ENOSYS();
+     }
+
+     @Override
+     public int mknod(String path, @mode_t long mode, @dev_t long rdev) {
+         System.out.println("mknod() called with path: " + path);
+         return -ErrorCodes.ENOSYS();
+     }
+
+     @Override
+     public int chmod(String path, @mode_t long mode) {
+         System.out.println("chmod() called with path: " + path);
+         return -ErrorCodes.ENOSYS();
+     }
+
+     @Override
+     public int chown(String path, @uid_t long uid, @gid_t long gid) {
+         System.out.println("chown() called with path: " + path);
+         return -ErrorCodes.ENOSYS();
+     }
+
+     @Override
+     public int bmap(String path, @size_t long blocksize, long idx) {
+         System.out.println("bmap() called with path: " + path);
+         return -ErrorCodes.ENOSYS();
+     }
+
+     public void sendRholangCode(String path, byte[] data) {
+        try{
+            System.out.println("sendRholangCode" + data.toString());
             String binaryPath = System.getProperty("user.home") + "/f1r3fly/node/target/universal/stage/bin/rnode";
             String fPath = System.getProperty("user.home") + "/f1r3fly/rholang/examples/hello_world_again.rho";
             ProcessBuilder processBuilder = new ProcessBuilder(binaryPath, "eval", fPath);
@@ -472,9 +552,9 @@ public class MemoryFS extends FuseStubFS {
             } catch (Exception e) {
                 System.out.println("error: " + e.getStackTrace());
             }
-        }
+     }
 
-        System.out.println("WRITING: " + size);
-        return ((MemoryFile) p).write(buf, size, offset);
-    }
+     public void retriveData() {
+
+     }
 }
