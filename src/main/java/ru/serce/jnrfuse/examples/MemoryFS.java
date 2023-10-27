@@ -18,7 +18,9 @@ import ru.serce.jnrfuse.struct.Statvfs;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -556,5 +558,18 @@ public class MemoryFS extends FuseStubFS {
 
      public void retriveData() {
 
+     }
+
+     public String getFilePath(String fName) {
+        return System.getProperty("user.home") + "/f1r3fly/rholang/examples/"+fName+".rho";
+     }
+
+     public void saveStringToFile(String filePath, String content, String data) {
+         content = content.replace("$DATA", data);
+         try (PrintWriter out = new PrintWriter(filePath)) {
+             out.println(content);
+         } catch (FileNotFoundException e) {
+             e.printStackTrace();
+         }
      }
 }
