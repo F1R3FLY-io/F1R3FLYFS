@@ -37,11 +37,22 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
+import java.security.Security;
+import java.security.Signature;
+import java.util.Base64;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+
+import org.web3j.crypto.Hash;
+import org.web3j.utils.Numeric;
+
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
 
-import com.google.gson.JsonObject;
+// This method should be inside the MemoryFS class
 
 //  import io.grpc.ManagedChannel;
 //  import io.grpc.ManagedChannelBuilder;
@@ -53,7 +64,28 @@ import com.google.gson.JsonObject;
 import static jnr.ffi.Platform.OS.WINDOWS;
 
 
+import org.web3j.crypto.Hash;
+import org.web3j.utils.Numeric;
+
+import java.util.Arrays;
+
 public class MemoryFS extends FuseStubFS {
+
+    // Method to compute the Ethereum address from a given public key
+    private String publicAddress(byte[] publicKey) {
+        // Ensure the public key is uncompressed and 64 bytes long
+        if (publicKey.length == 65 && publicKey[0] == 0x04) {
+            byte[] uncompressedPublicKey = Arrays.copyOfRange(publicKey, 1, publicKey.length);
+            // Compute the keccak256 hash of the uncompressed public key
+            byte[] hash = Hash.sha3(uncompressedPublicKey);
+            // Take the last 20 bytes of the hash to form the address
+            byte[] addressBytes = Arrays.copyOfRange(hash, hash.length - 20, hash.length);
+            // Convert to hex string with 0x prefix
+            return Numeric.toHexString(addressBytes);
+        } else {
+            throw new IllegalArgumentException("Invalid public key format");
+        }
+    }
     private class MemoryDirectory extends MemoryPath {
         private List<MemoryPath> contents = new ArrayList<>();
 
@@ -602,7 +634,41 @@ public class MemoryFS extends FuseStubFS {
 }
       */
 
+     // Method to generate a new RSA key pair
+     private KeyPair generateKeyPair() throws Exception {
+         Security.addProvider(new BouncyCastleProvider());
+         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA", "BC");
+         keyGen.initialize(2048);
+         return keyGen.generateKeyPair();
+     }
+
+     // Method to sign data using a private key
+     private String signData(String data, PrivateKey privateKey) throws Exception {
+         Signature signature = Signature.getInstance("SHA256withRSA", "BC");
+         signature.initSign(privateKey);
+         signature.update(data.getBytes(StandardCharsets.UTF_8));
+         byte[] digitalSignature = signature.sign();
+         return Base64.getEncoder().encodeToString(digitalSignature);
+     }
+
      public void sendHttpPost(String code) {
+         try {
+             // Generate a new RSA key pair (or use an existing one)
+             KeyPair keyPair = generateKeyPair();
+
+             // Serialize the deploy data (this is a placeholder for actual serialization logic)
+             String serializedDeployData = "Serialized deploy data";
+
+             // Sign the serialized deploy data
+             String signature = signData(serializedDeployData, keyPair.getPrivate());
+
+             // Create the JSON payload with the signed deploy data (this is a placeholder for actual payload creation)
+             String jsonPayload = "{ \"deployData\": \"" + serializedDeployData + "\", \"signature\": \"" + signature + "\" }";
+
+             // Rest of the sendHttpPost method...
+         } catch (Exception e) {
+             e.printStackTrace();
+         }
         HttpClient client = HttpClient.newHttpClient();
 
         //sending simplest code now just to test
@@ -658,7 +724,7 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         }
     }
 
-    public String createDeployDataRequest(String term)//, long timestamp, long phloPrice, long phloLimit, long validAfterBlockNumber, String shardId)
+    public String createDeployDataRequest(String term)
     {
 
         //from rnode-openapi.json in f1r3fly repo
