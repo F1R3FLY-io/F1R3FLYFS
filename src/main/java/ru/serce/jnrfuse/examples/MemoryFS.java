@@ -661,9 +661,30 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
     public String createDeployDataRequest(String term)//, long timestamp, long phloPrice, long phloLimit, long validAfterBlockNumber, String shardId)
     {
 
+        //from rnode-openapi.json in f1r3fly repo
         /*
          * 
-         * "example": {
+         "DeployRequest": {
+      "type": "object",
+      "required": ["data", "deployer", "sigAlgorithm", "signature"],
+      "properties": {
+        "data": {
+          "$ref": "#/definitions/DeployData"
+        },
+        "deployer": {
+          "type": "string",
+          "format": "public key"
+        },
+        "signature": {
+          "type": "string",
+          "format": "signature"
+        },
+        "sigAlgorithm": {
+          "type": "string",
+          "enum": ["secp256k1", "secp256k1:eth"]
+        }
+      },
+      "example": {
         "data": {
           "term": "new world in {\n  world!(\"Hello!\")\n}\n",
           "timestamp": 1600740233668,
@@ -675,36 +696,8 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         "signature": "1f80ccdc2517d842e67b913f656357b3f7a54a3f7c993f6df98063417d0c680f72a666f2e8a6cb38d0591740adcbded9ad7449d26b6def78a0113e77124f96d41b",
         "deployer": "043c9c39d032925384f25413d553e91c261555384589329595e9c6956055719b54839704948477e4f0d4743cfdf1635bd497fa44995cea1c5c75971cf779da11b0"
       },
-         * 
-         */
-
-        /*
-         * String term = "New Rholang code";
- long timestamp = System.currentTimeMillis();
- long phloPrice = 1L;
- long phloLimit = 100000L;
- long validAfterBlockNumber = 0L;
- String shardId = "myShardId";
-
-  public class DeployData {
-     private long timestamp;
-     private String term;
-     private long phloLimit;
-     private long phloPrice;
-     private long validAfterBlockNumber;
-
-     // Constructor, getters, and setters
- }
-
- public class DeployRequest {
-     private DeployData data;
-     private String deployer;
-     private String signature;
-     @SerializedName("sigAlgorithm")
-     private String sigAlgorithm;
-
-     // Constructor, getters, and setters
- }
+      "description": "DeployRequest"
+    },
          * 
          */
 
@@ -728,41 +721,6 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         Gson gson = new Gson();
         return gson.toJson(deployDataRequest);
     }
-
-    // // Add a new method to MemoryFS.java to perform the gRPC call
-    // public void performGrpcDeployCall(String code) {
-
-    //     String termVal = getRhoTest(code);
-
-    //     // Create a channel to the gRPC server
-    //     ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 40401) // Replace with actual server address and port
-    //         .usePlaintext()
-    //         .build();
-
-    //     // Create a blocking stub on the channel
-    //     DeployServiceBlockingStub stub = DeployServiceGrpc.newBlockingStub(channel);
-
-    //     // Prepare the DeployDataProto message
-    //     DeployDataProto deployDataProto = DeployDataProto.newBuilder()
-    //         .setTerm(termVal)
-    //         .setPhloLimit(1)
-    //         .setPhloPrice(1)
-    //         // Set other required fields for DeployDataProto
-    //         .build();
-
-    //     // Perform the gRPC call
-    //     try {
-    //         DeployResponse response = stub.doDeploy(deployDataProto);
-    //         // Handle the response
-    //         System.out.println("Deploy response: " + response);
-    //     } catch (Exception e) {
-    //         // Handle the error
-    //         e.printStackTrace();
-    //     } finally {
-    //         // Shutdown the channel
-    //         channel.shutdown();
-    //     }
-    // }
 
     public String getRhoTest(String data) {
         //grospic value in test wallet is this
