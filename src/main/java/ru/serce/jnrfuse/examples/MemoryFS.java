@@ -71,19 +71,10 @@ import java.nio.charset.StandardCharsets;
 import static jnr.ffi.Platform.OS.WINDOWS;
 
 
-import org.web3j.crypto.Hash;
-import org.web3j.utils.Numeric;
 
 import java.util.Arrays;
-import java.io.FileReader;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import org.web3j.crypto.Credentials;
 import org.web3j.crypto.ECKeyPair;
-import org.web3j.crypto.Keys;
-import org.web3j.utils.Numeric;
 
 // Removed imports that are causing compilation errors
 
@@ -137,10 +128,8 @@ public class MemoryFS extends FuseStubFS {
         ECKeyPair ecKeyPair = ECKeyPair.create(Numeric.toBigInt(privateKeyHex));
         Credentials credentials = Credentials.create(ecKeyPair);
 
-// Removed code that relies on the missing imports and classes
     }
 
-// Removed duplicate constructor
 
     // Method to compute the Ethereum address from a given public key
     private String publicAddress(byte[] publicKey) {
