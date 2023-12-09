@@ -6,6 +6,7 @@ package ru.serce.jnrfuse.struct;
      private long phloLimit;
      private long phloPrice;
      private long validAfterBlockNumber;
+     private String shardId;
 
     public DeployData() {
     }
@@ -38,5 +39,11 @@ package ru.serce.jnrfuse.struct;
     }
     public void setValidAfterBlockNumber(long validAfterBlockNumber) {
         this.validAfterBlockNumber = validAfterBlockNumber;
+    }
+    public String getShardId() {
+        return shardId;
+    }
+    public void setShardId(String shardId) {
+        this.shardId = shardId;
     }
  }

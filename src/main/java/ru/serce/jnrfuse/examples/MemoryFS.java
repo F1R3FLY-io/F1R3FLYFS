@@ -715,13 +715,14 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         deployData.setPhloPrice(1);
         deployData.setPhloLimit(1);
         deployData.setValidAfterBlockNumber(1);
+        deployData.setShardId("root");
 
         // Create the DeployRequest object
         DeployDataRequest deployDataRequest = new DeployDataRequest();
         deployDataRequest.setData(deployData);
         deployDataRequest.setDeployer("043c9c39d032925384f25413d553e91c261555384589329595e9c6956055719b54839704948477e4f0d4743cfdf1635bd497fa44995cea1c5c75971cf779da11b0");
         deployDataRequest.setSignature("1f80ccdc2517d842e67b913f656357b3f7a54a3f7c993f6df98063417d0c680f72a666f2e8a6cb38d0591740adcbded9ad7449d26b6def78a0113e77124f96d41b");
-        deployDataRequest.setSigAlgorithm("secp256k1:eth");
+        deployDataRequest.setSigAlgorithm("secp256k1");
 
         // Convert the DeployRequest object to JSON using Gson
         Gson gson = new Gson();
