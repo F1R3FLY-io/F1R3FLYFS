@@ -56,11 +56,19 @@ tasks.withType(Javadoc).configureEach {
 }
 
 dependencies {
-    api 'com.github.jnr:jnr-ffi:2.2.13'
-    api 'com.github.jnr:jnr-posix:3.1.16'
-    api 'com.github.jnr:jnr-constants:0.10.4'
+    // Gson dependency for JSON serialization/deserialization
+    implementation 'com.google.code.gson:gson:2.8.9'
 
-    implementation 'com.google.code.gson:gson:2.8.6'
+    // Web3j dependency for keccak256/SHA3 hashing
+    implementation 'org.web3j:core:4.8.7'
+    
+    // Existing dependencies...
+    
+    // Bouncy Castle Provider
+    implementation 'org.bouncycastle:bcprov-jdk15to18:1.70'
+    
+    // Bouncy Castle PKIX/CMS/EAC/PKCS/OCSP/TSP/OPENSSL
+    implementation 'org.bouncycastle:bcpkix-jdk15to18:1.70'
 
     // runtimeOnly 'io.grpc:grpc-netty-shaded:1.60.0'
     // implementation 'io.grpc:grpc-protobuf:1.60.0'
