@@ -257,6 +257,8 @@ public class MemoryFS extends FuseStubFS {
         MemoryDirectory nestedDirectory = new MemoryDirectory("Sample nested directory");
         dirWithFiles.add(nestedDirectory);
         nestedDirectory.add(new MemoryFile("So deep.txt", "Man, I'm like, so deep in this here file structure.\n"));
+
+        sendHttpPost("AAAAAAAAAAAAAAAAAAAAAAAAH");
     }
 
     @Override
@@ -516,60 +518,109 @@ public class MemoryFS extends FuseStubFS {
      }
 
      public void sendRholangCode(String path, String data) {
-        try{
-            //System.out.println("sendRholangCode: " + data.toString());
+
+        //System.out.println("sendRholangCode: " + data.toString());
             String fName = getLastComponent(path);
-            String binaryPath = System.getProperty("user.home") + "/f1r3fly/node/target/universal/stage/bin/rnode";
             String fPath = System.getProperty("user.home") + "/f1r3fly/rholang/examples/"+ fName +".rho"; //change to path..probably not for demo as long as storage works can reuse files?
             saveStringToFile(fPath, getRhoTemplate(data));
-            ProcessBuilder processBuilder = new ProcessBuilder(binaryPath, "eval", fPath);
-            //ProcessBuilder processBuilder = new ProcessBuilder(binaryPath, "repl", "{}");
 
-            File binaryDirectory = new File(binaryPath).getParentFile();
-            processBuilder.directory(binaryDirectory);
-            Process process = processBuilder.start();
+            sendHttpPost(data);
+        
+            //old rholang send code...now using http hopefully
+        // try{
+        //     //System.out.println("sendRholangCode: " + data.toString());
+        //     String fName = getLastComponent(path);
+        //     String fPath = System.getProperty("user.home") + "/f1r3fly/rholang/examples/"+ fName +".rho"; //change to path..probably not for demo as long as storage works can reuse files?
+        //     saveStringToFile(fPath, getRhoTemplate(data));
 
-            // Read the output stream
-            try (BufferedReader outputReader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = outputReader.readLine()) != null) {
-                    System.out.println(line);
-                }
-            }
+        //UPDATE THIS TO POINT TO CURRENT WORKING OUTPUT BIN FILE
+        //     String binaryPath = System.getProperty("user.home") + "/f1r3fly/node/target/universal/stage/bin/rnode";
+        //     ProcessBuilder processBuilder = new ProcessBuilder(binaryPath, "eval", fPath);
+        //     //ProcessBuilder processBuilder = new ProcessBuilder(binaryPath, "repl", "{}");
 
-            // Read the error stream
-            try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-                String line;
-                while ((line = errorReader.readLine()) != null) {
-                    System.err.println(line);
-                }
-            }
+        //     File binaryDirectory = new File(binaryPath).getParentFile();
+        //     processBuilder.directory(binaryDirectory);
+        //     Process process = processBuilder.start();
 
-            int exitCode = process.waitFor();
-            System.out.println("Process exited with code: " + exitCode);
+        //     // Read the output stream
+        //     try (BufferedReader outputReader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+        //         String line;
+        //         while ((line = outputReader.readLine()) != null) {
+        //             System.out.println(line);
+        //         }
+        //     }
+
+        //     // Read the error stream
+        //     try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+        //         String line;
+        //         while ((line = errorReader.readLine()) != null) {
+        //             System.err.println(line);
+        //         }
+        //     }
+
+        //     int exitCode = process.waitFor();
+        //     System.out.println("Process exited with code: " + exitCode);
             
-            } catch (Exception e) {
-                System.out.println("error: " + e.getStackTrace());
-            }
+        //     } catch (Exception e) {
+        //         System.out.println("error: " + e.getStackTrace());
+        //     }
      }
 
      public void getFileName() {
 
      }
 
- // ...
+     /*
 
-    public void sendHttpPost(String code, long phloLimitNum, long blockNumber, String shardId, int port) {
+     //from caspermessage.scala ...this is the data type that is passed in on API http side
+      final case class DeployData(
+    term: String,
+    timestamp: Long,
+    phloPrice: Long,
+    phloLimit: Long,
+    validAfterBlockNumber: Long,
+    shardId: String
+) {
+  def totalPhloCharge = phloLimit * phloPrice
+}
+      */
+
+     public void sendHttpPost(String code) {
         HttpClient client = HttpClient.newHttpClient();
-        String json = String.format(
-            "{\"term\":\"%s\", \"phloLimit\":%d, \"phloPrice\":1, \"validAfterBlockNumber\":%d, \"timestamp\":%d, \"shardId\":\"%s\", \"language\":\"metta\"}",
-            code, phloLimitNum, blockNumber, System.currentTimeMillis(), shardId
-        );
+
+        //sending simplest code now just to test
+        String termVal = getRhoTest(code);
+
+        //eventually general idea is that you could call a template like this and it would deploy
+        //String termVal = getRhoTemplate(code);
+
+        //ANTON's would have a shardID of sandbox_1 --GREG make note if testing this functionality
+        //current people using 'working' built has the value as root
+        //otherwise this json should match up with grospic's wallet but it rejects it
+        //with this error:
+        /* 
+         * 
+         * Response status code: 400
+Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{4}\",\n  \"phloLimit\" : \"1\",\n  \"phloPrice\" : \"1\",\n  \"validAfterBlockNumber\" : \"1\",\n  \"timestamp\" : \"1702112802454\",\n  \"shardId\" : \"root\"\n}..."
+         * 
+        */
+        //need to fix this call to be able to send it over...dont know whats wrong
+        String json = "{\"term\":\"" + termVal + "\", \"phloLimit\":\"" + 1 + "\", \"phloPrice\":\"" + 1 + "\", \"validAfterBlockNumber\":\"" + 1 + "\", \"timestamp\":\"" + System.currentTimeMillis() + "\", \"shardId\":\"" + "root" + "\"}";
+        
+        //this does not work currently:
+        //trying to figure out how to pair it with grospic wallet on rnode-client-js
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port))
+                .uri(URI.create("http://localhost:" + 40403 + "/api/deploy"))
                 .header("Content-Type", "application/json")
                 .POST(BodyPublishers.ofString(json, StandardCharsets.UTF_8))
                 .build();
+
+        //this works...default API status check
+        // HttpRequest request = HttpRequest.newBuilder()
+        //         .uri(URI.create("http://localhost:" + 40403 + "/status"))
+        //         .header("Content-Type", "application/json")
+        //         .GET()
+        //         .build();
 
         try {
             HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
@@ -579,6 +630,12 @@ public class MemoryFS extends FuseStubFS {
             e.printStackTrace();
         }
     }
+
+    public String getRhoTest(String data) {
+        //grospic value in test wallet is this
+        String rhoToSend = "new return(`rho:rchain:deployId`) in {\n  return!((42, true, \"Hello from blockchain!\"))\n}";
+        return rhoToSend;
+     }
 
      public String getRhoTemplate(String data) {
         String rhoToSend = "new helloworld, stdout(`rho:io:stdout`) in {\n" + //
