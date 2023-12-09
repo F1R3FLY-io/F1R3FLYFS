@@ -27,6 +27,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.HttpRequest.BodyPublishers;
+import java.net.http.HttpResponse.BodyHandlers;
+import java.nio.charset.StandardCharsets;
 
 import static jnr.ffi.Platform.OS.WINDOWS;
 
@@ -442,8 +449,8 @@ public class MemoryFS extends FuseStubFS {
         byte[] data = new byte[(int)size];
         buf.get(0, data, 0, data.length);
         //data can now be passed into rho
-        String str = new String(data, StandardCharsets.UTF_8);
-        System.out.println(str);
+        String dataString = new String(data, StandardCharsets.UTF_8);
+        System.out.println(dataString);
         //problems: 
         //get multiple writes() per file...2 different names
         //._filename.txt and filename.txt for example
@@ -459,7 +466,7 @@ public class MemoryFS extends FuseStubFS {
         //the other laptop running the same software connected to the node could pull it down
         //drag and drop i only get the ._filename one due to the disk full error from timestamp
         if (path.contains("abc.txt")) {
-            sendRholangCode(path,data);
+            sendRholangCode(path,dataString);
         }
 
         System.out.println("WRITING: " + size);
@@ -508,28 +515,18 @@ public class MemoryFS extends FuseStubFS {
          return -ErrorCodes.ENOSYS();
      }
 
-     public void sendRholangCode(String path, byte[] data) {
+     public void sendRholangCode(String path, String data) {
         try{
-            System.out.println("sendRholangCode" + data.toString());
+            //System.out.println("sendRholangCode: " + data.toString());
+            String fName = getLastComponent(path);
             String binaryPath = System.getProperty("user.home") + "/f1r3fly/node/target/universal/stage/bin/rnode";
-            String fPath = System.getProperty("user.home") + "/f1r3fly/rholang/examples/hello_world_again.rho";
+            String fPath = System.getProperty("user.home") + "/f1r3fly/rholang/examples/"+ fName +".rho"; //change to path..probably not for demo as long as storage works can reuse files?
+            saveStringToFile(fPath, getRhoTemplate(data));
             ProcessBuilder processBuilder = new ProcessBuilder(binaryPath, "eval", fPath);
             //ProcessBuilder processBuilder = new ProcessBuilder(binaryPath, "repl", "{}");
 
-            // Set the working directory
-            //String flyPath = System.getProperty("user.home") + "/f1r3fly/";
             File binaryDirectory = new File(binaryPath).getParentFile();
             processBuilder.directory(binaryDirectory);
-
-
-
-            // ProcessBuilder processBuilder = new ProcessBuilder(
-            //     System.getProperty("user.home") + "/f1r3fly/node/target/universal/stage/bin/rnode",
-            //     "-Djava.library.path=/opt/homebrew/Cellar/lmdb/0.9.31/lib",
-            //     "eval",
-            //     "~/f1r3fly/rholang/examples/hello_world_again.rho"
-            // );
-            
             Process process = processBuilder.start();
 
             // Read the output stream
@@ -556,16 +553,54 @@ public class MemoryFS extends FuseStubFS {
             }
      }
 
-     public void retriveData() {
+     public void getFileName() {
 
+     }
+
+ // ...
+
+    public void sendHttpPost(String var1, String var2, int port) {
+        HttpClient client = HttpClient.newHttpClient();
+        String json = "{\"var1\":\"" + var1 + "\", \"var2\":\"" + var2 + "\"}";
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port))
+                .header("Content-Type", "application/json")
+                .POST(BodyPublishers.ofString(json, StandardCharsets.UTF_8))
+                .build();
+
+        try {
+            HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
+            System.out.println("Response status code: " + response.statusCode());
+            System.out.println("Response body: " + response.body());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+     public String getRhoTemplate(String data) {
+        String rhoToSend = "new helloworld, stdout(`rho:io:stdout`) in {\n" + //
+                "    contract helloworld( world ) = {\n" + //
+                "        for( @msg <- world ) {\n" + //
+                "            stdout!(msg)\n" + //
+                "        }\n" + //
+                "    } |\n" + //
+                "    new world, world2 in {\n" + //
+                "        helloworld!(*world) |\n" + //
+                "        world!(\"Hello World\") |\n" + //
+                "        helloworld!(*world2) |\n" + //
+                "        world2!(\"$DATA$\")\n" + //
+                "    }\n" + //
+                "}";
+
+        rhoToSend = rhoToSend.replace("$DATA$", data);
+        return rhoToSend;
      }
 
      public String getFilePath(String fName) {
         return System.getProperty("user.home") + "/f1r3fly/rholang/examples/"+fName+".rho";
      }
 
-     public void saveStringToFile(String filePath, String content, String data) {
-         content = content.replace("$DATA", data);
+     public void saveStringToFile(String filePath, String content) {
          try (PrintWriter out = new PrintWriter(filePath)) {
              out.println(content);
          } catch (FileNotFoundException e) {
