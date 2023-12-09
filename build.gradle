@@ -5,7 +5,34 @@ plugins {
     id 'io.github.gradle-nexus.publish-plugin' version '1.2.0'
     id 'maven-publish'
     id 'signing'
+    id 'com.google.protobuf' version '0.9.4'
 }
+
+protobuf {
+  protoc {
+    artifact = "com.google.protobuf:protoc:3.22.3"
+  }
+  plugins {
+    grpc {
+      artifact = 'io.grpc:protoc-gen-grpc-java:1.60.0'
+    }
+  }
+  generateProtoTasks {
+    all()*.plugins {
+      grpc {}
+    }
+  }
+}
+
+// sourceSets {
+//   main {
+//     proto {
+//       // In addition to the default 'src/main/proto'
+//       srcDir '../f1r3fly/models/src/main/protobuf'
+//       srcDir '../f1r3fly/models/target/protobuf_external'
+//     }
+//   }
+// }
 
 repositories {
     jcenter()
@@ -32,6 +59,22 @@ dependencies {
     api 'com.github.jnr:jnr-ffi:2.2.13'
     api 'com.github.jnr:jnr-posix:3.1.16'
     api 'com.github.jnr:jnr-constants:0.10.4'
+
+    implementation 'com.google.code.gson:gson:2.8.6'
+
+    // runtimeOnly 'io.grpc:grpc-netty-shaded:1.60.0'
+    // implementation 'io.grpc:grpc-protobuf:1.60.0'
+    // implementation 'io.grpc:grpc-stub:1.60.0'
+
+    // // gRPC dependencies
+    //  implementation 'io.grpc:grpc-netty:1.60.0' // Use the latest version available
+    //  implementation 'io.grpc:grpc-protobuf:1.60.0' // Use the latest version available
+    //  implementation 'io.grpc:grpc-stub:1.60.0' // Use the latest version available
+    //  implementation 'io.grpc:grpc-services:1.60.0' // Use the latest version available
+
+    //  // Required for the protobuf plugin
+    //  implementation 'com.google.protobuf:protobuf-java:3.15.8' // Use the latest version available
+    //  implementation 'com.google.protobuf:protobuf-java-util:3.15.8' // Use the latest version available
 
     testImplementation 'junit:junit:4.13.2'
 }

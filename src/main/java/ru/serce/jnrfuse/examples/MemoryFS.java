@@ -27,6 +27,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.google.gson.JsonObject;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -34,6 +37,15 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
+
+import com.google.gson.JsonObject;
+
+//  import io.grpc.ManagedChannel;
+//  import io.grpc.ManagedChannelBuilder;
+//  import casper.CasperMessage.DeployDataProto;
+//  import casper.v1.DeployServiceV1.DeployResponse;
+//  import casper.v1.DeployServiceGrpc;
+//  import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
 
 import static jnr.ffi.Platform.OS.WINDOWS;
 
@@ -259,6 +271,7 @@ public class MemoryFS extends FuseStubFS {
         nestedDirectory.add(new MemoryFile("So deep.txt", "Man, I'm like, so deep in this here file structure.\n"));
 
         sendHttpPost("AAAAAAAAAAAAAAAAAAAAAAAAH");
+        //performGrpcDeployCall("AAAAAAAAAAAAAAAAAAAAAAAAH");
     }
 
     @Override
@@ -605,8 +618,13 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
          * 
         */
         //need to fix this call to be able to send it over...dont know whats wrong
-        String json = "{\"term\":\"" + termVal + "\", \"phloLimit\":\"" + 1 + "\", \"phloPrice\":\"" + 1 + "\", \"validAfterBlockNumber\":\"" + 1 + "\", \"timestamp\":\"" + System.currentTimeMillis() + "\", \"shardId\":\"" + "root" + "\"}";
+        //String json = "{\"term\":\"" + termVal + "\", \"phloLimit\":\"" + 1 + "\", \"phloPrice\":\"" + 1 + "\", \"validAfterBlockNumber\":\"" + 1 + "\", \"timestamp\":\"" + System.currentTimeMillis() + "\", \"shardId\":\"" + "root" + "\"}";
         
+        String json = createDeployDataJson(termVal);
+
+//         grpcurl --insecure --import-path ./node/target/protobuf_external --import-path ./models/src/main/protobuf --proto routing.proto --cert=./rchain.xmpl/node0/rnode/node.certificate.pem --key=./rchain.xmpl/node0/rnode/node.key.pem 127.0.0.1:40400 list 
+// routing.TransportLayer
+
         //this does not work currently:
         //trying to figure out how to pair it with grospic wallet on rnode-client-js
         HttpRequest request = HttpRequest.newBuilder()
@@ -614,6 +632,9 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
                 .header("Content-Type", "application/json")
                 .POST(BodyPublishers.ofString(json, StandardCharsets.UTF_8))
                 .build();
+
+        System.out.println("request: " + request.toString());
+        System.out.println("ghjghjjg");
 
         //this works...default API status check
         // HttpRequest request = HttpRequest.newBuilder()
@@ -630,6 +651,64 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
             e.printStackTrace();
         }
     }
+
+    public String createDeployDataJson(String term)//, long timestamp, long phloPrice, long phloLimit, long validAfterBlockNumber, String shardId)
+    {
+
+        /*
+         * String term = "New Rholang code";
+ long timestamp = System.currentTimeMillis();
+ long phloPrice = 1L;
+ long phloLimit = 100000L;
+ long validAfterBlockNumber = 0L;
+ String shardId = "myShardId";
+         * 
+         */
+        JsonObject deployDataJson = new JsonObject();
+        deployDataJson.addProperty("term", term);
+        deployDataJson.addProperty("timestamp", System.currentTimeMillis());
+        deployDataJson.addProperty("phloPrice", 1L);
+        deployDataJson.addProperty("phloLimit", 1L);
+        deployDataJson.addProperty("validAfterBlockNumber", 1L);
+        deployDataJson.addProperty("shardId", "root"); //sandbox_1 if on ANTON's setup
+
+        return deployDataJson.toString();
+    }
+
+    // // Add a new method to MemoryFS.java to perform the gRPC call
+    // public void performGrpcDeployCall(String code) {
+
+    //     String termVal = getRhoTest(code);
+
+    //     // Create a channel to the gRPC server
+    //     ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 40401) // Replace with actual server address and port
+    //         .usePlaintext()
+    //         .build();
+
+    //     // Create a blocking stub on the channel
+    //     DeployServiceBlockingStub stub = DeployServiceGrpc.newBlockingStub(channel);
+
+    //     // Prepare the DeployDataProto message
+    //     DeployDataProto deployDataProto = DeployDataProto.newBuilder()
+    //         .setTerm(termVal)
+    //         .setPhloLimit(1)
+    //         .setPhloPrice(1)
+    //         // Set other required fields for DeployDataProto
+    //         .build();
+
+    //     // Perform the gRPC call
+    //     try {
+    //         DeployResponse response = stub.doDeploy(deployDataProto);
+    //         // Handle the response
+    //         System.out.println("Deploy response: " + response);
+    //     } catch (Exception e) {
+    //         // Handle the error
+    //         e.printStackTrace();
+    //     } finally {
+    //         // Shutdown the channel
+    //         channel.shutdown();
+    //     }
+    // }
 
     public String getRhoTest(String data) {
         //grospic value in test wallet is this
