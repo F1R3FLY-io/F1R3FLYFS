@@ -35,3 +35,7 @@ gradle-app.setting
 !gradle-wrapper.jar
 
 .aider*
+.aider*
+.classpath
+.settings/
+.project
