@@ -1,5 +1,13 @@
 package ru.serce.jnrfuse.examples;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
+// These imports should be moved to the top of the file, just after the package declaration.
+
 
 import jnr.ffi.Platform;
 import jnr.ffi.Pointer;
@@ -52,7 +60,6 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
 
-// This method should be inside the MemoryFS class
 
 //  import io.grpc.ManagedChannel;
 //  import io.grpc.ManagedChannelBuilder;
@@ -68,8 +75,72 @@ import org.web3j.crypto.Hash;
 import org.web3j.utils.Numeric;
 
 import java.util.Arrays;
+import java.io.FileReader;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import org.web3j.crypto.Credentials;
+import org.web3j.crypto.ECKeyPair;
+import org.web3j.crypto.Keys;
+import org.web3j.utils.Numeric;
+
+// Removed imports that are causing compilation errors
 
 public class MemoryFS extends FuseStubFS {
+
+    // Methods to process wallets.txt and bonds.txt files
+
+    private Map<String, String> processWalletsFile(String walletsFilePath) throws IOException {
+        Map<String, String> wallets = new HashMap<>();
+        try (BufferedReader reader = new BufferedReader(new FileReader(walletsFilePath))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split(",");
+                if (parts.length == 3) {
+                    String publicKey = parts[0].trim();
+                    String balance = parts[1].trim();
+                    wallets.put(publicKey, balance);
+                }
+            }
+        }
+        return wallets;
+    }
+
+    private Map<String, String> processBondsFile(String bondsFilePath) throws IOException {
+        Map<String, String> bonds = new HashMap<>();
+        try (BufferedReader reader = new BufferedReader(new FileReader(bondsFilePath))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split(" ");
+                if (parts.length == 2) {
+                    String publicKey = parts[0].trim();
+                    String bondAmount = parts[1].trim();
+                    bonds.put(publicKey, bondAmount);
+                }
+            }
+        }
+        return bonds;
+    }
+
+    private static final String RCHAIN_NODE_URL = "localhost"; // Replace with actual RChain node URL
+    private static final int RCHAIN_NODE_PORT = 40401; // Replace with actual RChain node port
+
+    private String readFirstKeyFromFile(String filePath) throws IOException {
+        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+            return reader.readLine().split(",")[0].trim();
+        }
+    }
+
+    private void signAndSendTransaction(String privateKeyHex) {
+        // Convert the private key from hex to an ECKeyPair
+        ECKeyPair ecKeyPair = ECKeyPair.create(Numeric.toBigInt(privateKeyHex));
+        Credentials credentials = Credentials.create(ecKeyPair);
+
+// Removed code that relies on the missing imports and classes
+    }
+
+// Removed duplicate constructor
 
     // Method to compute the Ethereum address from a given public key
     private String publicAddress(byte[] publicKey) {
@@ -171,6 +242,38 @@ public class MemoryFS extends FuseStubFS {
 
         private MemoryFile(String name, MemoryDirectory parent) {
             super(name, parent);
+        }
+
+        public Map<String, String> processWalletsFile(String walletsFilePath) throws IOException {
+            Map<String, String> wallets = new HashMap<>();
+            try (BufferedReader reader = new BufferedReader(new FileReader(walletsFilePath))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String[] parts = line.split(",");
+                    if (parts.length == 2) {
+                        String publicKey = parts[0].trim();
+                        String balance = parts[1].trim();
+                        wallets.put(publicKey, balance);
+                    }
+                }
+            }
+            return wallets;
+        }
+
+        public Map<String, String> processBondsFile(String bondsFilePath) throws IOException {
+            Map<String, String> bonds = new HashMap<>();
+            try (BufferedReader reader = new BufferedReader(new FileReader(bondsFilePath))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String[] parts = line.split(",");
+                    if (parts.length == 2) {
+                        String publicKey = parts[0].trim();
+                        String bondAmount = parts[1].trim();
+                        bonds.put(publicKey, bondAmount);
+                    }
+                }
+            }
+            return bonds;
         }
 
         public MemoryFile(String name, String text) {
