@@ -15,6 +15,8 @@ import ru.serce.jnrfuse.FuseStubFS;
 import ru.serce.jnrfuse.struct.FileStat;
 import ru.serce.jnrfuse.struct.FuseFileInfo;
 import ru.serce.jnrfuse.struct.Statvfs;
+import ru.serce.jnrfuse.struct.DeployData;
+import ru.serce.jnrfuse.struct.DeployDataRequest;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -28,6 +30,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
 import java.net.URI;
@@ -48,6 +51,7 @@ import com.google.gson.JsonObject;
 //  import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
 
 import static jnr.ffi.Platform.OS.WINDOWS;
+
 
 public class MemoryFS extends FuseStubFS {
     private class MemoryDirectory extends MemoryPath {
@@ -620,7 +624,9 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         //need to fix this call to be able to send it over...dont know whats wrong
         //String json = "{\"term\":\"" + termVal + "\", \"phloLimit\":\"" + 1 + "\", \"phloPrice\":\"" + 1 + "\", \"validAfterBlockNumber\":\"" + 1 + "\", \"timestamp\":\"" + System.currentTimeMillis() + "\", \"shardId\":\"" + "root" + "\"}";
         
-        String json = createDeployDataJson(termVal);
+        String json = createDeployDataRequest(termVal);
+
+        System.out.println("json: " + json.toString());
 
 //         grpcurl --insecure --import-path ./node/target/protobuf_external --import-path ./models/src/main/protobuf --proto routing.proto --cert=./rchain.xmpl/node0/rnode/node.certificate.pem --key=./rchain.xmpl/node0/rnode/node.key.pem 127.0.0.1:40400 list 
 // routing.TransportLayer
@@ -652,8 +658,25 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         }
     }
 
-    public String createDeployDataJson(String term)//, long timestamp, long phloPrice, long phloLimit, long validAfterBlockNumber, String shardId)
+    public String createDeployDataRequest(String term)//, long timestamp, long phloPrice, long phloLimit, long validAfterBlockNumber, String shardId)
     {
+
+        /*
+         * 
+         * "example": {
+        "data": {
+          "term": "new world in {\n  world!(\"Hello!\")\n}\n",
+          "timestamp": 1600740233668,
+          "phloPrice": 1,
+          "phloLimit": 250000,
+          "validAfterBlockNumber": 420299
+        },
+        "sigAlgorithm": "secp256k1:eth",
+        "signature": "1f80ccdc2517d842e67b913f656357b3f7a54a3f7c993f6df98063417d0c680f72a666f2e8a6cb38d0591740adcbded9ad7449d26b6def78a0113e77124f96d41b",
+        "deployer": "043c9c39d032925384f25413d553e91c261555384589329595e9c6956055719b54839704948477e4f0d4743cfdf1635bd497fa44995cea1c5c75971cf779da11b0"
+      },
+         * 
+         */
 
         /*
          * String term = "New Rholang code";
@@ -662,17 +685,47 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
  long phloLimit = 100000L;
  long validAfterBlockNumber = 0L;
  String shardId = "myShardId";
+
+  public class DeployData {
+     private long timestamp;
+     private String term;
+     private long phloLimit;
+     private long phloPrice;
+     private long validAfterBlockNumber;
+
+     // Constructor, getters, and setters
+ }
+
+ public class DeployRequest {
+     private DeployData data;
+     private String deployer;
+     private String signature;
+     @SerializedName("sigAlgorithm")
+     private String sigAlgorithm;
+
+     // Constructor, getters, and setters
+ }
          * 
          */
-        JsonObject deployDataJson = new JsonObject();
-        deployDataJson.addProperty("term", term);
-        deployDataJson.addProperty("timestamp", System.currentTimeMillis());
-        deployDataJson.addProperty("phloPrice", 1L);
-        deployDataJson.addProperty("phloLimit", 1L);
-        deployDataJson.addProperty("validAfterBlockNumber", 1L);
-        deployDataJson.addProperty("shardId", "root"); //sandbox_1 if on ANTON's setup
 
-        return deployDataJson.toString();
+         // Create the DeployData object
+        DeployData deployData = new DeployData();
+        deployData.setTerm(term);
+        deployData.setTimestamp(System.currentTimeMillis());
+        deployData.setPhloPrice(1);
+        deployData.setPhloLimit(1);
+        deployData.setValidAfterBlockNumber(1);
+
+        // Create the DeployRequest object
+        DeployDataRequest deployDataRequest = new DeployDataRequest();
+        deployDataRequest.setData(deployData);
+        deployDataRequest.setDeployer("043c9c39d032925384f25413d553e91c261555384589329595e9c6956055719b54839704948477e4f0d4743cfdf1635bd497fa44995cea1c5c75971cf779da11b0");
+        deployDataRequest.setSignature("1f80ccdc2517d842e67b913f656357b3f7a54a3f7c993f6df98063417d0c680f72a666f2e8a6cb38d0591740adcbded9ad7449d26b6def78a0113e77124f96d41b");
+        deployDataRequest.setSigAlgorithm("secp256k1:eth");
+
+        // Convert the DeployRequest object to JSON using Gson
+        Gson gson = new Gson();
+        return gson.toJson(deployDataRequest);
     }
 
     // // Add a new method to MemoryFS.java to perform the gRPC call
