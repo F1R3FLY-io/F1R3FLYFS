@@ -72,9 +72,16 @@ import static jnr.ffi.Platform.OS.WINDOWS;
 
 
 
+import org.bouncycastle.jce.ECNamedCurveTable;
+import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
+import java.security.interfaces.ECPublicKey;
+import java.security.interfaces.ECKey;
+import java.security.spec.ECParameterSpec;
+import java.security.spec.EllipticCurve;
 import java.util.Arrays;
 import org.web3j.crypto.Credentials;
 import org.web3j.crypto.ECKeyPair;
+import org.web3j.crypto.Keys;
 
 // Removed imports that are causing compilation errors
 
@@ -132,19 +139,26 @@ public class MemoryFS extends FuseStubFS {
 
 
     // Method to compute the Ethereum address from a given public key
-    private String publicAddress(byte[] publicKey) {
-        // Ensure the public key is uncompressed and 64 bytes long
-        if (publicKey.length == 65 && publicKey[0] == 0x04) {
-            byte[] uncompressedPublicKey = Arrays.copyOfRange(publicKey, 1, publicKey.length);
-            // Compute the keccak256 hash of the uncompressed public key
-            byte[] hash = Hash.sha3(uncompressedPublicKey);
-            // Take the last 20 bytes of the hash to form the address
-            byte[] addressBytes = Arrays.copyOfRange(hash, hash.length - 20, hash.length);
-            // Convert to hex string with 0x prefix
-            return Numeric.toHexString(addressBytes);
-        } else {
-            throw new IllegalArgumentException("Invalid public key format");
+    private String publicAddress(ECKey publicKey) {
+        if (publicKey instanceof ECPublicKey && isExpectedEllipticCurve((ECPublicKey) publicKey)) {
+            ECPublicKey ecPublicKey = (ECPublicKey) publicKey;
+            byte[] x = ecPublicKey.getW().getAffineX().toByteArray();
+            byte[] y = ecPublicKey.getW().getAffineY().toByteArray();
+            byte[] publicKeyBytes = new byte[64];
+            System.arraycopy(x, Math.max(0, x.length - 32), publicKeyBytes, Math.max(0, 32 - x.length), Math.min(x.length, 32));
+            System.arraycopy(y, Math.max(0, y.length - 32), publicKeyBytes, 32 + Math.max(0, 32 - y.length), Math.min(y.length, 32));
+            byte[] hash = Hash.sha3(publicKeyBytes);
+            return Numeric.toHexString(Arrays.copyOfRange(hash, hash.length - 20, hash.length));
         }
+        return null;
+    }
+
+    private boolean isExpectedEllipticCurve(ECPublicKey publicKey) {
+        ECParameterSpec params = publicKey.getParams();
+        EllipticCurve curve = params.getCurve();
+        // Replace with the actual expected elliptic curve parameters
+        ECNamedCurveParameterSpec expectedParams = ECNamedCurveTable.getParameterSpec("secp256k1");
+        return curve.equals(expectedParams.getCurve());
     }
     private class MemoryDirectory extends MemoryPath {
         private List<MemoryPath> contents = new ArrayList<>();
