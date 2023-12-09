@@ -559,9 +559,12 @@ public class MemoryFS extends FuseStubFS {
 
  // ...
 
-    public void sendHttpPost(String var1, String var2, int port) {
+    public void sendHttpPost(String code, long phloLimitNum, long blockNumber, String shardId, int port) {
         HttpClient client = HttpClient.newHttpClient();
-        String json = "{\"var1\":\"" + var1 + "\", \"var2\":\"" + var2 + "\"}";
+        String json = String.format(
+            "{\"term\":\"%s\", \"phloLimit\":%d, \"phloPrice\":1, \"validAfterBlockNumber\":%d, \"timestamp\":%d, \"shardId\":\"%s\", \"language\":\"metta\"}",
+            code, phloLimitNum, blockNumber, System.currentTimeMillis(), shardId
+        );
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + port))
                 .header("Content-Type", "application/json")
