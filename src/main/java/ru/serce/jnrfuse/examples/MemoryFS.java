@@ -1,10 +1,12 @@
 package ru.serce.jnrfuse.examples;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+ import casper.Casper.DeployDataProto;
+ import com.google.protobuf.InvalidProtocolBufferException;
+ import java.io.BufferedReader;
+ import java.io.FileReader;
+ import java.io.IOException;
+ import java.util.HashMap;
+ import java.util.Map;
 
 import org.bitcoinj.core.ECKey;
 import org.bitcoinj.core.Sha256Hash;
@@ -414,6 +416,24 @@ public class MemoryFS extends FuseStubFS {
             hexString.append(String.format("%02x", b));
         }
         return hexString.toString();
+    }
+
+    // Method to serialize DeployDataProto
+    private byte[] serializeDeployDataProto() throws InvalidProtocolBufferException {
+        // Create a DeployDataProto builder
+        DeployDataProto.Builder builder = DeployDataProto.newBuilder();
+
+        // Set fields of the builder here
+        // For example:
+        // builder.setPublicKey("your_public_key_here");
+        // builder.setTerm("your_rholang_code_here");
+        // ... other fields
+
+        // Build the DeployDataProto object
+        DeployDataProto deployDataProto = builder.build();
+
+        // Serialize to a byte array
+        return deployDataProto.toByteArray();
     }
 
     public static void main(String[] args) {
