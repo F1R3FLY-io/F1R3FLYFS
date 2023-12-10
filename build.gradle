@@ -5,34 +5,7 @@ plugins {
     id 'io.github.gradle-nexus.publish-plugin' version '1.2.0'
     id 'maven-publish'
     id 'signing'
-//     id 'com.google.protobuf' version '0.9.4'
 }
-
-// protobuf {
-//   protoc {
-//     artifact = "com.google.protobuf:protoc:3.22.3"
-//   }
-//   plugins {
-//     grpc {
-//       artifact = 'io.grpc:protoc-gen-grpc-java:1.60.0'
-//     }
-//   }
-//   generateProtoTasks {
-//     all()*.plugins {
-//       grpc {}
-//     }
-//   }
-// }
-
-// sourceSets {
-//   main {
-//     proto {
-//       // In addition to the default 'src/main/proto'
-//       srcDir '../f1r3fly/models/src/main/protobuf'
-//       srcDir '../f1r3fly/models/target/protobuf_external'
-//     }
-//   }
-// }
 
 repositories {
     jcenter()
@@ -61,29 +34,13 @@ dependencies {
     // Gson dependency for JSON serialization/deserialization
     implementation 'com.google.code.gson:gson:2.8.9'
     implementation 'org.bitcoinj:bitcoinj-core:0.16.2'
-    implementation group: 'com.github.jnr', name: 'jnr-ffi', version: '2.2.15'
+    // https://mvnrepository.com/artifact/com.github.jnr/jnr-posix
+    implementation group: 'com.github.jnr', name: 'jnr-posix', version: '3.1.18'
 
-    // Web3j dependency for keccak256/SHA3 hashing
-    implementation 'org.web3j:core:4.10.3'
-    
     // Existing dependencies...
     
     // Bouncy Castle PKIX/CMS/EAC/PKCS/OCSP/TSP/OPENSSL
     implementation 'org.bouncycastle:bcpkix-jdk15to18:1.70'
-
-    // runtimeOnly 'io.grpc:grpc-netty-shaded:1.60.0'
-    // implementation 'io.grpc:grpc-protobuf:1.60.0'
-    // implementation 'io.grpc:grpc-stub:1.60.0'
-
-    // // gRPC dependencies
-    //  implementation 'io.grpc:grpc-netty:1.60.0' // Use the latest version available
-    //  implementation 'io.grpc:grpc-protobuf:1.60.0' // Use the latest version available
-    //  implementation 'io.grpc:grpc-stub:1.60.0' // Use the latest version available
-    //  implementation 'io.grpc:grpc-services:1.60.0' // Use the latest version available
-
-    //  // Required for the protobuf plugin
-    //  implementation 'com.google.protobuf:protobuf-java:3.15.8' // Use the latest version available
-    //  implementation 'com.google.protobuf:protobuf-java-util:3.15.8' // Use the latest version available
 
     testImplementation 'junit:junit:4.13.2'
 }

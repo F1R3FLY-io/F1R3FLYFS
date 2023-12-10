@@ -59,9 +59,6 @@ import java.security.Signature;
 import java.util.Base64;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
-import org.web3j.crypto.Hash;
-import org.web3j.utils.Numeric;
-
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
