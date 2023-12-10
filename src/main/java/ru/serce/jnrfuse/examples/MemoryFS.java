@@ -6,6 +6,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.bitcoinj.core.ECKey;
+import org.bitcoinj.core.Sha256Hash;
+
+import java.nio.charset.StandardCharsets;
+
 // These imports should be moved to the top of the file, just after the package declaration.
 
 
@@ -73,16 +78,16 @@ import static jnr.ffi.Platform.OS.WINDOWS;
 
 
 
-import org.bouncycastle.jce.ECNamedCurveTable;
-import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
-import java.security.interfaces.ECPublicKey;
-import java.security.interfaces.ECKey;
-import java.security.spec.ECParameterSpec;
-import java.security.spec.EllipticCurve;
-import java.util.Arrays;
-import org.web3j.crypto.Credentials;
-import org.web3j.crypto.ECKeyPair;
-import org.web3j.crypto.Keys;
+// import org.bouncycastle.jce.ECNamedCurveTable;
+// import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
+// import java.security.interfaces.ECPublicKey;
+// import java.security.interfaces.ECKey;
+// import java.security.spec.ECParameterSpec;
+// import java.security.spec.EllipticCurve;
+// import java.util.Arrays;
+// import org.web3j.crypto.Credentials;
+// import org.web3j.crypto.ECKeyPair;
+// import org.web3j.crypto.Keys;
 
 // Removed imports that are causing compilation errors
 
@@ -131,36 +136,36 @@ public class MemoryFS extends FuseStubFS {
         }
     }
 
-    private void signAndSendTransaction(String privateKeyHex) {
-        // Convert the private key from hex to an ECKeyPair
-        ECKeyPair ecKeyPair = ECKeyPair.create(Numeric.toBigInt(privateKeyHex));
-        Credentials credentials = Credentials.create(ecKeyPair);
+    // private void signAndSendTransaction(String privateKeyHex) {
+    //     // Convert the private key from hex to an ECKeyPair
+    //     ECKeyPair ecKeyPair = ECKeyPair.create(Numeric.toBigInt(privateKeyHex));
+    //     Credentials credentials = Credentials.create(ecKeyPair);
 
-    }
+    // }
 
+    // // Method to compute the Ethereum address from a given public key
+    // private String publicAddress(ECKey publicKey) {
+    //     if (publicKey instanceof ECPublicKey && isExpectedEllipticCurve((ECPublicKey) publicKey)) {
+    //         ECPublicKey ecPublicKey = (ECPublicKey) publicKey;
+    //         byte[] x = ecPublicKey.getW().getAffineX().toByteArray();
+    //         byte[] y = ecPublicKey.getW().getAffineY().toByteArray();
+    //         byte[] publicKeyBytes = new byte[64];
+    //         System.arraycopy(x, Math.max(0, x.length - 32), publicKeyBytes, Math.max(0, 32 - x.length), Math.min(x.length, 32));
+    //         System.arraycopy(y, Math.max(0, y.length - 32), publicKeyBytes, 32 + Math.max(0, 32 - y.length), Math.min(y.length, 32));
+    //         byte[] hash = Hash.sha3(publicKeyBytes);
+    //         return Numeric.toHexString(Arrays.copyOfRange(hash, hash.length - 20, hash.length));
+    //     }
+    //     return null;
+    // }
 
-    // Method to compute the Ethereum address from a given public key
-    private String publicAddress(ECKey publicKey) {
-        if (publicKey instanceof ECPublicKey && isExpectedEllipticCurve((ECPublicKey) publicKey)) {
-            ECPublicKey ecPublicKey = (ECPublicKey) publicKey;
-            byte[] x = ecPublicKey.getW().getAffineX().toByteArray();
-            byte[] y = ecPublicKey.getW().getAffineY().toByteArray();
-            byte[] publicKeyBytes = new byte[64];
-            System.arraycopy(x, Math.max(0, x.length - 32), publicKeyBytes, Math.max(0, 32 - x.length), Math.min(x.length, 32));
-            System.arraycopy(y, Math.max(0, y.length - 32), publicKeyBytes, 32 + Math.max(0, 32 - y.length), Math.min(y.length, 32));
-            byte[] hash = Hash.sha3(publicKeyBytes);
-            return Numeric.toHexString(Arrays.copyOfRange(hash, hash.length - 20, hash.length));
-        }
-        return null;
-    }
+    // private boolean isExpectedEllipticCurve(ECPublicKey publicKey) {
+    //     ECParameterSpec params = publicKey.getParams();
+    //     EllipticCurve curve = params.getCurve();
+    //     // Replace with the actual expected elliptic curve parameters
+    //     ECNamedCurveParameterSpec expectedParams = ECNamedCurveTable.getParameterSpec("secp256k1");
+    //     return curve.equals(expectedParams.getCurve());
+    // }
 
-    private boolean isExpectedEllipticCurve(ECPublicKey publicKey) {
-        ECParameterSpec params = publicKey.getParams();
-        EllipticCurve curve = params.getCurve();
-        // Replace with the actual expected elliptic curve parameters
-        ECNamedCurveParameterSpec expectedParams = ECNamedCurveTable.getParameterSpec("secp256k1");
-        return curve.equals(expectedParams.getCurve());
-    }
     private class MemoryDirectory extends MemoryPath {
         private List<MemoryPath> contents = new ArrayList<>();
 
@@ -379,6 +384,45 @@ public class MemoryFS extends FuseStubFS {
             }
             name = newName;
         }
+    }
+
+    //from the ai...is this even the correct way to do this?
+    public static String signJsonWithSecp256k1(String jsonData, String privateKeyHex) {
+        // Convert private key from hex to byte array
+        byte[] privateKeyBytes = hexStringToByteArray(privateKeyHex);
+
+        // Create ECKey from private key
+        ECKey ecKey = ECKey.fromPrivate(privateKeyBytes);
+
+        // Convert JSON data to byte array
+        byte[] jsonDataBytes = jsonData.getBytes(StandardCharsets.UTF_8);
+
+        // Calculate SHA-256 hash of the JSON data
+        Sha256Hash sha256Hash = Sha256Hash.of(jsonDataBytes);
+
+        // Sign the hash using the private key
+        byte[] signature = ecKey.sign(sha256Hash).encodeToDER();
+
+        // Return the signature as a hex string
+        return byteArrayToHexString(signature);
+    }
+
+    private static byte[] hexStringToByteArray(String hexString) {
+        int len = hexString.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(hexString.charAt(i), 16) << 4)
+                    + Character.digit(hexString.charAt(i + 1), 16));
+        }
+        return data;
+    }
+
+    private static String byteArrayToHexString(byte[] byteArray) {
+        StringBuilder hexString = new StringBuilder(2 * byteArray.length);
+        for (byte b : byteArray) {
+            hexString.append(String.format("%02x", b));
+        }
+        return hexString.toString();
     }
 
     public static void main(String[] args) {
@@ -874,7 +918,30 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
          * 
          */
 
-        String pubKey = "";
+         /*
+          
+        example from grospic wallet:
+        Private key	84d1e11a81a7f1fd5a18f869573ae54123756aec5696ffb5e3f465e4ae01adf5
+        Public key	04ec4d865367d9a4ce49db154b48823db817fd5574571053c006df74ff95fbf95784f89e3fefaf757a7106c4d23595db742df07a4edfdaa66a15ccfa24db8f092e
+        ETH	052fd8959e1103c0903a5bededabd90bb6c49e06
+        REV	11112r5BTTrR89JG64yS4LKJo6RpAxWDUc8eMDK1LBMNmLQV2v8zs8 
+
+        anton's setup:
+        BOOTSTRAP
+        PRIVATE_KEY=34d969f43affa8e5c47900e6db475cb8ddd8520170ee73b2207c54014006ff2b
+        PUB_KEY=04c5dfd5ab6ea61de1de4c307454fd95dbeb5399fd1a79ab67e2ed3436f153615ede974205b863bbe7b0dadfb6b308ea3307560ea2c41b774b9907fcad72e52c9b
+        ETH_ADDRESS=07e36b04ed27e95fda8662358bddd95452872023
+        VALIDATOR1
+        PRIVATE_KEY=016120657a8f96c8ee5c50b138c70c66a2b1366f81ea41ae66065e51174e158e
+        PUB_KEY=042b02e3069f5aaa09fc856d16abbf43a8f3cd45f8fa8889e4a2744ffd14f418a398945ec5ea08603c3726e794e9b936c3d45894fdb9f2df5591bdaea6607e6b0a
+        ETH_ADDRESS=4349f17f7af650e819d84832e340795c8aa532a0
+        VALIDATOR2
+        PRIVATE_KEY=304b2893981c36122a687c1fd534628d6f1d4e9dd8f44569039ea762dae2d3e7
+        PUB_KEY=04a98a4c7fceb7caec0bd5c1774e5307aad7f4c4a14ec6472cea4b1d262d08bfec683e0a15d5f78c5040405be3b469889b059e2986d55b239077be0d49aec8a85b
+        ETH_ADDRESS=8c2013c7c7d227d18321852199b05990b4c21510
+        */
+
+        String pubKey = "04c5dfd5ab6ea61de1de4c307454fd95dbeb5399fd1a79ab67e2ed3436f153615ede974205b863bbe7b0dadfb6b308ea3307560ea2c41b774b9907fcad72e52c9b";
         String sigVal = "";
         Gson gson = new Gson();
 
@@ -887,25 +954,32 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         deployData.setValidAfterBlockNumber(1);
         deployData.setShardId("root");
 
-        try {
-            // Generate a new RSA key pair (or use an existing one)
-            KeyPair keyPair = generateKeyPair();
-            pubKey = keyPair.getPublic().toString();
+        String privKeyHex = "34d969f43affa8e5c47900e6db475cb8ddd8520170ee73b2207c54014006ff2b";
+        String serializedDeployData = gson.toJson(deployData);
+        sigVal = signJsonWithSecp256k1(serializedDeployData, privKeyHex);
 
-            // Serialize the deploy data (this is a placeholder for actual serialization logic)
-            String serializedDeployData = gson.toJson(deployData);
+        String jsonPayload = "{ \"deployData\": \"" + serializedDeployData + "\", \"signature\": \"" + sigVal + "\" }";
+        System.out.println("jsonPayload: \n" + jsonPayload);
 
-            // Sign the serialized deploy data
-            sigVal = signData(serializedDeployData, keyPair.getPrivate());
+        // try {
+        //     // Generate a new RSA key pair (or use an existing one)
+        //     KeyPair keyPair = generateKeyPair();
+        //     pubKey = keyPair.getPublic().toString();
 
-            // Create the JSON payload with the signed deploy data (this is a placeholder for actual payload creation)
-            String jsonPayload = "{ \"deployData\": \"" + serializedDeployData + "\", \"signature\": \"" + sigVal + "\" }";
-            System.out.println("jsonPayload: \n" + jsonPayload);
+        //     // Serialize the deploy data (this is a placeholder for actual serialization logic)
+        //     String serializedDeployData = gson.toJson(deployData);
 
-            // Rest of the sendHttpPost method...
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        //     // Sign the serialized deploy data
+        //     sigVal = signData(serializedDeployData, keyPair.getPrivate());
+
+        //     // Create the JSON payload with the signed deploy data (this is a placeholder for actual payload creation)
+            // String jsonPayload = "{ \"deployData\": \"" + serializedDeployData + "\", \"signature\": \"" + sigVal + "\" }";
+            // System.out.println("jsonPayload: \n" + jsonPayload);
+
+        //     // Rest of the sendHttpPost method...
+        // } catch (Exception e) {
+        //     e.printStackTrace();
+        // }
 
         
 
@@ -914,7 +988,10 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         deployDataRequest.setData(deployData);
         deployDataRequest.setDeployer(pubKey);
         deployDataRequest.setSignature(sigVal);
-        deployDataRequest.setSigAlgorithm("secp256k1");
+        //if i use secp256k it gives me an error "Signature algorithm not supported."
+        //so both secp256k1:eth and secp256k1 options are valid just like grospic wallet
+        //it says the error is "Invalid signature." so the actual signing must be off
+        deployDataRequest.setSigAlgorithm("secp256k1:eth");
 
         // Convert the DeployRequest object to JSON using Gson
         return gson.toJson(deployDataRequest);

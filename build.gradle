@@ -58,6 +58,7 @@ tasks.withType(Javadoc).configureEach {
 dependencies {
     // Gson dependency for JSON serialization/deserialization
     implementation 'com.google.code.gson:gson:2.8.9'
+    implementation 'org.bitcoinj:bitcoinj-core:0.16.2'
 
     // Web3j dependency for keccak256/SHA3 hashing
     implementation 'org.web3j:core:4.8.7'
