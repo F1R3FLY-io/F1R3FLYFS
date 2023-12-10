@@ -10,16 +10,11 @@
 
 ## Instructions for Building and Running the Demo
 
-1. Use the `rchain-docker-cluster` repo to start a shard (`docker compuse -f ./shard.yml up`) on Intel only hardware currently
+1. Use the `rchain-docker-cluster` repo to start a shard (`docker compose -f ./shard.yml up`) on Intel only hardware currently
 2. Use the `jnr-fuse` repo to integrate the MacFuse system with triggered events to deploy Rholang to the cluster
-> 
-```
-gradle build # may not be necessary
-gradle shadowTar # builds libs in class path
-java -cp build/libs/jnr-fuse-0.5.8-SNAPSHOT-shadow.jar ru.serce.jnrfuse.examples.MemoryFS # executes Rholang template code against Fuse events
-```
-3. Navigate the file system by `cd /tmp/mntm`. Create a directory and file using an editor and not the interaction on chain as well as the deployed Rholang contracts. The information is being relayed to the shard as you create the files.
-4. Run `docker compose -f ./shard.yml down` to stop the shard.
+3. In the `jnr-fuse` repo do `gradle shadowTar` and then `java -cp build/libs/jnr-fuse-0.5.8-SNAPSHOT-shadow.jar ru.serce.jnrfuse.examples.MemoryFS`
+4. Navigate the file system by `cd /tmp/mntm`. Create a directory and file using an editor and not the interaction on chain as well as the deployed Rholang contracts. The information is being relayed to the shard as you create the files.
+5. Run `docker compose -f ./shard.yml down` to stop the shard.
 
 ## Current Work to use enable use on Apple Silicon
 
