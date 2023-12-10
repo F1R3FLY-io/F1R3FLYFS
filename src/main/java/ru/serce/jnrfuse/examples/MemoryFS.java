@@ -819,7 +819,13 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
             HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
             System.out.println("Response status code: " + response.statusCode());
             System.out.println("Response body: " + response.body());
+        } catch (ConnectException e) {
+            System.err.println("Failed to connect to the server. Please check if the server is running and accessible.");
+            // Log the error message for debugging purposes
+            e.printStackTrace();
         } catch (Exception e) {
+            System.err.println("An error occurred while sending the HTTP request.");
+            // Log the error message for debugging purposes
             e.printStackTrace();
         }
     }
