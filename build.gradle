@@ -5,24 +5,24 @@ plugins {
     id 'io.github.gradle-nexus.publish-plugin' version '1.2.0'
     id 'maven-publish'
     id 'signing'
-    id 'com.google.protobuf' version '0.9.4'
+//     id 'com.google.protobuf' version '0.9.4'
 }
 
-protobuf {
-  protoc {
-    artifact = "com.google.protobuf:protoc:3.22.3"
-  }
-  plugins {
-    grpc {
-      artifact = 'io.grpc:protoc-gen-grpc-java:1.60.0'
-    }
-  }
-  generateProtoTasks {
-    all()*.plugins {
-      grpc {}
-    }
-  }
-}
+// protobuf {
+//   protoc {
+//     artifact = "com.google.protobuf:protoc:3.22.3"
+//   }
+//   plugins {
+//     grpc {
+//       artifact = 'io.grpc:protoc-gen-grpc-java:1.60.0'
+//     }
+//   }
+//   generateProtoTasks {
+//     all()*.plugins {
+//       grpc {}
+//     }
+//   }
+// }
 
 // sourceSets {
 //   main {
@@ -42,7 +42,7 @@ java {
     withSourcesJar()
     withJavadocJar()
     toolchain {
-        languageVersion = JavaLanguageVersion.of(11)
+        languageVersion = JavaLanguageVersion.of(17)
     }
 }
 
@@ -51,17 +51,20 @@ shadowJar {
     relocate 'org.objectweb.asm', 'org.objectweb.asm.shaded'
 }
 
-tasks.withType(Javadoc).configureEach {
-    options.addStringOption('Xdoclint:none', '-quiet')
-}
+// tasks.withType(Javadoc).configureEach {
+//     options.addStringOption('Xdoclint:none', '-quiet')
+// }
+
+tasks.withType(Javadoc).all { enabled = false }
 
 dependencies {
     // Gson dependency for JSON serialization/deserialization
     implementation 'com.google.code.gson:gson:2.8.9'
     implementation 'org.bitcoinj:bitcoinj-core:0.16.2'
+    implementation group: 'com.github.jnr', name: 'jnr-ffi', version: '2.2.15'
 
     // Web3j dependency for keccak256/SHA3 hashing
-    implementation 'org.web3j:core:4.8.7'
+    implementation 'org.web3j:core:4.10.3'
     
     // Existing dependencies...
     
