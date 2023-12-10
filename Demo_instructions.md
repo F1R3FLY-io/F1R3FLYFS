@@ -18,7 +18,8 @@ gradle build # may not be necessary
 gradle shadowTar # builds libs in class path
 java -cp build/libs/jnr-fuse-0.5.8-SNAPSHOT-shadow.jar ru.serce.jnrfuse.examples.MemoryFS # executes Rholang template code against Fuse events
 ```
-3. Run `docker compose -f ./shard.yml down` to stop the shard.
+3. Navigate the file system by `cd /tmp/mntm`. Create a directory and file using an editor and not the interaction on chain as well as the deployed Rholang contracts. The information is being relayed to the shard as you create the files.
+4. Run `docker compose -f ./shard.yml down` to stop the shard.
 
 ## Current Work to use enable use on Apple Silicon
 
