@@ -758,23 +758,23 @@ public class MemoryFS extends FuseStubFS {
      }
 
      public void sendHttpPost(String code) {
-         try {
-             // Generate a new RSA key pair (or use an existing one)
-             KeyPair keyPair = generateKeyPair();
+        //  try {
+        //      // Generate a new RSA key pair (or use an existing one)
+        //      KeyPair keyPair = generateKeyPair();
 
-             // Serialize the deploy data (this is a placeholder for actual serialization logic)
-             String serializedDeployData = "Serialized deploy data";
+        //      // Serialize the deploy data (this is a placeholder for actual serialization logic)
+        //      String serializedDeployData = "Serialized deploy data";
 
-             // Sign the serialized deploy data
-             String signature = signData(serializedDeployData, keyPair.getPrivate());
+        //      // Sign the serialized deploy data
+        //      String signature = signData(serializedDeployData, keyPair.getPrivate());
 
-             // Create the JSON payload with the signed deploy data (this is a placeholder for actual payload creation)
-             String jsonPayload = "{ \"deployData\": \"" + serializedDeployData + "\", \"signature\": \"" + signature + "\" }";
+        //      // Create the JSON payload with the signed deploy data (this is a placeholder for actual payload creation)
+        //      String jsonPayload = "{ \"deployData\": \"" + serializedDeployData + "\", \"signature\": \"" + signature + "\" }";
 
-             // Rest of the sendHttpPost method...
-         } catch (Exception e) {
-             e.printStackTrace();
-         }
+        //      // Rest of the sendHttpPost method...
+        //  } catch (Exception e) {
+        //      e.printStackTrace();
+        //  }
         HttpClient client = HttpClient.newHttpClient();
 
         //sending simplest code now just to test
@@ -798,21 +798,14 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         
         String json = createDeployDataRequest(termVal);
 
-        System.out.println("json: " + json.toString());
+        System.out.println("json being sent: " + json.toString());
 
-//         grpcurl --insecure --import-path ./node/target/protobuf_external --import-path ./models/src/main/protobuf --proto routing.proto --cert=./rchain.xmpl/node0/rnode/node.certificate.pem --key=./rchain.xmpl/node0/rnode/node.key.pem 127.0.0.1:40400 list 
-// routing.TransportLayer
-
-        //this does not work currently:
         //trying to figure out how to pair it with grospic wallet on rnode-client-js
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + 40403 + "/api/deploy"))
                 .header("Content-Type", "application/json")
                 .POST(BodyPublishers.ofString(json, StandardCharsets.UTF_8))
                 .build();
-
-        System.out.println("request: " + request.toString());
-        System.out.println("ghjghjjg");
 
         //this works...default API status check
         // HttpRequest request = HttpRequest.newBuilder()
@@ -821,6 +814,7 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         //         .GET()
         //         .build();
 
+        System.out.println("request: " + request.toString());
         try {
             HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
             System.out.println("Response status code: " + response.statusCode());
@@ -873,7 +867,11 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
          * 
          */
 
-         // Create the DeployData object
+        String pubKey = "";
+        String sigVal = "";
+        Gson gson = new Gson();
+
+        // Create the DeployData object
         DeployData deployData = new DeployData();
         deployData.setTerm(term);
         deployData.setTimestamp(System.currentTimeMillis());
@@ -882,15 +880,36 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         deployData.setValidAfterBlockNumber(1);
         deployData.setShardId("root");
 
+        try {
+            // Generate a new RSA key pair (or use an existing one)
+            KeyPair keyPair = generateKeyPair();
+            pubKey = keyPair.getPublic().toString();
+
+            // Serialize the deploy data (this is a placeholder for actual serialization logic)
+            String serializedDeployData = gson.toJson(deployData);
+
+            // Sign the serialized deploy data
+            sigVal = signData(serializedDeployData, keyPair.getPrivate());
+
+            // Create the JSON payload with the signed deploy data (this is a placeholder for actual payload creation)
+            String jsonPayload = "{ \"deployData\": \"" + serializedDeployData + "\", \"signature\": \"" + sigVal + "\" }";
+            System.out.println("jsonPayload: \n" + jsonPayload);
+
+            // Rest of the sendHttpPost method...
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        
+
         // Create the DeployRequest object
         DeployDataRequest deployDataRequest = new DeployDataRequest();
         deployDataRequest.setData(deployData);
-        deployDataRequest.setDeployer("043c9c39d032925384f25413d553e91c261555384589329595e9c6956055719b54839704948477e4f0d4743cfdf1635bd497fa44995cea1c5c75971cf779da11b0");
-        deployDataRequest.setSignature("1f80ccdc2517d842e67b913f656357b3f7a54a3f7c993f6df98063417d0c680f72a666f2e8a6cb38d0591740adcbded9ad7449d26b6def78a0113e77124f96d41b");
+        deployDataRequest.setDeployer(pubKey);
+        deployDataRequest.setSignature(sigVal);
         deployDataRequest.setSigAlgorithm("secp256k1");
 
         // Convert the DeployRequest object to JSON using Gson
-        Gson gson = new Gson();
         return gson.toJson(deployDataRequest);
     }
 
