@@ -430,7 +430,7 @@ public class MemoryFS extends FuseStubFS {
         // ... other fields
 
         // Build the DeployDataProto object
-        DeployDataProto deployDataProto = builder.build();
+        DeployDataProto deployDataProto = builder.setTerm("asdf").build(); //etc
 
         // Serialize to a byte array
         return deployDataProto.toByteArray();
