@@ -4,6 +4,7 @@ gradle build
 gradle shadowTar # builds class path
 java -cp build/libs/jnr-fuse-0.5.8-SNAPSHOT-shadow.jar ru.serce.jnrfuse.examples.MemoryFS # executes Rholang template code against Fuse events
 ```
+See: [Demo Instructions.md](./Demo_instructions.md)
 
 
 jnr-fuse
