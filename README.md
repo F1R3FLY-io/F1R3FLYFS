@@ -1,3 +1,11 @@
+### Quickstart for Rholang File System / MacFuse Demo
+```
+gradle build
+gradle shadowTar # builds class path
+java -cp build/libs/jnr-fuse-0.5.8-SNAPSHOT-shadow.jar ru.serce.jnrfuse.examples.MemoryFS # executes Rholang template code against Fuse events
+```
+
+
 jnr-fuse
 ==
 [![Build Status](https://circleci.com/gh/SerCeMan/jnr-fuse.svg?style=svg)](https://circleci.com/gh/SerCeMan/jnr-fuse)  [![Join the chat at https://gitter.im/SerCeMan/jnr-fuse](https://badges.gitter.im/SerCeMan/jnr-fuse.svg)](https://gitter.im/SerCeMan/jnr-fuse?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
