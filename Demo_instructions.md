@@ -1,4 +1,4 @@
-# A list of the Repos Used for Demo and Project
+# List of the Repos Used for Demo and Project
 
 * [git@github.com:leithaus/f1r3fly.git](https://github.com/leithaus/f1r3fly/tree/working)
 
@@ -8,6 +8,8 @@
 
 * [git@github.com:ComposeDAO/rchain.xmpl.git](https://github.com/ComposeDAO/rchain.xmpl)
 
+* [git@github.com:jeffrey-l-turner/rnode-client-js.git](https://github.com/jeffrey-l-turner/rnode-client-js.git)
+
 ## Instructions for Building and Running the Demo
 
 1. Use the `rchain-docker-cluster` repo to start a shard (`docker compose -f ./shard.yml up`) on Intel only hardware currently
@@ -16,7 +18,7 @@
 4. Navigate the file system by `cd /tmp/mntm`. Create a directory and file using an editor and not the interaction on chain as well as the deployed Rholang contracts. The information is being relayed to the shard as you create the files.
 5. Run `docker compose -f ./shard.yml down` to stop the shard.
 
-## Current Work to use enable use on Apple Silicon
+## Current Work to use/enable on Apple Silicon
 
 * The `f1r3fly` `working` branch builds a docker container via the `sbt clean compile "project node" assembly node/docker:publishLocal` command.
 * Make sure you have your Docker Desktop running so the image can be locally published.
