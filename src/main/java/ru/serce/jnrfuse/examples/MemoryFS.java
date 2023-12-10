@@ -61,18 +61,12 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
-import java.nio.charset.StandardCharsets;
+//import java.nio.charset.StandardCharsets;
 
-
-//  import io.grpc.ManagedChannel;
-//  import io.grpc.ManagedChannelBuilder;
-//  import casper.CasperMessage.DeployDataProto;
-//  import casper.v1.DeployServiceV1.DeployResponse;
-//  import casper.v1.DeployServiceGrpc;
-//  import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
+// Protobuf generated classes
+import casper.Casper;
 
 import static jnr.ffi.Platform.OS.WINDOWS;
-
 
 
 // import org.bouncycastle.jce.ECNamedCurveTable;
@@ -957,28 +951,6 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
 
         String jsonPayload = "{ \"deployData\": \"" + serializedDeployData + "\", \"signature\": \"" + sigVal + "\" }";
         System.out.println("jsonPayload: \n" + jsonPayload);
-
-        // try {
-        //     // Generate a new RSA key pair (or use an existing one)
-        //     KeyPair keyPair = generateKeyPair();
-        //     pubKey = keyPair.getPublic().toString();
-
-        //     // Serialize the deploy data (this is a placeholder for actual serialization logic)
-        //     String serializedDeployData = gson.toJson(deployData);
-
-        //     // Sign the serialized deploy data
-        //     sigVal = signData(serializedDeployData, keyPair.getPrivate());
-
-        //     // Create the JSON payload with the signed deploy data (this is a placeholder for actual payload creation)
-            // String jsonPayload = "{ \"deployData\": \"" + serializedDeployData + "\", \"signature\": \"" + sigVal + "\" }";
-            // System.out.println("jsonPayload: \n" + jsonPayload);
-
-        //     // Rest of the sendHttpPost method...
-        // } catch (Exception e) {
-        //     e.printStackTrace();
-        // }
-
-        
 
         // Create the DeployRequest object
         DeployDataRequest deployDataRequest = new DeployDataRequest();
