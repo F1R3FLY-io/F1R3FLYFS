@@ -1023,3 +1023,24 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
          }
      }
 }
+
+// Serialize deploy data for signing
+//   const deploySerialized = deployDataProtobufSerialize({
+//     term, timestamp, phloPrice, phloLimit, validAfterBlockNumber, shardId,
+//   })
+
+//   // Signing key
+//   const crypt    = new ec(sigAlgorithm)
+//   const key      = getSignKey(crypt, privateKey)
+//   const deployer = Uint8Array.from(key.getPublic('array'))
+//   // Hash and sign serialized deploy
+//   const hashed   = blake.blake2bHex(deploySerialized, void 666, 32)
+//   const sigArray = key.sign(hashed, {canonical: true}).toDER('array')
+//   const sig      = Uint8Array.from(sigArray)
+
+//   // Return deploy object / ready for sending to RNode
+//   return {
+//     term, timestamp, phloPrice, phloLimit, validAfterBlockNumber, shardId,
+//     deployer, sig, sigAlgorithm,
+//   }
+// }
