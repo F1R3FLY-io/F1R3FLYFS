@@ -67,7 +67,7 @@ import org.bouncycastle.util.encoders.Hex;
 import org.bouncycastle.util.encoders.HexEncoder;
 import org.bouncycastle.asn1.sec.ECPrivateKey;
 import org.bouncycastle.crypto.digests.Blake2bDigest;
-import org.bouncycastle.asn1.*;
+import org.bouncycastle.jcajce.provider.asymmetric.EC;
 
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
@@ -387,13 +387,63 @@ public class MemoryFS extends FuseStubFS {
         byte [] hashedHex = Hex.encode(hashedData);
 
         // const sigArray = key.sign(hashed, {canonical: true}).toDER('array')
-        Sign.SignatureData signature = Sign.signMessage(hashedHex, keyPair, false);
+        Sign.SignatureData signature = Sign.signMessage(hashedHex, keyPair, true);
 
-        ASN1Integer r = new ASN1Integer(signature.getR());
-        ASN1Integer s = new ASN1Integer(signature.getS());
-        byte [] der = new DERSequence(new ASN1Integer []{r, s}).getEncoded();
+        // Gleefully ripped off from <https://stackoverflow.com/a/49275839>
+        byte[] rb = signature.getR();
+        byte[] sb = signature.getS();
+        int off = (2 + 2) + rb.length;
+        int tot = off + (2 - 2) + sb.length;
+        byte[] der = new byte[tot + 2];
+        der[0] = 0x30;
+        der[1] = (byte) (tot & 0xff);
+        der[2 + 0] = 0x02;
+        der[2 + 1] = (byte) (rb.length & 0xff);
+        System.arraycopy(rb, 0, der, 2 + 2, rb.length);
+        der[off + 0] = 0x02;
+        der[off + 1] = (byte) (sb.length & 0xff);
+        System.arraycopy(sb, 0, der, off + 2, sb.length);
 
         return new String(Hex.encode(der));
+    }
+
+    //from the ai...is this even the correct way to do this?
+    public static String signJsonWithSecp256k1wBlake(String jsonData, String privateKeyHex) {
+        // Convert private key from hex to byte array
+        byte[] privateKeyBytes = hexStringToByteArray(privateKeyHex);
+
+        // Create ECKey from private key
+        ECKey ecKey = ECKey.fromPrivate(privateKeyBytes);
+
+        // Convert JSON data to byte array
+        byte[] jsonDataBytes = jsonData.getBytes(StandardCharsets.UTF_8);
+
+        // Calculate SHA-256 hash of the JSON data
+        Sha256Hash sha256Hash = Sha256Hash.of(jsonDataBytes);
+
+        // Sign the hash using the private key
+        byte[] signature = ecKey.sign(sha256Hash).encodeToDER();
+
+        // Return the signature as a hex string
+        return byteArrayToHexString(signature);
+    }
+
+    private static byte[] hexStringToByteArray(String hexString) {
+        int len = hexString.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(hexString.charAt(i), 16) << 4)
+                    + Character.digit(hexString.charAt(i + 1), 16));
+        }
+        return data;
+    }
+
+    private static String byteArrayToHexString(byte[] byteArray) {
+        StringBuilder hexString = new StringBuilder(2 * byteArray.length);
+        for (byte b : byteArray) {
+            hexString.append(String.format("%02x", b));
+        }
+        return hexString.toString();
     }
 
     public static void main(String[] args) {
