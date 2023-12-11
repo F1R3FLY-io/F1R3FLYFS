@@ -50,6 +50,9 @@ dependencies {
     // Protobuf dependency
     implementation 'com.google.protobuf:protobuf-java:3.19.4'
 
+    // Web3J
+implementation group: 'org.web3j', name: 'crypto', version: '4.10.3'
+
     testImplementation 'junit:junit:4.13.2'
 }
 

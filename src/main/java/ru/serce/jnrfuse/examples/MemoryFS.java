@@ -11,6 +11,7 @@ package ru.serce.jnrfuse.examples;
 import org.bitcoinj.core.ECKey;
 import org.bitcoinj.core.Sha256Hash;
 
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 // These imports should be moved to the top of the file, just after the package declaration.
@@ -45,6 +46,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.base.Charsets;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
@@ -60,6 +62,12 @@ import java.security.Security;
 import java.security.Signature;
 import java.util.Base64;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.math.ec.custom.sec.SecP256K1Curve;
+import org.bouncycastle.util.encoders.Hex;
+import org.bouncycastle.util.encoders.HexEncoder;
+import org.bouncycastle.asn1.sec.ECPrivateKey;
+import org.bouncycastle.crypto.digests.Blake2bDigest;
+import org.bouncycastle.jcajce.provider.asymmetric.EC;
 
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
@@ -78,8 +86,8 @@ import static jnr.ffi.Platform.OS.WINDOWS;
 // import java.security.spec.ECParameterSpec;
 // import java.security.spec.EllipticCurve;
 // import java.util.Arrays;
-// import org.web3j.crypto.Credentials;
-// import org.web3j.crypto.ECKeyPair;
+import org.web3j.crypto.*;
+import java.math.BigInteger;
 // import org.web3j.crypto.Keys;
 
 // Removed imports that are causing compilation errors
@@ -128,36 +136,6 @@ public class MemoryFS extends FuseStubFS {
             return reader.readLine().split(",")[0].trim();
         }
     }
-
-    // private void signAndSendTransaction(String privateKeyHex) {
-    //     // Convert the private key from hex to an ECKeyPair
-    //     ECKeyPair ecKeyPair = ECKeyPair.create(Numeric.toBigInt(privateKeyHex));
-    //     Credentials credentials = Credentials.create(ecKeyPair);
-
-    // }
-
-    // // Method to compute the Ethereum address from a given public key
-    // private String publicAddress(ECKey publicKey) {
-    //     if (publicKey instanceof ECPublicKey && isExpectedEllipticCurve((ECPublicKey) publicKey)) {
-    //         ECPublicKey ecPublicKey = (ECPublicKey) publicKey;
-    //         byte[] x = ecPublicKey.getW().getAffineX().toByteArray();
-    //         byte[] y = ecPublicKey.getW().getAffineY().toByteArray();
-    //         byte[] publicKeyBytes = new byte[64];
-    //         System.arraycopy(x, Math.max(0, x.length - 32), publicKeyBytes, Math.max(0, 32 - x.length), Math.min(x.length, 32));
-    //         System.arraycopy(y, Math.max(0, y.length - 32), publicKeyBytes, 32 + Math.max(0, 32 - y.length), Math.min(y.length, 32));
-    //         byte[] hash = Hash.sha3(publicKeyBytes);
-    //         return Numeric.toHexString(Arrays.copyOfRange(hash, hash.length - 20, hash.length));
-    //     }
-    //     return null;
-    // }
-
-    // private boolean isExpectedEllipticCurve(ECPublicKey publicKey) {
-    //     ECParameterSpec params = publicKey.getParams();
-    //     EllipticCurve curve = params.getCurve();
-    //     // Replace with the actual expected elliptic curve parameters
-    //     ECNamedCurveParameterSpec expectedParams = ECNamedCurveTable.getParameterSpec("secp256k1");
-    //     return curve.equals(expectedParams.getCurve());
-    // }
 
     private class MemoryDirectory extends MemoryPath {
         private List<MemoryPath> contents = new ArrayList<>();
@@ -379,6 +357,46 @@ public class MemoryFS extends FuseStubFS {
         }
     }
 
+    public static String signJsonWithSecp256k1wBlake(JsonObject jsonData, String privateKeyHex) {
+        // Decode the private key from Satoshis Base58 variant. If 51 characters long then it's from Bitcoins
+        // dumpprivkey command and includes a version byte and checksum, or if 52 characters long then it has 
+        // compressed pub key. Otherwise assume it's a raw key.
+
+        BigInteger priv = new BigInteger(privateKeyHex, 16);
+        BigInteger pubKey = Sign.publicKeyFromPrivate(priv);
+        ECKeyPair keyPair = new ECKeyPair(priv, pubKey);
+        DeployDataProto.Builder builder = DeployDataProto.newBuilder();
+        DeployDataProto deployData = 
+         builder.  //                                                                                                                                                 
+            setTerm(jsonData.get("term").getAsString()).
+            setTimestamp(jsonData.get("timestamp").getAsLong()).
+            setPhloPrice(jsonData.get("phloPrice").getAsLong()).
+            setPhloLimit(jsonData.get("phloLimit").getAsLong()). //                                                                                                                                                              
+            setValidAfterBlockNumber(jsonData.get("validAfterBlockNumber").getAsLong()).
+            setShardId(jsonData.get("shardId").getAsString()).
+         build();
+        byte [] serializedData = deployData.toByteArray();
+        byte [] hashedData = new byte[64];
+    
+        Blake2bDigest hasher = new Blake2bDigest("666".getBytes(Charsets.UTF_8));
+        hasher.update(serializedData, 0, serializedData.length);
+        // byte[] hashed = blake2bHex(deploySerialized);
+        
+        int hashLength = hasher.doFinal(hashedData, 0);
+    
+        byte [] hashedHex = Hex.encode(hashedData);
+
+        // const sigArray = key.sign(hashed, {canonical: true}).toDER('array')
+        Sign.SignatureData signature = Sign.signMessage(hashedHex, keyPair, true);
+        
+        byte[] retval = new byte[65];
+        System.arraycopy(signature.getR(), 0, retval, 0, 32);
+        System.arraycopy(signature.getS(), 0, retval, 32, 32);
+        System.arraycopy(signature.getV(), 0, retval, 64, 1);
+
+        return new String (Hex.encode(retval));
+    }
+
     //from the ai...is this even the correct way to do this?
     public static String signJsonWithSecp256k1(String jsonData, String privateKeyHex) {
         // Convert private key from hex to byte array
@@ -416,24 +434,6 @@ public class MemoryFS extends FuseStubFS {
             hexString.append(String.format("%02x", b));
         }
         return hexString.toString();
-    }
-
-    // Method to serialize DeployDataProto
-    private byte[] serializeDeployDataProto() throws InvalidProtocolBufferException {
-        // Create a DeployDataProto builder
-        DeployDataProto.Builder builder = DeployDataProto.newBuilder();
-
-        // Set fields of the builder here
-        // For example:
-        // builder.setPublicKey("your_public_key_here");
-        // builder.setTerm("your_rholang_code_here");
-        // ... other fields
-
-        // Build the DeployDataProto object
-        DeployDataProto deployDataProto = builder.setTerm("asdf").build(); //etc
-
-        // Serialize to a byte array
-        return deployDataProto.toByteArray();
     }
 
     public static void main(String[] args) {
@@ -1023,24 +1023,3 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
          }
      }
 }
-
-// Serialize deploy data for signing
-//   const deploySerialized = deployDataProtobufSerialize({
-//     term, timestamp, phloPrice, phloLimit, validAfterBlockNumber, shardId,
-//   })
-
-//   // Signing key
-//   const crypt    = new ec(sigAlgorithm)
-//   const key      = getSignKey(crypt, privateKey)
-//   const deployer = Uint8Array.from(key.getPublic('array'))
-//   // Hash and sign serialized deploy
-//   const hashed   = blake.blake2bHex(deploySerialized, void 666, 32)
-//   const sigArray = key.sign(hashed, {canonical: true}).toDER('array')
-//   const sig      = Uint8Array.from(sigArray)
-
-//   // Return deploy object / ready for sending to RNode
-//   return {
-//     term, timestamp, phloPrice, phloLimit, validAfterBlockNumber, shardId,
-//     deployer, sig, sigAlgorithm,
-//   }
-// }
