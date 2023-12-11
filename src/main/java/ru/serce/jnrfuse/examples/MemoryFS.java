@@ -398,7 +398,7 @@ public class MemoryFS extends FuseStubFS {
     }
 
     //from the ai...is this even the correct way to do this?
-    public static String signJsonWithSecp256k1(String jsonData, String privateKeyHex) {
+    public static String signJsonWithSecp256k1wBlake(String jsonData, String privateKeyHex) {
         // Convert private key from hex to byte array
         byte[] privateKeyBytes = hexStringToByteArray(privateKeyHex);
 
@@ -967,7 +967,8 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
 
         String privKeyHex = "34d969f43affa8e5c47900e6db475cb8ddd8520170ee73b2207c54014006ff2b";
         String serializedDeployData = gson.toJson(deployData);
-        sigVal = signJsonWithSecp256k1(serializedDeployData, privKeyHex);
+        System.out.println("calling signJsonWithSecp256k1wBlake");
+        sigVal = signJsonWithSecp256k1wBlake(serializedDeployData, privKeyHex);
 
         String jsonPayload = "{ \"deployData\": \"" + serializedDeployData + "\", \"signature\": \"" + sigVal + "\" }";
         System.out.println("jsonPayload: \n" + jsonPayload);
