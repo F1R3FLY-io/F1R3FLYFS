@@ -67,7 +67,7 @@ import org.bouncycastle.util.encoders.Hex;
 import org.bouncycastle.util.encoders.HexEncoder;
 import org.bouncycastle.asn1.sec.ECPrivateKey;
 import org.bouncycastle.crypto.digests.Blake2bDigest;
-import org.bouncycastle.jcajce.provider.asymmetric.EC;
+import org.bouncycastle.asn1.*;
 
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
@@ -357,7 +357,7 @@ public class MemoryFS extends FuseStubFS {
         }
     }
 
-    public static String signJsonWithSecp256k1wBlake(JsonObject jsonData, String privateKeyHex) {
+    public static String signJsonWithSecp256k1wBlake(JsonObject jsonData, String privateKeyHex) throws IOException {
         // Decode the private key from Satoshis Base58 variant. If 51 characters long then it's from Bitcoins
         // dumpprivkey command and includes a version byte and checksum, or if 52 characters long then it has 
         // compressed pub key. Otherwise assume it's a raw key.
@@ -389,20 +389,9 @@ public class MemoryFS extends FuseStubFS {
         // const sigArray = key.sign(hashed, {canonical: true}).toDER('array')
         Sign.SignatureData signature = Sign.signMessage(hashedHex, keyPair, true);
 
-        // Gleefully ripped off from <https://stackoverflow.com/a/49275839>
-        byte[] rb = signature.getR();
-        byte[] sb = signature.getS();
-        int off = (2 + 2) + rb.length;
-        int tot = off + (2 - 2) + sb.length;
-        byte[] der = new byte[tot + 2];
-        der[0] = 0x30;
-        der[1] = (byte) (tot & 0xff);
-        der[2 + 0] = 0x02;
-        der[2 + 1] = (byte) (rb.length & 0xff);
-        System.arraycopy(rb, 0, der, 2 + 2, rb.length);
-        der[off + 0] = 0x02;
-        der[off + 1] = (byte) (sb.length & 0xff);
-        System.arraycopy(sb, 0, der, off + 2, sb.length);
+        ASN1Integer r = new ASN1Integer(signature.getR());
+        ASN1Integer s = new ASN1Integer(signature.getS());
+        byte [] der = new DERSequence(new ASN1Integer []{r, s}).getEncoded();
 
         return new String(Hex.encode(der));
     }
