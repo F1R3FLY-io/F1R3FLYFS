@@ -388,13 +388,23 @@ public class MemoryFS extends FuseStubFS {
 
         // const sigArray = key.sign(hashed, {canonical: true}).toDER('array')
         Sign.SignatureData signature = Sign.signMessage(hashedHex, keyPair, true);
-        
-        byte[] retval = new byte[65];
-        System.arraycopy(signature.getR(), 0, retval, 0, 32);
-        System.arraycopy(signature.getS(), 0, retval, 32, 32);
-        System.arraycopy(signature.getV(), 0, retval, 64, 1);
 
-        return new String (Hex.encode(retval));
+        // Gleefully ripped off from <https://stackoverflow.com/a/49275839>
+        byte[] rb = signature.getR();
+        byte[] sb = signature.getS();
+        int off = (2 + 2) + rb.length;
+        int tot = off + (2 - 2) + sb.length;
+        byte[] der = new byte[tot + 2];
+        der[0] = 0x30;
+        der[1] = (byte) (tot & 0xff);
+        der[2 + 0] = 0x02;
+        der[2 + 1] = (byte) (rb.length & 0xff);
+        System.arraycopy(rb, 0, der, 2 + 2, rb.length);
+        der[off + 0] = 0x02;
+        der[off + 1] = (byte) (sb.length & 0xff);
+        System.arraycopy(sb, 0, der, off + 2, sb.length);
+
+        return new String(Hex.encode(der));
     }
 
     //from the ai...is this even the correct way to do this?
