@@ -396,45 +396,6 @@ public class MemoryFS extends FuseStubFS {
         return new String(Hex.encode(der));
     }
 
-    //from the ai...is this even the correct way to do this?
-    public static String signJsonWithSecp256k1wBlake(String jsonData, String privateKeyHex) {
-        // Convert private key from hex to byte array
-        byte[] privateKeyBytes = hexStringToByteArray(privateKeyHex);
-
-        // Create ECKey from private key
-        ECKey ecKey = ECKey.fromPrivate(privateKeyBytes);
-
-        // Convert JSON data to byte array
-        byte[] jsonDataBytes = jsonData.getBytes(StandardCharsets.UTF_8);
-
-        // Calculate SHA-256 hash of the JSON data
-        Sha256Hash sha256Hash = Sha256Hash.of(jsonDataBytes);
-
-        // Sign the hash using the private key
-        byte[] signature = ecKey.sign(sha256Hash).encodeToDER();
-
-        // Return the signature as a hex string
-        return byteArrayToHexString(signature);
-    }
-
-    private static byte[] hexStringToByteArray(String hexString) {
-        int len = hexString.length();
-        byte[] data = new byte[len / 2];
-        for (int i = 0; i < len; i += 2) {
-            data[i / 2] = (byte) ((Character.digit(hexString.charAt(i), 16) << 4)
-                    + Character.digit(hexString.charAt(i + 1), 16));
-        }
-        return data;
-    }
-
-    private static String byteArrayToHexString(byte[] byteArray) {
-        StringBuilder hexString = new StringBuilder(2 * byteArray.length);
-        for (byte b : byteArray) {
-            hexString.append(String.format("%02x", b));
-        }
-        return hexString.toString();
-    }
-
     public static void main(String[] args) throws IOException {
         MemoryFS memfs = new MemoryFS();
         try {
