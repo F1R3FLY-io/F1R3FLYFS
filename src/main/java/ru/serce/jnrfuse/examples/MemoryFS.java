@@ -435,7 +435,7 @@ public class MemoryFS extends FuseStubFS {
         return hexString.toString();
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         MemoryFS memfs = new MemoryFS();
         try {
             String path;
@@ -455,7 +455,7 @@ public class MemoryFS extends FuseStubFS {
 
     private MemoryDirectory rootDirectory = new MemoryDirectory("mountedFromJava");
 
-    public MemoryFS() {
+    public MemoryFS() throws IOException {
         // Sprinkle some files around
         rootDirectory.add(new MemoryFile("Sample file.txt", "Hello there, feel free to look around.\n"));
         rootDirectory.add(new MemoryDirectory("Sample directory"));
@@ -678,7 +678,11 @@ public class MemoryFS extends FuseStubFS {
         //the other laptop running the same software connected to the node could pull it down
         //drag and drop i only get the ._filename one due to the disk full error from timestamp
         if (path.contains("abc.txt")) {
-            sendRholangCode(path,dataString);
+            try {
+                sendRholangCode(path,dataString);
+            } catch (IOException ioe) {
+                System.err.println("sendRholangCode failed catastrophically with an IOException.");
+            }
         }
 
         System.out.println("WRITING: " + size);
@@ -727,7 +731,7 @@ public class MemoryFS extends FuseStubFS {
          return -ErrorCodes.ENOSYS();
      }
 
-     public void sendRholangCode(String path, String data) {
+     public void sendRholangCode(String path, String data) throws IOException {
 
         //System.out.println("sendRholangCode: " + data.toString());
             String fName = getLastComponent(path);
@@ -812,7 +816,7 @@ public class MemoryFS extends FuseStubFS {
          return Base64.getEncoder().encodeToString(digitalSignature);
      }
 
-     public void sendHttpPost(String code) {
+     public void sendHttpPost(String code) throws IOException {
         //  try {
         //      // Generate a new RSA key pair (or use an existing one)
         //      KeyPair keyPair = generateKeyPair();
@@ -885,7 +889,7 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         }
     }
 
-    public String createDeployDataRequest(String term)
+    public String createDeployDataRequest(String term) throws IOException
     {
 
         //from rnode-openapi.json in f1r3fly repo
@@ -965,7 +969,7 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         deployData.setShardId("root");
 
         String privKeyHex = "34d969f43affa8e5c47900e6db475cb8ddd8520170ee73b2207c54014006ff2b";
-        String serializedDeployData = gson.toJson(deployData);
+        JsonObject serializedDeployData = gson.toJsonTree(deployData).getAsJsonObject();
         System.out.println("calling signJsonWithSecp256k1wBlake");
         sigVal = signJsonWithSecp256k1wBlake(serializedDeployData, privKeyHex);
 
