@@ -984,7 +984,7 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         //if i use secp256k it gives me an error "Signature algorithm not supported."
         //so both secp256k1:eth and secp256k1 options are valid just like grospic wallet
         //it says the error is "Invalid signature." so the actual signing must be off
-        deployDataRequest.setSigAlgorithm("secp256k1:eth");
+        deployDataRequest.setSigAlgorithm("secp256k1");
 
         // Convert the DeployRequest object to JSON using Gson
         return gson.toJson(deployDataRequest);
