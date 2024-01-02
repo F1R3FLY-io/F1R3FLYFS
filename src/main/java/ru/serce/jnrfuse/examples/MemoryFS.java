@@ -1,7 +1,12 @@
 package ru.serce.jnrfuse.examples;
 
- import casper.Casper.DeployDataProto;
- //import casper.v1.DeployService;
+ import casper.v1.Casper.DeployDataProto;
+ import io.grpc.ManagedChannel;
+ import io.grpc.ManagedChannelBuilder;
+ import mypackage.MyServiceGrpc;
+ import mypackage.MyServiceGrpc.MyServiceBlockingStub;
+ import casper.v1.Casper.DeployResponse;
+ import mypackage.MyMethodResponse;
  import com.google.protobuf.InvalidProtocolBufferException;
  import java.io.BufferedReader;
  import java.io.FileReader;
@@ -398,6 +403,25 @@ public class MemoryFS extends FuseStubFS {
         byte [] der = new DERSequence(new ASN1Integer []{r, s}).getEncoded();
 
         return new String(Hex.encode(der));
+    }
+
+    private void makeGrpcCall() {
+        // Create a channel to the gRPC server
+        ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 50051)
+                .usePlaintext()
+                .build();
+        // Create a blocking stub on the channel
+        MyServiceBlockingStub stub = MyServiceGrpc.newBlockingStub(channel);
+        // Create a request
+        MyMethodRequest request = MyMethodRequest.newBuilder()
+                .setMyField("myValue")
+                .build();
+        // Make the call using the stub
+        MyMethodResponse response = stub.myMethod(request);
+        // Do something with the response
+        System.out.println("Response from gRPC service: " + response.getMyResponseField());
+        // Shutdown the channel
+        channel.shutdown();
     }
 
     private static String executeCommand(String[] command) {
