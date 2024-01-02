@@ -1,6 +1,7 @@
 package ru.serce.jnrfuse.examples;
 
  import casper.Casper.DeployDataProto;
+ //import casper.v1.DeployService;
  import com.google.protobuf.InvalidProtocolBufferException;
  import java.io.BufferedReader;
  import java.io.FileReader;
@@ -74,9 +75,12 @@ import java.net.http.HttpResponse.BodyHandlers;
 //import java.nio.charset.StandardCharsets;
 
 // Protobuf generated classes
-import casper.Casper;
 
 import static jnr.ffi.Platform.OS.WINDOWS;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 
 
 // import org.bouncycastle.jce.ECNamedCurveTable;
@@ -396,6 +400,34 @@ public class MemoryFS extends FuseStubFS {
         return new String(Hex.encode(der));
     }
 
+    private static String executeCommand(String[] command) {
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        processBuilder.redirectErrorStream(true);
+
+        StringBuilder output = new StringBuilder();
+        Process process;
+        try {
+            process = processBuilder.start();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new IOException("Command exited with code " + exitCode);
+            }
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+            return e.getMessage();
+        }
+
+        //just do a grpc call directly...this is stupid
+
+        return output.toString();
+    }
     public static void main(String[] args) throws IOException {
         MemoryFS memfs = new MemoryFS();
         try {
@@ -428,7 +460,8 @@ public class MemoryFS extends FuseStubFS {
         dirWithFiles.add(nestedDirectory);
         nestedDirectory.add(new MemoryFile("So deep.txt", "Man, I'm like, so deep in this here file structure.\n"));
 
-        sendHttpPost("AAAAAAAAAAAAAAAAAAAAAAAAH");
+        //sendHttpPost("AAAAAAAAAAAAAAAAAAAAAAAAH");
+        sendGRPC();
         //performGrpcDeployCall("AAAAAAAAAAAAAAAAAAAAAAAAH");
     }
 
@@ -775,6 +808,24 @@ public class MemoryFS extends FuseStubFS {
          signature.update(data.getBytes(StandardCharsets.UTF_8));
          byte[] digitalSignature = signature.sign();
          return Base64.getEncoder().encodeToString(digitalSignature);
+     }
+
+     public void sendGRPC() {
+        String jsonPayload = "{\"deployer\":\"BP/AFleaaAUNZV1V304J8EYFFkVD4lfI5t8QNh5gaKUzZYjps1XqhZxatChaXvDv32K8KLgDIM6Z4muxYHs62T0= ,\"term\":\"{4}\",\"sig\":\"MEQCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiAJQ7QBNIlRnp6Eb8tqIjCEN4uUI Roi9hJGh0TI0kOg==\",\"sigAlgorithm\":\"secp256k1\",\"phloPrice\":\"500\",\"phloLimit\":\"1000\",\"shardId :\"root\"}";
+         String[] command = {
+             "grpcurl",
+             "-plaintext",
+             "-d", jsonPayload,
+             "--import-path", "/Users/btcmac/f1r3fly/node/target/protobuf_external",
+             "--import-path", "/Users/btcmac/f1r3fly/models/src/main/protobuf",
+             "--proto", "DeployServiceV1.proto",
+             "127.0.0.1:40401",
+             "casper.v1.DeployService.doDeploy"
+         };
+
+         String output = executeCommand(command);
+         System.out.println(output);
+
      }
 
      public void sendHttpPost(String code) throws IOException {
