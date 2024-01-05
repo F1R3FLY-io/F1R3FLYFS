@@ -45,10 +45,11 @@ dependencies {
     // Existing dependencies...
     
     // Bouncy Castle PKIX/CMS/EAC/PKCS/OCSP/TSP/OPENSSL
-    implementation 'org.bouncycastle:bcpkix-jdk15to18:1.70'
+    implementation 'org.bouncycastle:bcprov-jdk15on:1.70'
+    implementation 'org.bouncycastle:bcpkix-jdk15on:1.70'
 
     // Protobuf dependency
-    implementation 'com.google.protobuf:protobuf-java:3.19.4'
+    implementation 'com.google.protobuf:protobuf-java:3.12.0'
 
     // Web3J
 implementation group: 'org.web3j', name: 'crypto', version: '4.10.3'
@@ -148,18 +149,40 @@ protobuf {
 }
 
 sourceSets {
-  main {
-    proto {
-      // In addition to the default 'src/main/proto'
-      // srcDir 'src/main/protobuf'
-      // In addition to the default '**/*.proto' (use with caution).
-      // Using an extension other than 'proto' is NOT recommended,
-      // because when proto files are published along with class files, we can
-      // only tell the type of a file from its extension.
-      // include '**/*.protodevel'
+
+    main {
+        proto {
+            // Include the 'src/main/proto' directory for proto files
+            //srcDir 'src/main/proto'
+            // Include the 'src/main/protobuf_external' directory for proto files
+            //srcDir 'src/main/protobuf_external'
+            srcDir '../f1r3fly/node/target/protobuf_external'
+            srcDir '../f1r3fly/models/src/main/protobuf'
+        }
+        java {
+            // Specify the directory for the generated Java files
+            srcDir 'build/generated/source/proto/main/java'
+        }
     }
-    java {
-       srcDir 'build/generated/source/proto/main/java'
-    }
-  }
 }
+
+// sourceSets {
+//      main {
+//     proto {
+//       // In addition to the default 'src/main/proto'
+//     //    srcDir 'src/main/proto'
+//     //    srcDir 'src/main/protobuf_external'
+//       // In addition to the default '**/*.proto' (use with caution).
+//       // Using an extension other than 'proto' is NOT recommended,
+//       // because when proto files are published along with class files, we can
+//       // only tell the type of a file from its extension.
+//       // include '**/*.protodevel'
+//     //   srcDir '../f1r3fly/node/target/protobuf_external'
+//       // srcDir '../f1r3fly/models/src/main/protobuf'
+//       // srcDir '../f1r3fly/node/target/protobuf_external/scalapb'
+//     }
+//     java {
+//        srcDir 'build/generated/source/proto/main/java'
+//     }
+//   }
+//  }
