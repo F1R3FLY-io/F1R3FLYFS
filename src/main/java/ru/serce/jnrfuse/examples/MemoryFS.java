@@ -17,9 +17,11 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import com.google.protobuf.ByteString;
 import org.bouncycastle.crypto.digests.Blake2bDigest;
+import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.crypto.params.ECDomainParameters;
 import org.bouncycastle.crypto.params.ECPrivateKeyParameters;
 import org.bouncycastle.crypto.signers.ECDSASigner;
+import org.bouncycastle.crypto.signers.HMacDSAKCalculator;
 import org.bouncycastle.jcajce.provider.digest.Blake2b.Blake2b256;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.jce.ECNamedCurveTable;
@@ -669,29 +671,22 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         //ECPrivateKey ecpk = new ECPrivateKey(priv);
         //BigInteger privateKey1 = ecpk.getKey();
 
+        // Security.addProvider(new BouncyCastleProvider());
+        // ECNamedCurveParameterSpec spec = ECNamedCurveTable.getParameterSpec("secp256k1");
+        // ECDomainParameters domain = new ECDomainParameters(spec.getCurve(), spec.getG(), spec.getN(), spec.getH());
+        // ECPrivateKeyParameters privateKeyParams = new ECPrivateKeyParameters(priv, domain);
+        // ECDSASigner signer = new ECDSASigner();
+        // signer.init(true, privateKeyParams);
+
         Security.addProvider(new BouncyCastleProvider());
         ECNamedCurveParameterSpec spec = ECNamedCurveTable.getParameterSpec("secp256k1");
         ECDomainParameters domain = new ECDomainParameters(spec.getCurve(), spec.getG(), spec.getN(), spec.getH());
         ECPrivateKeyParameters privateKeyParams = new ECPrivateKeyParameters(priv, domain);
 
+        // Use HMacDSAKCalculator for deterministic ECDSA
+        HMacDSAKCalculator kCalculator = new HMacDSAKCalculator(new SHA256Digest());
 
-        //trying to mimic the ecprivatekey values in the scala side
-        //not working
-        // try {
-        //     PrivateKeyInfo privateKeyInfo = PrivateKeyInfoFactory.createPrivateKeyInfo(privateKeyParams);
-        //     byte[] encodedPrivateKey = privateKeyInfo.getEncoded();
-        //     PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(encodedPrivateKey);
-        //     KeyFactory keyFactory = KeyFactory.getInstance("EC", "BC");
-        //     PublicKey pubKey = keyFactory.generatePublic(keySpec);
-        //     PrivateKey privKey = keyFactory.generatePrivate(keySpec);
-        //     System.out.println("privKey= " + privKey.toString());
-        //     System.out.println("pubKey= " + pubKey.toString());
-        // } catch (Exception e) {
-        //     System.out.println("error e = " + e.getMessage());
-        // }
-
-
-        ECDSASigner signer = new ECDSASigner();
+        ECDSASigner signer = new ECDSASigner(kCalculator);
         signer.init(true, privateKeyParams);
 
         System.out.println("passed in key= " + privateKeyHex);
@@ -757,7 +752,8 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         String sigStr = Base64.toBase64String(derSignature);
         //from scala: 
         //sig            = ByteString.copyFrom(signed.bytes.toArray),
-        //"sig":"MEQCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiAJQ7QBNIlRnp6Eb8tqIjCEN4uUIXERoi9hJGh0TI0kOg=="
+        //"sig":    "MEQCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiAJQ7QBNIlRnp6Eb8tqIjCEN4uUIXERoi9hJGh0TI0kOg=="
+        //Signature: MEUCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiEA9rxL/st2rmFhe5A0ld3PeoMjSMU+Nv4MXq32GIOpHQc=
 
         System.out.println("Signature: " + sigStr);
         return sigStr;
