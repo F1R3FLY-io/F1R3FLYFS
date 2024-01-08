@@ -663,7 +663,6 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         BigInteger priv = new BigInteger(privateKeyHex, 16);
         //BigInteger pubKey = Sign.publicKeyFromPrivate(priv);
         //ECKeyPair keyPair = new ECKeyPair(priv, pubKey);
-        System.out.println("privateKeyHex= " + privateKeyHex);
         ECKeyPair keyPair = ECKeyPair.create(priv);
         BigInteger privateKey = keyPair.getPrivateKey();
         BigInteger publicKey = keyPair.getPublicKey();
@@ -695,20 +694,12 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         ECDSASigner signer = new ECDSASigner();
         signer.init(true, privateKeyParams);
 
-        System.out.println("privateKeyParams= " + privateKeyParams.getD());
-        System.out.println("privateKeyHex= " + privateKeyHex);
-        System.out.println("privateKey= " + privateKey.toString(16));
+        System.out.println("passed in key= " + privateKeyHex);
+        System.out.println("privateKeyVal= " + privateKey.toString(16));
         System.out.println("publicKey= " + publicKey.toString(16));
         // System.out.println("privateKey1= " + privateKey1);
         // System.out.println("publicKey1= " + ecpk.getPublicKey().toString());
         
-        //scala has this
-        //val deployer = privKey.publicKey.decompressed
-        //deployer = ByteString.copyFrom(deployer.decompressedBytes.toArray)
-        //outputs this: 
-        //"deployer":"BP/AFleaaAUNZV1V304J8EYFFkVD4lfI5t8QNh5gaKUzZYjps1XqhZxatChaXvDv32K8KLgDIM6Z4muxYHs62T0="
-        
-
         DeployDataProto.Builder builder = DeployDataProto.newBuilder();
         DeployDataProto deployData = 
          builder.                                                                                                                                             
@@ -720,19 +711,35 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
             setShardId("root").
          build();
         byte [] serializedData = deployData.toByteArray();
-        //System.out.println("serializedData= " + java.util.Base64.getEncoder().encodeToString(serializedData));
-        StringBuilder sb = new StringBuilder();
-        sb.append(serializedData.length);
+        StringBuilder serializedStr = new StringBuilder();
         for (byte b : serializedData) {
-            sb.append(String.format("%02x", b));
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) {
+                serializedStr.append('0');
+            }
+            serializedStr.append(hex);
         }
-        System.out.println("serializedData = " + sb.toString());
+        System.out.println("scala output: ByteVector(17 bytes, 0x12037b347d38f40340e8075a04726f6f74)");
+        System.out.println("serializedData = " + serializedStr.toString());
+
 
         // Hash the serialized data using Blake2b
         Blake2bDigest blake2bDigest = new Blake2bDigest(256);
         blake2bDigest.update(serializedData, 0, serializedData.length);
         byte[] hashedData = new byte[blake2bDigest.getDigestSize()];
         blake2bDigest.doFinal(hashedData, 0);
+        String hashedDataHex = String.format("%02x", new BigInteger(1, hashedData));
+        System.out.println("scala output: ByteVector(32 bytes, 0x16124dcc2e8d61f6826833b73cd3ae184fcbf0e8a79d0e14a207a4be87272b29)");
+        System.out.println("java output: Hashed data (hex): " + hashedDataHex);
+        //up to this point looks correct
+
+                //scala has this
+        //val deployer = privKey.publicKey.decompressed
+        //deployer = ByteString.copyFrom(deployer.decompressedBytes.toArray)
+        //outputs this: 
+        //"deployer":"BP/AFleaaAUNZV1V304J8EYFFkVD4lfI5t8QNh5gaKUzZYjps1XqhZxatChaXvDv32K8KLgDIM6Z4muxYHs62T0="
+        
+
 
         // Sign the hash
         BigInteger[] signature = signer.generateSignature(hashedData);
@@ -753,8 +760,6 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         //"sig":"MEQCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiAJQ7QBNIlRnp6Eb8tqIjCEN4uUIXERoi9hJGh0TI0kOg=="
 
         System.out.println("Signature: " + sigStr);
-        String hashedDataHex = String.format("%02x", new BigInteger(1, hashedData));
-        System.out.println("Hashed data (hex): " + hashedDataHex);
         return sigStr;
     }
     public static String signProto(String privateKeyHex) {
@@ -999,7 +1004,7 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         //sendDeploy();
         //sendHttpPost("AAAAAAAAAAAAAAAAAAAAAAAAH");
         //signProto("5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657");
-        //signProto2("5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657");
+        signProto2("5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657");
         //performGrpcDeployCall("AAAAAAAAAAAAAAAAAAAAAAAAH");
     }
 

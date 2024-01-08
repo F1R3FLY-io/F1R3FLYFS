@@ -60,6 +60,10 @@ dependencies {
     implementation 'io.grpc:grpc-protobuf:1.45.1'
     implementation 'io.grpc:grpc-stub:1.45.1'
     implementation 'io.grpc:grpc-core:1.45.1'
+
+    implementation 'com.google.api.grpc:proto-google-common-protos:1.17.0'
+
+
     // Protobuf
     implementation 'com.google.protobuf:protobuf-java:3.19.4'
     implementation 'com.google.protobuf:protobuf-java-util:3.19.4'
@@ -172,24 +176,6 @@ protobuf {
     }
 }
 
-// protobuf {
-//      protoc {
-//          artifact = 'com.google.protobuf:protoc:3.19.4'
-//      }
-//      plugins {
-//          grpc {
-//              artifact = 'io.grpc:protoc-gen-grpc-java:1.45.1'
-//          }
-//      }
-//      all().each { task ->
-//             task.builtins {
-//                 java {
-//                     option 'lite' // Use 'lite' for JavaLite, remove for full Java.
-//                 }
-//             }
-//         }
-//  }
-
 sourceSets {
 
     main {
@@ -200,6 +186,7 @@ sourceSets {
             //srcDir 'src/main/protobuf_external'
             srcDir '../f1r3fly/node/target/protobuf_external'
             srcDir '../f1r3fly/models/src/main/protobuf'
+            srcDir '../f1r3fly/node/target/protobuf_external/scalapb'
         }
         java {
             // Specify the directory for the generated Java files
@@ -208,23 +195,3 @@ sourceSets {
     }
 }
 
-// sourceSets {
-//      main {
-//     proto {
-//       // In addition to the default 'src/main/proto'
-//     //    srcDir 'src/main/proto'
-//     //    srcDir 'src/main/protobuf_external'
-//       // In addition to the default '**/*.proto' (use with caution).
-//       // Using an extension other than 'proto' is NOT recommended,
-//       // because when proto files are published along with class files, we can
-//       // only tell the type of a file from its extension.
-//       // include '**/*.protodevel'
-//     //   srcDir '../f1r3fly/node/target/protobuf_external'
-//       // srcDir '../f1r3fly/models/src/main/protobuf'
-//       // srcDir '../f1r3fly/node/target/protobuf_external/scalapb'
-//     }
-//     java {
-//        srcDir 'build/generated/source/proto/main/java'
-//     }
-//   }
-//  }
