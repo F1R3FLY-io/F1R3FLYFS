@@ -1,8 +1,11 @@
 package ru.serce.jnrfuse.examples;
 
 import casper.CasperMessage.DeployDataProto;
+import casper.ServiceErrorOuterClass.ServiceError;
 import casper.v1.DeployServiceV1.DeployResponse;
 import casper.v1.DeployServiceV1;
+import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
+import casper.v1.DeployServiceGrpc;
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -10,6 +13,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import com.google.protobuf.ByteString;
 import org.bouncycastle.crypto.digests.Blake2bDigest;
 import org.bouncycastle.crypto.params.ECDomainParameters;
@@ -20,7 +25,6 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
 import org.bouncycastle.jce.spec.ECNamedCurveSpec;
-import org.bouncycastle.crypto.params.ECPrivateKeyParameters;
 import org.bouncycastle.crypto.util.PrivateKeyInfoFactory;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
@@ -28,24 +32,13 @@ import java.security.PublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 
-import java.security.KeyFactory;
-import java.security.PrivateKey;
+
 import java.security.Security;
 import java.security.spec.ECPrivateKeySpec;
 import java.security.spec.ECParameterSpec;
 import java.security.interfaces.ECPrivateKey;
 import java.math.BigInteger;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.jce.ECNamedCurveTable;
-import java.security.Security;
-import java.security.KeyFactory;
-import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
-import java.security.spec.ECPrivateKeySpec;
- import java.security.spec.ECParameterSpec;
- import java.security.interfaces.ECPrivateKey;
-//import java.security.interfaces.ECPrivateKey;
-
 import org.bitcoinj.core.ECKey;
 import org.bitcoinj.core.Sha256Hash;
 
@@ -97,53 +90,20 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.security.PrivateKey;
 import java.security.Signature;
 import org.bouncycastle.math.ec.custom.sec.SecP256K1Curve;
 import org.bouncycastle.util.encoders.Hex;
 import org.bouncycastle.util.encoders.HexEncoder;
 import org.web3j.crypto.ECKeyPair;
 import org.web3j.crypto.Sign;
-import org.bouncycastle.crypto.digests.Blake2bDigest;
 import org.bouncycastle.crypto.ec.ECPair;
 import org.bouncycastle.crypto.generators.ECKeyPairGenerator;
 import org.bouncycastle.asn1.*;
-import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
-
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 //import java.nio.charset.StandardCharsets;
 
-import java.security.KeyFactory;
-import java.security.PrivateKey;
-import java.security.Security;
-import java.security.spec.ECPrivateKeySpec;
-import java.security.spec.ECParameterSpec;
-import java.security.interfaces.ECPrivateKey;
-import java.math.BigInteger;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
-import org.bouncycastle.jce.ECNamedCurveTable;
-import org.bouncycastle.jce.spec.ECNamedCurveSpec;
-
-// Protobuf generated classes
-
 import static jnr.ffi.Platform.OS.WINDOWS;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-
-
-// import org.bouncycastle.jce.ECNamedCurveTable;
-// import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
-// import java.security.interfaces.ECPublicKey;
-// import java.security.interfaces.ECKey;
-// import java.security.spec.ECParameterSpec;
-// import java.security.spec.EllipticCurve;
-// import java.util.Arrays;
-import java.math.BigInteger;
-// import org.web3j.crypto.Keys;
 
 // Removed imports that are causing compilation errors
 
@@ -814,7 +774,7 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
          * 
          * val serialized   = ByteVector(projection.toByteArray)
   println(serialized)
-                        1712037b347d38f40340e8075a04726f6f74
+                       1712037b347d38f40340e8075a04726f6f74
   ByteVector(17 bytes, 0x12037b347d38f40340e8075a04726f6f74)
   val deployer     = privKey.publicKey.decompressed
   println(deployer)
@@ -922,36 +882,59 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         //return new String(Hex.encode(der));
     }
 
-    // private void makeGrpcCall() {
-    //     // Create a channel to the gRPC server
-    //     ManagedChannel channel = ManagedChannelBuilder.forAddress("node-address", 40401)
-    //             .usePlaintext()
-    //             .build();
-    //     // Create a blocking stub on the channel
-    //     DeployServiceV1.newBlockingStub(channel);
-    //     // Create a DeployDataProto request
-    //     DeployDataProto request = DeployDataProto.newBuilder()
-    //             .setDeployer(ByteString.copyFromUtf8("public-key"))
-    //             .setTerm("rholang-source-code")
-    //             .setTimestamp(System.currentTimeMillis())
-    //             .setSig(ByteString.copyFromUtf8("signature"))
-    //             .setSigAlgorithm("secp256k1")
-    //             .setPhloPrice(1)
-    //             .setPhloLimit(1000)
-    //             .setValidAfterBlockNumber(0)
-    //             .setShardId("shard-id")
-    //             .build();
-    //     // Make the call using the stub
-    //     DeployResponse response = stub.doDeploy(request);
-    //     // Do something with the response
-    //     if (response.hasError()) {
-    //         System.out.println("Error from gRPC service: " + response.getError().getMessagesList());
-    //     } else {
-    //         System.out.println("Result from gRPC service: " + response.getResult());
-    //     }
-    //     // Shutdown the channel
-    //     channel.shutdown();
-    // }
+    public static void sendDeploy() {
+        // Create a channel to the server
+        System.out.println("sendDeploy");
+        ManagedChannel channel = ManagedChannelBuilder.forAddress("127.0.0.1", 40401)
+                .usePlaintext()
+                .build();
+
+        System.out.println("channel = " + channel);
+        // Create a blocking stub on the channel
+        DeployServiceBlockingStub blockingStub = DeployServiceGrpc.newBlockingStub(channel);
+        System.out.println("blockingStub = " + blockingStub);
+
+        try {
+            DeployDataProto.Builder builder = DeployDataProto.newBuilder();
+            System.out.println("builder = " + builder);
+            DeployDataProto deployData = 
+            builder.                                                                                                                                             
+                setTerm("{4}").
+                setTimestamp(0L).
+                setPhloPrice(500L).
+                setPhloLimit(1000L).                                                                                                                                                          
+                setValidAfterBlockNumber(0L).
+                setShardId("root").
+            build();
+
+            System.out.println("deployData = " + deployData);
+
+            // Make the call using the stub
+            DeployResponse response = blockingStub.doDeploy(deployData);
+            System.out.println("response = " + response);
+
+            // Check if the response has an error
+            if (response.hasError()) {
+                // Handle the error case
+                ServiceError error = response.getError();
+                System.err.println("Deploy failed: " + error);
+            } else if (response.hasResult()) {
+                // Process the successful response
+                String result = response.getResult();
+                System.out.println("Deploy succeeded with result: " + result);
+            } else {
+                // Handle the case where neither error nor result is set
+                System.err.println("Deploy response did not contain error or result.");
+            }
+        } catch (Exception e) {
+            System.err.println("RPC failed: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        
+        // Shutdown the channel
+        channel.shutdown();
+    }
 
     private static String executeCommand(String[] command) {
         ProcessBuilder processBuilder = new ProcessBuilder(command);
@@ -1013,10 +996,10 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         dirWithFiles.add(nestedDirectory);
         nestedDirectory.add(new MemoryFile("So deep.txt", "Man, I'm like, so deep in this here file structure.\n"));
 
+        //sendDeploy();
         //sendHttpPost("AAAAAAAAAAAAAAAAAAAAAAAAH");
-        //sendGRPC();
         //signProto("5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657");
-        signProto2("5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657");
+        //signProto2("5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657");
         //performGrpcDeployCall("AAAAAAAAAAAAAAAAAAAAAAAAH");
     }
 
@@ -1227,11 +1210,12 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         //the other laptop running the same software connected to the node could pull it down
         //drag and drop i only get the ._filename one due to the disk full error from timestamp
         if (path.contains("abc.txt")) {
-            try {
-                sendRholangCode(path,dataString);
-            } catch (IOException ioe) {
-                System.err.println("sendRholangCode failed catastrophically with an IOException.");
-            }
+            //sendDeploy();
+            // try {
+            //     sendRholangCode(path,dataString);
+            // } catch (IOException ioe) {
+            //     System.err.println("sendRholangCode failed catastrophically with an IOException.");
+            // }
         }
 
         System.out.println("WRITING: " + size);

@@ -72,6 +72,14 @@ implementation group: 'org.web3j', name: 'crypto', version: '4.10.3'
     testImplementation 'junit:junit:4.13.2'
 }
 
+configurations.all {
+    resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+        if (details.requested.group == 'com.google.protobuf') {
+            details.useVersion '3.19.4'
+        }
+    }
+}
+
 release {
     newVersionCommitMessage = '[jnr-fuse release] - '
     preTagCommitMessage = '[jnr-fuse release] - pre tag commit: '
