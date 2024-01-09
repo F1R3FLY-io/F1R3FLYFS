@@ -65,7 +65,7 @@ dependencies {
 
 
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.13.1'
-    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-protobuf:2.13.1'
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-protobuf:2.13.1.1'
     // Protobuf
     implementation 'com.google.protobuf:protobuf-java:3.19.4'
     implementation 'com.google.protobuf:protobuf-java-util:3.19.4'

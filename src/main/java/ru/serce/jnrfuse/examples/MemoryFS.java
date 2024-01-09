@@ -6,13 +6,14 @@ import casper.v1.DeployServiceV1.DeployResponse;
 import casper.v1.DeployServiceV1;
 import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
 import casper.v1.DeployServiceGrpc;
-import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
+
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import com.google.protobuf.ByteString;
@@ -33,6 +34,8 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import com.google.protobuf.util.JsonFormat;
+import com.google.protobuf.InvalidProtocolBufferException;
 
 
 import java.security.Security;
@@ -52,6 +55,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.spec.ECGenParameterSpec;
 import org.bouncycastle.util.encoders.Base64;
+
 
 // These imports should be moved to the top of the file, just after the package declaration.
 
@@ -104,6 +108,9 @@ import org.bouncycastle.asn1.*;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
 //import java.nio.charset.StandardCharsets;
+import com.google.gson.Gson;
+import com.google.protobuf.Message;
+import java.util.Map;
 
 import static jnr.ffi.Platform.OS.WINDOWS;
 
@@ -113,6 +120,7 @@ public class MemoryFS extends FuseStubFS {
 
     private static final String RCHAIN_NODE_URL = "localhost"; // Replace with actual RChain node URL
     private static final int RCHAIN_NODE_PORT = 40401; // Replace with actual RChain node port
+    private static final Gson gson = new Gson();
 
     public void sendRholangCode(String path, String data) throws IOException {
 
@@ -182,54 +190,57 @@ public class MemoryFS extends FuseStubFS {
 }
       */
 
-     public void sendGRPC() {
-        String jsonPayload = "{\"deployer\":\"BP/AFleaaAUNZV1V304J8EYFFkVD4lfI5t8QNh5gaKUzZYjps1XqhZxatChaXvDv32K8KLgDIM6Z4muxYHs62T0= ,\"term\":\"{4}\",\"sig\":\"MEQCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiAJQ7QBNIlRnp6Eb8tqIjCEN4uUI Roi9hJGh0TI0kOg==\",\"sigAlgorithm\":\"secp256k1\",\"phloPrice\":\"500\",\"phloLimit\":\"1000\",\"shardId :\"root\"}";
-         String[] command = {
-             "grpcurl",
-             "-plaintext",
-             "-d", jsonPayload,
-             "--import-path", "/Users/btcmac/f1r3fly/node/target/protobuf_external",
-             "--import-path", "/Users/btcmac/f1r3fly/models/src/main/protobuf",
-             "--proto", "DeployServiceV1.proto",
-             "127.0.0.1:40401",
-             "casper.v1.DeployService.doDeploy"
-         };
-
-         String output = executeCommand(command);
-         System.out.println(output);
-
-     }
-
-     public static DeployDataProto signDeploy(ECKey privKey, DeployDataProto deploy) {
-        // Create a projection of only the fields used to validate the signature
-        DeployDataProto.Builder projectionBuilder = DeployDataProto.newBuilder()
-            .setTerm(deploy.getTerm())
-            .setTimestamp(deploy.getTimestamp())
-            .setPhloPrice(deploy.getPhloPrice())
-            .setPhloLimit(deploy.getPhloLimit())
-            .setValidAfterBlockNumber(deploy.getValidAfterBlockNumber())
-            .setShardId(deploy.getShardId());
-
-        // Serialize the projection
-        byte[] serialized = projectionBuilder.build().toByteArray();
-
-        // Get the public key bytes
-        byte[] deployer = privKey.getPubKey();
-
-        // Hash the serialized projection
-        byte[] digest = Sha256Hash.hash(serialized);
-
-        // Sign the hash
-        ECKey.ECDSASignature signature = privKey.sign(Sha256Hash.wrap(digest));
-
-        // Set the signature and deployer fields in the projection
-        projectionBuilder.setSigAlgorithm("secp256k1")
-            .setSig(ByteString.copyFrom(signature.encodeToDER()))
-            .setDeployer(ByteString.copyFrom(deployer));
-
-        // Build the final DeployDataProto with the signature
-        return projectionBuilder.build();
+    public void sendGRPC(String jsonPayload) {
+        try {
+            //String jsonPayload ="{\"deployer\":\"BP/AFleaaAUNZV1V304J8EYFFkVD4lfI5t8QNh5gaKUzZYjps1XqhZxatChaXvDv32K8KLgDIM6Z4muxYHs62T0=\",\"term\":\"{4}\",\"sig\":\"MEQCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiAJQ7QBNIlRnp6Eb8tqIjCEN4uUIXERoi9hJGh0TI0kOg==\",\"sigAlgorithm\":\"secp256k1\",\"phloPrice\":\"500\",\"phloLimit\":\"1000\",\"shardId\":\"root\"}";
+            //String jsonPayload ="{\"deployer\":\"BP/AFleaaAUNZV1V304J8EYFFkVD4lfI5t8QNh5gaKUzZYjps1XqhZxatChaXvDv32K8KLgDIM6Z4muxYHs62T0=\",\"term\":\"{4}\",\"sig\":\"MEUCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiEA9rxL/st2rmFhe5A0ld3PeoMjSMU+Nv4MXq32GIOpHQc=\",\"sigAlgorithm\":\"secp256k1\",\"phloPrice\":\"500\",\"phloLimit\":\"1000\",\"shardId\":\"root\"}";
+            String[] command = {
+                "grpcurl",
+                "-plaintext",
+                "-d", jsonPayload,
+                "--import-path", "/Users/btcmac/f1r3fly/node/target/protobuf_external",
+                "--import-path", "/Users/btcmac/f1r3fly/models/src/main/protobuf",
+                "--proto", "DeployServiceV1.proto",
+                "127.0.0.1:40401",
+                "casper.v1.DeployService.doDeploy"
+            };
+            String output = executeCommand(command);
+            System.out.println(output);
+        } catch (Exception e) {
+            System.out.println("sendGRPC error: " + e.getStackTrace());
+        }
     }
+
+    //  public static DeployDataProto signDeploy(ECKey privKey, DeployDataProto deploy) {
+    //     // Create a projection of only the fields used to validate the signature
+    //     DeployDataProto.Builder projectionBuilder = DeployDataProto.newBuilder()
+    //         .setTerm(deploy.getTerm())
+    //         .setTimestamp(deploy.getTimestamp())
+    //         .setPhloPrice(deploy.getPhloPrice())
+    //         .setPhloLimit(deploy.getPhloLimit())
+    //         .setValidAfterBlockNumber(deploy.getValidAfterBlockNumber())
+    //         .setShardId(deploy.getShardId());
+
+    //     // Serialize the projection
+    //     byte[] serialized = projectionBuilder.build().toByteArray();
+
+    //     // Get the public key bytes
+    //     byte[] deployer = privKey.getPubKey();
+
+    //     // Hash the serialized projection
+    //     byte[] digest = Sha256Hash.hash(serialized);
+
+    //     // Sign the hash
+    //     ECKey.ECDSASignature signature = privKey.sign(Sha256Hash.wrap(digest));
+
+    //     // Set the signature and deployer fields in the projection
+    //     projectionBuilder.setSigAlgorithm("secp256k1")
+    //         .setSig(ByteString.copyFrom(signature.encodeToDER()))
+    //         .setDeployer(ByteString.copyFrom(deployer));
+
+    //     // Build the final DeployDataProto with the signature
+    //     return projectionBuilder.build();
+    // }
 
      public void sendHttpPost(String code) throws IOException {
         //  try {
@@ -661,7 +672,8 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
     //     return (ECPrivateKey) keyFactory.generatePrivate(privateKeySpec);
     // }
 
-    public static String signProto2(String privateKeyHex) {
+    public String sendProto(String dataString) {
+        String privateKeyHex = "5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657";
         BigInteger priv = new BigInteger(privateKeyHex, 16);
         //BigInteger pubKey = Sign.publicKeyFromPrivate(priv);
         //ECKeyPair keyPair = new ECKeyPair(priv, pubKey);
@@ -698,7 +710,7 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         DeployDataProto.Builder builder = DeployDataProto.newBuilder();
         DeployDataProto deployData = 
          builder.                                                                                                                                             
-            setTerm("{4}").
+            setTerm("{"+dataString+"}").
             setTimestamp(0L).
             setPhloPrice(500L).
             setPhloLimit(1000L).                                                                                                                                                          
@@ -756,132 +768,66 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         //Signature: MEUCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiEA9rxL/st2rmFhe5A0ld3PeoMjSMU+Nv4MXq32GIOpHQc=
 
         System.out.println("Signature: " + sigStr);
+
+
+        Map<String, String> values = new HashMap<>();
+        values.put("deployer", "BP/AFleaaAUNZV1V304J8EYFFkVD4lfI5t8QNh5gaKUzZYjps1XqhZxatChaXvDv32K8KLgDIM6Z4muxYHs62T0=");
+        values.put("term", deployData.getTerm());
+        values.put("sig", sigStr);
+        values.put("sigAlgorithm", "secp256k1");
+        values.put("phloPrice", deployData.getPhloPrice()+"");
+        values.put("phloLimit", deployData.getPhloLimit()+"");
+        values.put("shardId", "root");
+         // Add more key-value pairs as needed
+
+         String jsonString = gson.toJson(values);
+         System.out.println(jsonString);
+
+         sendGRPC(jsonString);
+
         return sigStr;
     }
-    public static String signProto(String privateKeyHex) {
-        // Decode the private key from Satoshis Base58 variant. If 51 characters long then it's from Bitcoins
-        // dumpprivkey command and includes a version byte and checksum, or if 52 characters long then it has 
-        // compressed pub key. Otherwise assume it's a raw key.
 
-        /*
-         * 
-         * 
-         * sig            = ByteString.copyFrom(signed.bytes.toArray),
-         * "sig":"MEQCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiAJQ7QBNIlRnp6Eb8tqIjCEN4uUIXERoi9hJGh0TI0kOg=="
-    deployer       = ByteString.copyFrom(deployer.decompressedBytes.toArray)
-    "deployer":"BP/AFleaaAUNZV1V304J8EYFFkVD4lfI5t8QNh5gaKUzZYjps1XqhZxatChaXvDv32K8KLgDIM6Z4muxYHs62T0="
+    //         /*
+//          * 
+//          * 
+//          * sig            = ByteString.copyFrom(signed.bytes.toArray),
+//          * "sig":"MEQCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiAJQ7QBNIlRnp6Eb8tqIjCEN4uUIXERoi9hJGh0TI0kOg=="
+//     deployer       = ByteString.copyFrom(deployer.decompressedBytes.toArray)
+//     "deployer":"BP/AFleaaAUNZV1V304J8EYFFkVD4lfI5t8QNh5gaKUzZYjps1XqhZxatChaXvDv32K8KLgDIM6Z4muxYHs62T0="
 
 
-         * 
-         * val serialized   = ByteVector(projection.toByteArray)
-  println(serialized)
-                       1712037b347d38f40340e8075a04726f6f74
-  ByteVector(17 bytes, 0x12037b347d38f40340e8075a04726f6f74)
-  val deployer     = privKey.publicKey.decompressed
-  println(deployer)
-  ECPublicKey(03ffc016579a68050d655d55df4e09f04605164543e257c8e6df10361e6068a533)
-  val digest       = ByteVector(Blake2b256.hash(serialized.toArray))
-  println(digest)
-  ByteVector(32 bytes, 0x16124dcc2e8d61f6826833b73cd3ae184fcbf0e8a79d0e14a207a4be87272b29)
-  val signed       = privKey.sign(digest)
-  println(signed)
-  ECDigitalSignature(304402200212a9e05b45e6786808b96fefdf7391fb97341894fdaecf68404f0c7016278302200943b4013489519e9e846fcb6a223084378b94217111a22f612468744c8d243a)
-         * 
-         * 
+//          * 
+//          * val serialized   = ByteVector(projection.toByteArray)
+//   println(serialized)
+//                        1712037b347d38f40340e8075a04726f6f74
+//   ByteVector(17 bytes, 0x12037b347d38f40340e8075a04726f6f74)
+//   val deployer     = privKey.publicKey.decompressed
+//   println(deployer)
+//   ECPublicKey(03ffc016579a68050d655d55df4e09f04605164543e257c8e6df10361e6068a533)
+//   val digest       = ByteVector(Blake2b256.hash(serialized.toArray))
+//   println(digest)
+//   ByteVector(32 bytes, 0x16124dcc2e8d61f6826833b73cd3ae184fcbf0e8a79d0e14a207a4be87272b29)
+//   val signed       = privKey.sign(digest)
+//   println(signed)
+//   ECDigitalSignature(304402200212a9e05b45e6786808b96fefdf7391fb97341894fdaecf68404f0c7016278302200943b4013489519e9e846fcb6a223084378b94217111a22f612468744c8d243a)
+//          * 
+//          * 
 
 
-         * 
-         * 
-         * 
-         * 
-         */
+//          * 
+//          * 
+//          * 
+//          * 
+//          */
 
-//         @ signDeployJSON("5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657",res7)
-// {"deployer":"BP/AFleaaAUNZV1V304J8EYFFkVD4lfI5t8QNh5gaKUzZYjps1XqhZxatChaXvDv32K8KLgDIM6Z4muxYHs62T0=","term":"{4}","sig":"MEQCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiAJQ7QBNIlRnp6Eb8tqIjCEN4uUIXERoi9hJGh0TI0kOg==","sigAlgorithm":"secp256k1","phloPrice":"500","phloLimit":"1000","shardId":"root"}
-//MEQCIBBP+ugdI9Rxi4UqqQHf2YnG+JRUX7gkBxDk67Ffl5etAiAxcFUmlc9WYhhn3/lpb0RRiXbuHeF9/BAr2ESw/zYPew==
+// //         @ signDeployJSON("5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657",res7)
+// // {"deployer":"BP/AFleaaAUNZV1V304J8EYFFkVD4lfI5t8QNh5gaKUzZYjps1XqhZxatChaXvDv32K8KLgDIM6Z4muxYHs62T0=","term":"{4}","sig":"MEQCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiAJQ7QBNIlRnp6Eb8tqIjCEN4uUIXERoi9hJGh0TI0kOg==","sigAlgorithm":"secp256k1","phloPrice":"500","phloLimit":"1000","shardId":"root"}
+// //MEQCIBBP+ugdI9Rxi4UqqQHf2YnG+JRUX7gkBxDk67Ffl5etAiAxcFUmlc9WYhhn3/lpb0RRiXbuHeF9/BAr2ESw/zYPew==
 
-//Private key	5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657
-//Public key	04ffc016579a68050d655d55df4e09f04605164543e257c8e6df10361e6068a5336588e9b355ea859c5ab4285a5ef0efdf62bc28b80320ce99e26bb1607b3ad93d
-//ETH	fac7dde9d0fa1df6355bd1382fe75ba0c50e8840
-
-        BigInteger priv = new BigInteger(privateKeyHex, 16);
-        //BigInteger pubKey = Sign.publicKeyFromPrivate(priv);
-        //ECKeyPair keyPair = new ECKeyPair(priv, pubKey);
-        System.out.println("privateKeyHex= " + privateKeyHex);
-        ECKeyPair keyPair = ECKeyPair.create(priv);
-        BigInteger pubKey = keyPair.getPublicKey();
-
-        System.out.println("priv= " + keyPair.getPrivateKey().toString(16));
-        System.out.println("pubKey= " + pubKey.toString(16));
-        System.out.println(pubKey.toByteArray().length);
-        DeployDataProto.Builder builder = DeployDataProto.newBuilder();
-        DeployDataProto deployData = 
-         builder.                                                                                                                                             
-            setTerm("{4}").
-            setTimestamp(0L).
-            setPhloPrice(500L).
-            setPhloLimit(1000L).                                                                                                                                                          
-            setValidAfterBlockNumber(0L).
-            setShardId("root").
-         build();
-        byte [] serializedData = deployData.toByteArray();
-        byte [] hashedData = new byte[32];
-        
-        Blake2bDigest hasher = new Blake2bDigest(256);
-        hasher.update(serializedData, 0, serializedData.length);
-        int hashLength = hasher.doFinal(hashedData, 0);
-        Sign.SignatureData signature = Sign.signMessage(hashedData, keyPair, true);
-        String sigStr = signature.getV().toString();
-        //String sigStr = String.format("%02x", new BigInteger(1, signature.getV()));
-        String hashedDataHex = String.format("%02x", new BigInteger(1, hashedData));
-        System.out.println("sigStr = " + sigStr);
-        System.out.println("hashedDataHex = " + hashedDataHex);
-        return sigStr;
-
-        /*
-         * 
-         * 
-         * def signDeploy(privKey: ECPrivateKey, deploy: DeployDataProto): DeployDataProto = {
-  // Take a projection of only the fields used to validate the signature
-  val projection   = DeployDataProto(
-    term                  = deploy.term,
-    timestamp             = deploy.timestamp,
-    phloPrice             = deploy.phloPrice,
-    phloLimit             = deploy.phloLimit,
-    validAfterBlockNumber = deploy.validAfterBlockNumber,
-    shardId               = deploy.shardId 
-  )
-  val serialized   = ByteVector(projection.toByteArray)
-  val deployer     = privKey.publicKey.decompressed
-  val digest       = ByteVector(Blake2b256.hash(serialized.toArray))
-  val signed       = privKey.sign(digest)
-  projection.copy(
-    sigAlgorithm   = "secp256k1",
-    sig            = ByteString.copyFrom(signed.bytes.toArray),
-    deployer       = ByteString.copyFrom(deployer.decompressedBytes.toArray)
-  )
-}
-         * 
-         * 
-        */
-    
-        
-        // Blake2bDigest hasher = new Blake2bDigest(256);
-        // //todo come back here
-        // hasher.update(serializedData, 0, serializedData.length);
-        // // byte[] hashed = blake2bHex(deploySerialized);
-        // int hashLength = hasher.doFinal(hashedData, 0);
-        // //byte [] hashedHex = Hex.encode(hashedData);
-
-        // // const sigArray = key.sign(hashed, {canonical: true}).toDER('array')
-        // Sign.SignatureData signature = Sign.signMessage(hashedData, keyPair, true);
-
-        // ASN1Integer r = new ASN1Integer(signature.getR());
-        // ASN1Integer s = new ASN1Integer(signature.getS());
-        // byte [] der = new DERSequence(new ASN1Integer []{r, s}).getEncoded();
-
-        //return new String(Hex.encode(der));
-    }
+// //Private key	5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657
+// //Public key	04ffc016579a68050d655d55df4e09f04605164543e257c8e6df10361e6068a5336588e9b355ea859c5ab4285a5ef0efdf62bc28b80320ce99e26bb1607b3ad93d
+// //ETH	fac7dde9d0fa1df6355bd1382fe75ba0c50e8840
 
     public static void sendDeploy() {
         // Create a channel to the server
@@ -939,22 +885,28 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
 
     private static String executeCommand(String[] command) {
         ProcessBuilder processBuilder = new ProcessBuilder(command);
-        processBuilder.redirectErrorStream(true);
+        processBuilder.redirectErrorStream(false);
 
         StringBuilder output = new StringBuilder();
         Process process;
         try {
             process = processBuilder.start();
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
 
             String line;
             while ((line = reader.readLine()) != null) {
                 output.append(line).append("\n");
             }
 
+            StringBuilder errorOutput = new StringBuilder();
+            while ((line = errorReader.readLine()) != null) {
+                errorOutput.append(line).append("\n");
+            }
+
             int exitCode = process.waitFor();
             if (exitCode != 0) {
-                throw new IOException("Command exited with code " + exitCode);
+                throw new IOException("Command exited with code " + exitCode + ": " + errorOutput.toString());
             }
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
@@ -997,10 +949,10 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         dirWithFiles.add(nestedDirectory);
         nestedDirectory.add(new MemoryFile("So deep.txt", "Man, I'm like, so deep in this here file structure.\n"));
 
+        //sendProto("5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657");
         //sendDeploy();
         //sendHttpPost("AAAAAAAAAAAAAAAAAAAAAAAAH");
-        //signProto("5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657");
-        signProto2("5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657");
+        //sendProto("5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657");
         //performGrpcDeployCall("AAAAAAAAAAAAAAAAAAAAAAAAH");
     }
 
@@ -1211,6 +1163,10 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         //the other laptop running the same software connected to the node could pull it down
         //drag and drop i only get the ._filename one due to the disk full error from timestamp
         if (path.contains("abc.txt")) {
+            if (dataString.endsWith("\n")) {
+                dataString = dataString.substring(0, dataString.length() - 1);
+            }
+            sendProto(dataString);
             //sendDeploy();
             // try {
             //     sendRholangCode(path,dataString);
