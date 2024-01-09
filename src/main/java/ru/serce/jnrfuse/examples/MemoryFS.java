@@ -3,57 +3,30 @@ package ru.serce.jnrfuse.examples;
 import casper.CasperMessage.DeployDataProto;
 import casper.ServiceErrorOuterClass.ServiceError;
 import casper.v1.DeployServiceV1.DeployResponse;
-import casper.v1.DeployServiceV1;
 import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
 import casper.v1.DeployServiceGrpc;
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
-import com.google.protobuf.ByteString;
 import org.bouncycastle.crypto.digests.Blake2bDigest;
 import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.crypto.params.ECDomainParameters;
 import org.bouncycastle.crypto.params.ECPrivateKeyParameters;
 import org.bouncycastle.crypto.signers.ECDSASigner;
 import org.bouncycastle.crypto.signers.HMacDSAKCalculator;
-import org.bouncycastle.jcajce.provider.digest.Blake2b.Blake2b256;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
-import org.bouncycastle.jce.spec.ECNamedCurveSpec;
-import org.bouncycastle.crypto.util.PrivateKeyInfoFactory;
-import java.security.KeyFactory;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.spec.PKCS8EncodedKeySpec;
-import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
-import com.google.protobuf.util.JsonFormat;
-import com.google.protobuf.InvalidProtocolBufferException;
 
 
 import java.security.Security;
-import java.security.spec.ECPrivateKeySpec;
-import java.security.spec.ECParameterSpec;
-import java.security.interfaces.ECPrivateKey;
 import java.math.BigInteger;
-import java.security.spec.X509EncodedKeySpec;
-import org.bitcoinj.core.ECKey;
-import org.bitcoinj.core.Sha256Hash;
-
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-
-
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.spec.ECGenParameterSpec;
 import org.bouncycastle.util.encoders.Base64;
 
 
@@ -74,10 +47,7 @@ import ru.serce.jnrfuse.FuseStubFS;
 import ru.serce.jnrfuse.struct.FileStat;
 import ru.serce.jnrfuse.struct.FuseFileInfo;
 import ru.serce.jnrfuse.struct.Statvfs;
-import ru.serce.jnrfuse.struct.DeployData;
-import ru.serce.jnrfuse.struct.DeployDataRequest;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
@@ -87,30 +57,9 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.common.base.Charsets;
 import com.google.gson.Gson;
-import com.google.gson.JsonObject;
-
-import java.net.ConnectException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.security.Signature;
-import org.bouncycastle.math.ec.custom.sec.SecP256K1Curve;
-import org.bouncycastle.util.encoders.Hex;
-import org.bouncycastle.util.encoders.HexEncoder;
 import org.web3j.crypto.ECKeyPair;
-import org.web3j.crypto.Sign;
-import org.bouncycastle.crypto.ec.ECPair;
-import org.bouncycastle.crypto.generators.ECKeyPairGenerator;
 import org.bouncycastle.asn1.*;
-import java.net.http.HttpRequest.BodyPublishers;
-import java.net.http.HttpResponse.BodyHandlers;
-//import java.nio.charset.StandardCharsets;
-import com.google.gson.Gson;
-import com.google.protobuf.Message;
-import java.util.Map;
 
 import static jnr.ffi.Platform.OS.WINDOWS;
 
@@ -129,7 +78,7 @@ public class MemoryFS extends FuseStubFS {
             String fPath = System.getProperty("user.home") + "/f1r3fly/rholang/examples/"+ fName +".rho"; //change to path..probably not for demo as long as storage works can reuse files?
             saveStringToFile(fPath, getRhoTemplate(data));
 
-            sendHttpPost(data);
+            sendProto(data);
         
             //old rholang send code...now using http hopefully
         // try{
@@ -175,21 +124,6 @@ public class MemoryFS extends FuseStubFS {
 
      }
 
-     /*
-
-     //from caspermessage.scala ...this is the data type that is passed in on API http side
-      final case class DeployData(
-    term: String,
-    timestamp: Long,
-    phloPrice: Long,
-    phloLimit: Long,
-    validAfterBlockNumber: Long,
-    shardId: String
-) {
-  def totalPhloCharge = phloLimit * phloPrice
-}
-      */
-
     public void sendGRPC(String jsonPayload) {
         try {
             //String jsonPayload ="{\"deployer\":\"BP/AFleaaAUNZV1V304J8EYFFkVD4lfI5t8QNh5gaKUzZYjps1XqhZxatChaXvDv32K8KLgDIM6Z4muxYHs62T0=\",\"term\":\"{4}\",\"sig\":\"MEQCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiAJQ7QBNIlRnp6Eb8tqIjCEN4uUIXERoi9hJGh0TI0kOg==\",\"sigAlgorithm\":\"secp256k1\",\"phloPrice\":\"500\",\"phloLimit\":\"1000\",\"shardId\":\"root\"}";
@@ -209,211 +143,6 @@ public class MemoryFS extends FuseStubFS {
         } catch (Exception e) {
             System.out.println("sendGRPC error: " + e.getStackTrace());
         }
-    }
-
-    //  public static DeployDataProto signDeploy(ECKey privKey, DeployDataProto deploy) {
-    //     // Create a projection of only the fields used to validate the signature
-    //     DeployDataProto.Builder projectionBuilder = DeployDataProto.newBuilder()
-    //         .setTerm(deploy.getTerm())
-    //         .setTimestamp(deploy.getTimestamp())
-    //         .setPhloPrice(deploy.getPhloPrice())
-    //         .setPhloLimit(deploy.getPhloLimit())
-    //         .setValidAfterBlockNumber(deploy.getValidAfterBlockNumber())
-    //         .setShardId(deploy.getShardId());
-
-    //     // Serialize the projection
-    //     byte[] serialized = projectionBuilder.build().toByteArray();
-
-    //     // Get the public key bytes
-    //     byte[] deployer = privKey.getPubKey();
-
-    //     // Hash the serialized projection
-    //     byte[] digest = Sha256Hash.hash(serialized);
-
-    //     // Sign the hash
-    //     ECKey.ECDSASignature signature = privKey.sign(Sha256Hash.wrap(digest));
-
-    //     // Set the signature and deployer fields in the projection
-    //     projectionBuilder.setSigAlgorithm("secp256k1")
-    //         .setSig(ByteString.copyFrom(signature.encodeToDER()))
-    //         .setDeployer(ByteString.copyFrom(deployer));
-
-    //     // Build the final DeployDataProto with the signature
-    //     return projectionBuilder.build();
-    // }
-
-     public void sendHttpPost(String code) throws IOException {
-        //  try {
-        //      // Generate a new RSA key pair (or use an existing one)
-        //      KeyPair keyPair = generateKeyPair();
-
-        //      // Serialize the deploy data (this is a placeholder for actual serialization logic)
-        //      String serializedDeployData = "Serialized deploy data";
-
-        //      // Sign the serialized deploy data
-        //      String signature = signData(serializedDeployData, keyPair.getPrivate());
-
-        //      // Create the JSON payload with the signed deploy data (this is a placeholder for actual payload creation)
-        //      String jsonPayload = "{ \"deployData\": \"" + serializedDeployData + "\", \"signature\": \"" + signature + "\" }";
-
-        //      // Rest of the sendHttpPost method...
-        //  } catch (Exception e) {
-        //      e.printStackTrace();
-        //  }
-        HttpClient client = HttpClient.newHttpClient();
-
-        //sending simplest code now just to test
-        String termVal = getRhoTest(code);
-
-        //eventually general idea is that you could call a template like this and it would deploy
-        //String termVal = getRhoTemplate(code);
-
-        //ANTON's would have a shardID of sandbox_1 --GREG make note if testing this functionality
-        //current people using 'working' built has the value as root
-        //otherwise this json should match up with grospic's wallet but it rejects it
-        //with this error:
-        /* 
-         * 
-         * Response status code: 400
-Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{4}\",\n  \"phloLimit\" : \"1\",\n  \"phloPrice\" : \"1\",\n  \"validAfterBlockNumber\" : \"1\",\n  \"timestamp\" : \"1702112802454\",\n  \"shardId\" : \"root\"\n}..."
-         * 
-        */
-        //need to fix this call to be able to send it over...dont know whats wrong
-        //String json = "{\"term\":\"" + termVal + "\", \"phloLimit\":\"" + 1 + "\", \"phloPrice\":\"" + 1 + "\", \"validAfterBlockNumber\":\"" + 1 + "\", \"timestamp\":\"" + System.currentTimeMillis() + "\", \"shardId\":\"" + "root" + "\"}";
-        
-        String json = createDeployDataRequest(termVal);
-
-        System.out.println("json being sent: " + json.toString());
-
-        //trying to figure out how to pair it with grospic wallet on rnode-client-js
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + 40403 + "/api/deploy"))
-                .header("Content-Type", "application/json")
-                .POST(BodyPublishers.ofString(json, StandardCharsets.UTF_8))
-                .build();
-
-        //this works...default API status check
-        // HttpRequest request = HttpRequest.newBuilder()
-        //         .uri(URI.create("http://localhost:" + 40403 + "/status"))
-        //         .header("Content-Type", "application/json")
-        //         .GET()
-        //         .build();
-
-        System.out.println("request: " + request.toString());
-        try {
-            HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
-            System.out.println("Response status code: " + response.statusCode());
-            System.out.println("Response body: " + response.body());
-        } catch (ConnectException e) {
-            System.err.println("Failed to connect to the server. Please check if the server is running and accessible.");
-            // Log the error message for debugging purposes
-            e.printStackTrace();
-        } catch (Exception e) {
-            System.err.println("An error occurred while sending the HTTP request.");
-            // Log the error message for debugging purposes
-            e.printStackTrace();
-        }
-    }
-
-    public String createDeployDataRequest(String term) throws IOException
-    {
-
-        //from rnode-openapi.json in f1r3fly repo
-        /*
-         * 
-         "DeployRequest": {
-      "type": "object",
-      "required": ["data", "deployer", "sigAlgorithm", "signature"],
-      "properties": {
-        "data": {
-          "$ref": "#/definitions/DeployData"
-        },
-        "deployer": {
-          "type": "string",
-          "format": "public key"
-        },
-        "signature": {
-          "type": "string",
-          "format": "signature"
-        },
-        "sigAlgorithm": {
-          "type": "string",
-          "enum": ["secp256k1", "secp256k1:eth"]
-        }
-      },
-      "example": {
-        "data": {
-          "term": "new world in {\n  world!(\"Hello!\")\n}\n",
-          "timestamp": 1600740233668,
-          "phloPrice": 1,
-          "phloLimit": 250000,
-          "validAfterBlockNumber": 420299
-        },
-        "sigAlgorithm": "secp256k1:eth",
-        "signature": "1f80ccdc2517d842e67b913f656357b3f7a54a3f7c993f6df98063417d0c680f72a666f2e8a6cb38d0591740adcbded9ad7449d26b6def78a0113e77124f96d41b",
-        "deployer": "043c9c39d032925384f25413d553e91c261555384589329595e9c6956055719b54839704948477e4f0d4743cfdf1635bd497fa44995cea1c5c75971cf779da11b0"
-      },
-      "description": "DeployRequest"
-    },
-         * 
-         */
-
-         /*
-          
-        example from grospic wallet:
-        Private key	84d1e11a81a7f1fd5a18f869573ae54123756aec5696ffb5e3f465e4ae01adf5
-        Public key	04ec4d865367d9a4ce49db154b48823db817fd5574571053c006df74ff95fbf95784f89e3fefaf757a7106c4d23595db742df07a4edfdaa66a15ccfa24db8f092e
-        ETH	052fd8959e1103c0903a5bededabd90bb6c49e06
-        REV	11112r5BTTrR89JG64yS4LKJo6RpAxWDUc8eMDK1LBMNmLQV2v8zs8 
-
-        anton's setup:
-        BOOTSTRAP
-        PRIVATE_KEY=34d969f43affa8e5c47900e6db475cb8ddd8520170ee73b2207c54014006ff2b
-        PUB_KEY=04c5dfd5ab6ea61de1de4c307454fd95dbeb5399fd1a79ab67e2ed3436f153615ede974205b863bbe7b0dadfb6b308ea3307560ea2c41b774b9907fcad72e52c9b
-        ETH_ADDRESS=07e36b04ed27e95fda8662358bddd95452872023
-        VALIDATOR1
-        PRIVATE_KEY=016120657a8f96c8ee5c50b138c70c66a2b1366f81ea41ae66065e51174e158e
-        PUB_KEY=042b02e3069f5aaa09fc856d16abbf43a8f3cd45f8fa8889e4a2744ffd14f418a398945ec5ea08603c3726e794e9b936c3d45894fdb9f2df5591bdaea6607e6b0a
-        ETH_ADDRESS=4349f17f7af650e819d84832e340795c8aa532a0
-        VALIDATOR2
-        PRIVATE_KEY=304b2893981c36122a687c1fd534628d6f1d4e9dd8f44569039ea762dae2d3e7
-        PUB_KEY=04a98a4c7fceb7caec0bd5c1774e5307aad7f4c4a14ec6472cea4b1d262d08bfec683e0a15d5f78c5040405be3b469889b059e2986d55b239077be0d49aec8a85b
-        ETH_ADDRESS=8c2013c7c7d227d18321852199b05990b4c21510
-        */
-
-        String pubKey = "04c5dfd5ab6ea61de1de4c307454fd95dbeb5399fd1a79ab67e2ed3436f153615ede974205b863bbe7b0dadfb6b308ea3307560ea2c41b774b9907fcad72e52c9b";
-        String sigVal = "";
-        Gson gson = new Gson();
-
-        // Create the DeployData object
-        DeployData deployData = new DeployData();
-        deployData.setTerm(term);
-        deployData.setTimestamp(System.currentTimeMillis());
-        deployData.setPhloPrice(1);
-        deployData.setPhloLimit(1);
-        deployData.setValidAfterBlockNumber(1);
-        deployData.setShardId("root");
-
-        String privKeyHex = "34d969f43affa8e5c47900e6db475cb8ddd8520170ee73b2207c54014006ff2b";
-        JsonObject serializedDeployData = gson.toJsonTree(deployData).getAsJsonObject();
-        System.out.println("calling signJsonWithSecp256k1wBlake");
-        //sigVal = signJsonWithSecp256k1wBlake(serializedDeployData, privKeyHex);
-
-        String jsonPayload = "{ \"deployData\": \"" + serializedDeployData + "\", \"signature\": \"" + sigVal + "\" }";
-        System.out.println("jsonPayload: \n" + jsonPayload);
-
-        // Create the DeployRequest object
-        DeployDataRequest deployDataRequest = new DeployDataRequest();
-        deployDataRequest.setData(deployData);
-        deployDataRequest.setDeployer(pubKey);
-        deployDataRequest.setSignature(sigVal);
-        //if i use secp256k it gives me an error "Signature algorithm not supported."
-        //so both secp256k1:eth and secp256k1 options are valid just like grospic wallet
-        //it says the error is "Invalid signature." so the actual signing must be off
-        deployDataRequest.setSigAlgorithm("secp256k1");
-
-        // Convert the DeployRequest object to JSON using Gson
-        return gson.toJson(deployDataRequest);
     }
 
     public String getRhoTest(String data) {
@@ -1147,7 +876,7 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
         buf.get(0, data, 0, data.length);
         //data can now be passed into rho
         String dataString = new String(data, StandardCharsets.UTF_8);
-        System.out.println(dataString);
+        System.out.println("dataString = " + dataString);
         //problems: 
         //get multiple writes() per file...2 different names
         //._filename.txt and filename.txt for example
@@ -1167,12 +896,6 @@ Response body: "Invalid message body: Could not decode JSON: {\n  \"term\" : \"{
                 dataString = dataString.substring(0, dataString.length() - 1);
             }
             sendProto(dataString);
-            //sendDeploy();
-            // try {
-            //     sendRholangCode(path,dataString);
-            // } catch (IOException ioe) {
-            //     System.err.println("sendRholangCode failed catastrophically with an IOException.");
-            // }
         }
 
         System.out.println("WRITING: " + size);
