@@ -674,10 +674,15 @@ public class MemoryFS extends FuseStubFS {
                 // stbuf.f_blocks.set(1024 * 1024); // total data blocks in file system
                 // stbuf.f_frsize.set(1024);        // fs block size
                 // stbuf.f_bfree.set(1024 * 1024);  // free blocks in fs
-                stbuf.f_blocks.set(1024 * 1024 * 1024); // total data blocks in file system
-                stbuf.f_frsize.set(1024);        // fs block size
-                stbuf.f_bfree.set(1024 * 1024 * 1024);  // free blocks in fs
-                stbuf.f_bavail.set(1024 * 1024 * 1024); // free blocks available to unprivileged user
+                // stbuf.f_blocks.set(1024 * 1024 * 1024); // total data blocks in file system
+                // stbuf.f_frsize.set(1024);        // fs block size
+                // stbuf.f_bfree.set(1024 * 1024 * 1024);  // free blocks in fs
+                // stbuf.f_bavail.set(1024 * 1024 * 1024); // free blocks available to unprivileged user
+                stbuf.f_blocks.set(1024 * 1024 * 2);    // total data blocks in file system
+                stbuf.f_bsize.set(1024);                // file system block size
+                stbuf.f_frsize.set(1024);               // fundamental fs block size
+                stbuf.f_bfree.set(1024 * 1024 * 2);     // free blocks in fs
+                stbuf.f_bavail.set(1024 * 1024 * 2);    // free blocks available to unprivileged user
             }
         }
         //called all the time...too much spam on printouts
