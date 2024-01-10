@@ -671,9 +671,10 @@ public class MemoryFS extends FuseStubFS {
             // on the statvfs call.
             // see https://github.com/billziss-gh/winfsp/blob/14e6b402fe3360fdebcc78868de8df27622b565f/src/dll/fuse/fuse_intf.c#L654
             if ("/".equals(path)) {
-                stbuf.f_blocks.set(1024 * 1024); // total data blocks in file system
+                stbuf.f_blocks.set(1024 * 1024 * 1024); // total data blocks in file system
                 stbuf.f_frsize.set(1024);        // fs block size
-                stbuf.f_bfree.set(1024 * 1024);  // free blocks in fs
+                stbuf.f_bfree.set(1024 * 1024 * 1024);  // free blocks in fs
+                stbuf.f_bavail.set(1024 * 1024 * 1024); // free blocks available to unprivileged user
             }
         }
         //called all the time...too much spam on printouts
