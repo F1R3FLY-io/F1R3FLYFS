@@ -665,29 +665,19 @@ public class MemoryFS extends FuseStubFS {
 
     @Override
     public int statfs(String path, Statvfs stbuf) {
-        if (Platform.getNativePlatform().getOS() == WINDOWS) {
-            // statfs needs to be implemented on Windows in order to allow for copying
-            // data from other devices because winfsp calculates the volume size based
-            // on the statvfs call.
-            // see https://github.com/billziss-gh/winfsp/blob/14e6b402fe3360fdebcc78868de8df27622b565f/src/dll/fuse/fuse_intf.c#L654
-            if ("/".equals(path)) {
-                // stbuf.f_blocks.set(1024 * 1024); // total data blocks in file system
-                // stbuf.f_frsize.set(1024);        // fs block size
-                // stbuf.f_bfree.set(1024 * 1024);  // free blocks in fs
-                // stbuf.f_blocks.set(1024 * 1024 * 1024); // total data blocks in file system
-                // stbuf.f_frsize.set(1024);        // fs block size
-                // stbuf.f_bfree.set(1024 * 1024 * 1024);  // free blocks in fs
-                // stbuf.f_bavail.set(1024 * 1024 * 1024); // free blocks available to unprivileged user
-                stbuf.f_blocks.set(1024 * 1024 * 2);    // total data blocks in file system
-                stbuf.f_bsize.set(1024);                // file system block size
-                stbuf.f_frsize.set(1024);               // fundamental fs block size
-                stbuf.f_bfree.set(1024 * 1024 * 2);     // free blocks in fs
-                stbuf.f_bavail.set(1024 * 1024 * 2);    // free blocks available to unprivileged user
-            }
-        }
-        //called all the time...too much spam on printouts
-        //System.out.println("statfs() called with arguments: path = " + path);// + ", stbuf = " + stbuf);
-        return super.statfs(path, stbuf);
+        long dummySize = 1024L * 1024L * 1024L * 2L; // Use a large dummy size (e.g., 2TB)
+        stbuf.f_bsize.set(1024);                     // File system block size
+        stbuf.f_frsize.set(1024);                    // Fundamental file system block size
+        stbuf.f_blocks.set(dummySize);               // Total data blocks in file system
+        stbuf.f_bfree.set(dummySize);                // Free blocks in file system
+        stbuf.f_bavail.set(dummySize);               // Free blocks available to unprivileged user
+        stbuf.f_files.set(dummySize);                // Total file nodes in file system
+        stbuf.f_ffree.set(dummySize);                // Free file nodes in file system
+        stbuf.f_favail.set(dummySize);               // Free file nodes available to unprivileged user
+        stbuf.f_fsid.set(new java.util.Random().nextLong()); // File system ID (randomly generated for example)
+        stbuf.f_flag.set(0);                         // Mount flags
+        stbuf.f_namemax.set(255);                    // Maximum filename length
+        return 0;                                    // Success
     }
 
     @Override
