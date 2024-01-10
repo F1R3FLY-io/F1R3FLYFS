@@ -67,62 +67,42 @@ import static jnr.ffi.Platform.OS.WINDOWS;
 
 public class MemoryFS extends FuseStubFS {
 
-    private static final String RCHAIN_NODE_URL = "localhost"; // Replace with actual RChain node URL
-    private static final int RCHAIN_NODE_PORT = 40401; // Replace with actual RChain node port
     private static final Gson gson = new Gson();
 
-    public void sendRholangCode(String path, String data) throws IOException {
+    private static String executeCommand(String[] command) {
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        processBuilder.redirectErrorStream(false);
 
-        //System.out.println("sendRholangCode: " + data.toString());
-            String fName = getLastComponent(path);
-            String fPath = System.getProperty("user.home") + "/f1r3fly/rholang/examples/"+ fName +".rho"; //change to path..probably not for demo as long as storage works can reuse files?
-            saveStringToFile(fPath, getRhoTemplate(data));
+        StringBuilder output = new StringBuilder();
+        Process process;
+        try {
+            process = processBuilder.start();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
 
-            sendProto(data);
-        
-            //old rholang send code...now using http hopefully
-        // try{
-        //     //System.out.println("sendRholangCode: " + data.toString());
-        //     String fName = getLastComponent(path);
-        //     String fPath = System.getProperty("user.home") + "/f1r3fly/rholang/examples/"+ fName +".rho"; //change to path..probably not for demo as long as storage works can reuse files?
-        //     saveStringToFile(fPath, getRhoTemplate(data));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
 
-        //UPDATE THIS TO POINT TO CURRENT WORKING OUTPUT BIN FILE
-        //     String binaryPath = System.getProperty("user.home") + "/f1r3fly/node/target/universal/stage/bin/rnode";
-        //     ProcessBuilder processBuilder = new ProcessBuilder(binaryPath, "eval", fPath);
-        //     //ProcessBuilder processBuilder = new ProcessBuilder(binaryPath, "repl", "{}");
+            StringBuilder errorOutput = new StringBuilder();
+            while ((line = errorReader.readLine()) != null) {
+                errorOutput.append(line).append("\n");
+            }
 
-        //     File binaryDirectory = new File(binaryPath).getParentFile();
-        //     processBuilder.directory(binaryDirectory);
-        //     Process process = processBuilder.start();
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new IOException("Command exited with code " + exitCode + ": " + errorOutput.toString());
+            }
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+            return e.getMessage();
+        }
 
-        //     // Read the output stream
-        //     try (BufferedReader outputReader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-        //         String line;
-        //         while ((line = outputReader.readLine()) != null) {
-        //             System.out.println(line);
-        //         }
-        //     }
+        //just do a grpc call directly...this is stupid
 
-        //     // Read the error stream
-        //     try (BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-        //         String line;
-        //         while ((line = errorReader.readLine()) != null) {
-        //             System.err.println(line);
-        //         }
-        //     }
-
-        //     int exitCode = process.waitFor();
-        //     System.out.println("Process exited with code: " + exitCode);
-            
-        //     } catch (Exception e) {
-        //         System.out.println("error: " + e.getStackTrace());
-        //     }
-     }
-
-     public void getFileName() {
-
-     }
+        return output.toString();
+    }
 
     public void sendGRPC(String jsonPayload) {
         try {
@@ -258,38 +238,6 @@ public class MemoryFS extends FuseStubFS {
             super(name, parent);
         }
 
-        public Map<String, String> processWalletsFile(String walletsFilePath) throws IOException {
-            Map<String, String> wallets = new HashMap<>();
-            try (BufferedReader reader = new BufferedReader(new FileReader(walletsFilePath))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    String[] parts = line.split(",");
-                    if (parts.length == 2) {
-                        String publicKey = parts[0].trim();
-                        String balance = parts[1].trim();
-                        wallets.put(publicKey, balance);
-                    }
-                }
-            }
-            return wallets;
-        }
-
-        public Map<String, String> processBondsFile(String bondsFilePath) throws IOException {
-            Map<String, String> bonds = new HashMap<>();
-            try (BufferedReader reader = new BufferedReader(new FileReader(bondsFilePath))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    String[] parts = line.split(",");
-                    if (parts.length == 2) {
-                        String publicKey = parts[0].trim();
-                        String bondAmount = parts[1].trim();
-                        bonds.put(publicKey, bondAmount);
-                    }
-                }
-            }
-            return bonds;
-        }
-
         public MemoryFile(String name, String text) {
             super(name);
             try {
@@ -391,56 +339,40 @@ public class MemoryFS extends FuseStubFS {
         }
     }
 
-
-    // public static ECPrivateKey generatePrivateKey(String privateKeyHex) throws Exception {
-    //     BigInteger privKeyInt = new BigInteger(privateKeyHex, 16);
-    //     ECNamedCurveParameterSpec spec = ECNamedCurveTable.getParameterSpec("secp256k1");
-    //     ECParameterSpec ecSpec = new ECParameterSpec(spec.getCurve(), spec.getG(), spec.getN(),spec.getH());
-    //     ECPrivateKeySpec privateKeySpec = new ECPrivateKeySpec(privKeyInt, ecSpec);
-    //     KeyFactory keyFactory = KeyFactory.getInstance("EC", "BC");
-    //     return (ECPrivateKey) keyFactory.generatePrivate(privateKeySpec);
-    // }
+    //notes for tomorrow meeting:
+    //java string creation manually due to proto3 errors
+    //still using grpcurl due to errors from proto3
+    //timestamp always 0 or invalid signature
+    //._ workaround is needed for writes on creation
+    //need to figure out how to handle each event being processed (write/read/getattr/etc)
 
     public String sendProto(String dataString) {
         String privateKeyHex = "5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657";
         BigInteger priv = new BigInteger(privateKeyHex, 16);
-        //BigInteger pubKey = Sign.publicKeyFromPrivate(priv);
-        //ECKeyPair keyPair = new ECKeyPair(priv, pubKey);
         ECKeyPair keyPair = ECKeyPair.create(priv);
         BigInteger privateKey = keyPair.getPrivateKey();
         BigInteger publicKey = keyPair.getPublicKey();
-        //ECPrivateKey ecpk = new ECPrivateKey(priv);
-        //BigInteger privateKey1 = ecpk.getKey();
-
-        // Security.addProvider(new BouncyCastleProvider());
-        // ECNamedCurveParameterSpec spec = ECNamedCurveTable.getParameterSpec("secp256k1");
-        // ECDomainParameters domain = new ECDomainParameters(spec.getCurve(), spec.getG(), spec.getN(), spec.getH());
-        // ECPrivateKeyParameters privateKeyParams = new ECPrivateKeyParameters(priv, domain);
-        // ECDSASigner signer = new ECDSASigner();
-        // signer.init(true, privateKeyParams);
-
         Security.addProvider(new BouncyCastleProvider());
         ECNamedCurveParameterSpec spec = ECNamedCurveTable.getParameterSpec("secp256k1");
         ECDomainParameters domain = new ECDomainParameters(spec.getCurve(), spec.getG(), spec.getN(), spec.getH());
         ECPrivateKeyParameters privateKeyParams = new ECPrivateKeyParameters(priv, domain);
-
         // Use HMacDSAKCalculator for deterministic ECDSA
         HMacDSAKCalculator kCalculator = new HMacDSAKCalculator(new SHA256Digest());
-
         ECDSASigner signer = new ECDSASigner(kCalculator);
         signer.init(true, privateKeyParams);
 
         System.out.println("passed in key= " + privateKeyHex);
         System.out.println("privateKeyVal= " + privateKey.toString(16));
         System.out.println("publicKey= " + publicKey.toString(16));
-        // System.out.println("privateKey1= " + privateKey1);
-        // System.out.println("publicKey1= " + ecpk.getPublicKey().toString());
+
+        String rholangCode = getRhoTemplate(dataString);
+        System.out.println("rholangCode = \n\n" + rholangCode + "\n\n");
         
         DeployDataProto.Builder builder = DeployDataProto.newBuilder();
         DeployDataProto deployData = 
          builder.                                                                                                                                             
-            setTerm("{"+dataString+"}").
-            setTimestamp(0L).
+            setTerm(rholangCode).
+            setTimestamp(0L). //MUST BE 0 or invalid signature is given
             setPhloPrice(500L).
             setPhloLimit(1000L).                                                                                                                                                          
             setValidAfterBlockNumber(0L).
@@ -469,14 +401,6 @@ public class MemoryFS extends FuseStubFS {
         System.out.println("java output: Hashed data (hex): " + hashedDataHex);
         //up to this point looks correct
 
-                //scala has this
-        //val deployer = privKey.publicKey.decompressed
-        //deployer = ByteString.copyFrom(deployer.decompressedBytes.toArray)
-        //outputs this: 
-        //"deployer":"BP/AFleaaAUNZV1V304J8EYFFkVD4lfI5t8QNh5gaKUzZYjps1XqhZxatChaXvDv32K8KLgDIM6Z4muxYHs62T0="
-        
-
-
         // Sign the hash
         BigInteger[] signature = signer.generateSignature(hashedData);
         ASN1EncodableVector v = new ASN1EncodableVector();
@@ -491,14 +415,16 @@ public class MemoryFS extends FuseStubFS {
             throw new RuntimeException("Failed to encode DER signature", e);
         }
         String sigStr = Base64.toBase64String(derSignature);
+        //System.out.println("Signature: " + sigStr);
+
         //from scala: 
+        //val deployer = privKey.publicKey.decompressed
+        //deployer = ByteString.copyFrom(deployer.decompressedBytes.toArray)
+        //"deployer":"BP/AFleaaAUNZV1V304J8EYFFkVD4lfI5t8QNh5gaKUzZYjps1XqhZxatChaXvDv32K8KLgDIM6Z4muxYHs62T0="
         //sig            = ByteString.copyFrom(signed.bytes.toArray),
         //"sig":    "MEQCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiAJQ7QBNIlRnp6Eb8tqIjCEN4uUIXERoi9hJGh0TI0kOg=="
-        //Signature: MEUCIAISqeBbReZ4aAi5b+/fc5H7lzQYlP2uz2hATwxwFieDAiEA9rxL/st2rmFhe5A0ld3PeoMjSMU+Nv4MXq32GIOpHQc=
 
-        System.out.println("Signature: " + sigStr);
-
-
+        //convert the proto to java...need to do it this way because of the proto3 option errors i was getting
         Map<String, String> values = new HashMap<>();
         values.put("deployer", "BP/AFleaaAUNZV1V304J8EYFFkVD4lfI5t8QNh5gaKUzZYjps1XqhZxatChaXvDv32K8KLgDIM6Z4muxYHs62T0=");
         values.put("term", deployData.getTerm());
@@ -507,11 +433,8 @@ public class MemoryFS extends FuseStubFS {
         values.put("phloPrice", deployData.getPhloPrice()+"");
         values.put("phloLimit", deployData.getPhloLimit()+"");
         values.put("shardId", "root");
-         // Add more key-value pairs as needed
-
          String jsonString = gson.toJson(values);
-         System.out.println(jsonString);
-
+         //System.out.println(jsonString);
          sendGRPC(jsonString);
 
         return sigStr;
@@ -558,6 +481,9 @@ public class MemoryFS extends FuseStubFS {
 // //Public key	04ffc016579a68050d655d55df4e09f04605164543e257c8e6df10361e6068a5336588e9b355ea859c5ab4285a5ef0efdf62bc28b80320ce99e26bb1607b3ad93d
 // //ETH	fac7dde9d0fa1df6355bd1382fe75ba0c50e8840
 
+
+    //NOT WORKING DUE TO PROTO3 AUTO GENERATED CODE ERRORS
+    //HOWEVER THIS IS WHAT WE SHOULD BE USING TO ACTUALLY SEND GRPC CALLS
     public static void sendDeploy() {
         // Create a channel to the server
         System.out.println("sendDeploy");
@@ -607,45 +533,10 @@ public class MemoryFS extends FuseStubFS {
             e.printStackTrace();
         }
 
-        
         // Shutdown the channel
         channel.shutdown();
     }
 
-    private static String executeCommand(String[] command) {
-        ProcessBuilder processBuilder = new ProcessBuilder(command);
-        processBuilder.redirectErrorStream(false);
-
-        StringBuilder output = new StringBuilder();
-        Process process;
-        try {
-            process = processBuilder.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-
-            String line;
-            while ((line = reader.readLine()) != null) {
-                output.append(line).append("\n");
-            }
-
-            StringBuilder errorOutput = new StringBuilder();
-            while ((line = errorReader.readLine()) != null) {
-                errorOutput.append(line).append("\n");
-            }
-
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                throw new IOException("Command exited with code " + exitCode + ": " + errorOutput.toString());
-            }
-        } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
-            return e.getMessage();
-        }
-
-        //just do a grpc call directly...this is stupid
-
-        return output.toString();
-    }
     public static void main(String[] args) throws IOException {
         MemoryFS memfs = new MemoryFS();
         try {
@@ -677,12 +568,6 @@ public class MemoryFS extends FuseStubFS {
         MemoryDirectory nestedDirectory = new MemoryDirectory("Sample nested directory");
         dirWithFiles.add(nestedDirectory);
         nestedDirectory.add(new MemoryFile("So deep.txt", "Man, I'm like, so deep in this here file structure.\n"));
-
-        //sendProto("5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657");
-        //sendDeploy();
-        //sendHttpPost("AAAAAAAAAAAAAAAAAAAAAAAAH");
-        //sendProto("5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657");
-        //performGrpcDeployCall("AAAAAAAAAAAAAAAAAAAAAAAAH");
     }
 
     @Override
@@ -891,7 +776,7 @@ public class MemoryFS extends FuseStubFS {
         //might be able to demo one laptop creating and saving a file
         //the other laptop running the same software connected to the node could pull it down
         //drag and drop i only get the ._filename one due to the disk full error from timestamp
-        if (path.contains("abc.txt")) {
+        if (path.contains("abc.txt") && !path.contains("._")) {
             if (dataString.endsWith("\n")) {
                 dataString = dataString.substring(0, dataString.length() - 1);
             }
