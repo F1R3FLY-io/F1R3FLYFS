@@ -74,6 +74,43 @@ import static jnr.ffi.Platform.OS.WINDOWS;
 public class MemoryFS extends FuseStubFS {
 
     private static final Gson gson = new Gson();
+    private static final byte[] key = "1234567890123456".getBytes(); // 16-byte key for AES
+    private static final byte[] iv = new byte[16]; // 16-byte IV for AES (should be initialized securely)
+
+    static {
+        // Securely initialize the IV (for example purposes, using random bytes)
+        new SecureRandom().nextBytes(iv);
+    }
+
+    private byte[] encryptData(byte[] data) {
+        try {
+            PaddedBufferedBlockCipher cipher = new PaddedBufferedBlockCipher(new CBCBlockCipher(new AESEngine()));
+            cipher.init(true, new ParametersWithIV(new KeyParameter(key), iv));
+            byte[] output = new byte[cipher.getOutputSize(data.length)];
+            int outputLength = cipher.processBytes(data, 0, data.length, output, 0);
+            outputLength += cipher.doFinal(output, outputLength);
+            byte[] result = new byte[outputLength];
+            System.arraycopy(output, 0, result, 0, outputLength);
+            return result;
+        } catch (Exception e) {
+            throw new RuntimeException("Error encrypting data", e);
+        }
+    }
+
+    private byte[] decryptData(byte[] encryptedData) {
+        try {
+            PaddedBufferedBlockCipher cipher = new PaddedBufferedBlockCipher(new CBCBlockCipher(new AESEngine()));
+            cipher.init(false, new ParametersWithIV(new KeyParameter(key), iv));
+            byte[] output = new byte[cipher.getOutputSize(encryptedData.length)];
+            int outputLength = cipher.processBytes(encryptedData, 0, encryptedData.length, output, 0);
+            outputLength += cipher.doFinal(output, outputLength);
+            byte[] result = new byte[outputLength];
+            System.arraycopy(output, 0, result, 0, outputLength);
+            return result;
+        } catch (Exception e) {
+            throw new RuntimeException("Error decrypting data", e);
+        }
+    }
 
     private static String executeCommand(String[] command) {
         ProcessBuilder processBuilder = new ProcessBuilder(command);
@@ -809,15 +846,10 @@ public class MemoryFS extends FuseStubFS {
             } else { //need an encrypt data option here
                 dataString = new String(data, StandardCharsets.UTF_8);
                 System.out.println("not encrypted dataString = " + printByteArray(data));
-                try {
-                    Blake2bDigest blake2bDigest = new Blake2bDigest(data.length);
-                    blake2bDigest.update(data, 0, data.length);
-                    byte[] hashedData = new byte[blake2bDigest.getDigestSize()];
-                    blake2bDigest.doFinal(hashedData, 0);
-                    System.out.println("encrypted dataString = " + printByteArray(hashedData));
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                byte[] encryptedData = encryptData(data);
+                System.out.println("encrypted dataString = " + printByteArray(encryptedData));
+                byte[] decryptedData = decryptData(encryptedData);
+                System.out.println("decryptedData dataString = " + printByteArray(decryptedData));
             }
 
             System.out.println("dataString = " + dataString);
@@ -896,26 +928,5 @@ public class MemoryFS extends FuseStubFS {
              e.printStackTrace();
          }
      }
-    private static final byte[] key = "1234567890123456".getBytes(); // 16-byte key for AES
-    private static final byte[] iv = new byte[16]; // 16-byte IV for AES (should be initialized securely)
-
-    static {
-        // Securely initialize the IV (for example purposes, using random bytes)
-        new SecureRandom().nextBytes(iv);
-    }
-
-    private byte[] encryptData(byte[] data) {
-        try {
-            PaddedBufferedBlockCipher cipher = new PaddedBufferedBlockCipher(new CBCBlockCipher(new AESEngine()));
-            cipher.init(true, new ParametersWithIV(new KeyParameter(key), iv));
-            byte[] output = new byte[cipher.getOutputSize(data.length)];
-            int outputLength = cipher.processBytes(data, 0, data.length, output, 0);
-            outputLength += cipher.doFinal(output, outputLength);
-            byte[] result = new byte[outputLength];
-            System.arraycopy(output, 0, result, 0, outputLength);
-            return result;
-        } catch (Exception e) {
-            throw new RuntimeException("Error encrypting data", e);
-        }
-    }
+    
 }
