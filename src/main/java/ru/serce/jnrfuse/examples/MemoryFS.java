@@ -372,23 +372,15 @@ public class MemoryFS extends FuseStubFS {
         DeployDataProto deployData = 
          builder.                                                                                                                                             
             setTerm(rholangCode).
-            setTimestamp(0L). //MUST BE 0 or invalid signature is given
+            //setTimestamp(0L). //MUST BE 0 or invalid signature is given
             setPhloPrice(500L).
             setPhloLimit(1000L).                                                                                                                                                          
             setValidAfterBlockNumber(0L).
             setShardId("root").
          build();
         byte [] serializedData = deployData.toByteArray();
-        StringBuilder serializedStr = new StringBuilder();
-        for (byte b : serializedData) {
-            String hex = Integer.toHexString(0xff & b);
-            if (hex.length() == 1) {
-                serializedStr.append('0');
-            }
-            serializedStr.append(hex);
-        }
-        System.out.println("scala output: ByteVector(17 bytes, 0x12037b347d38f40340e8075a04726f6f74)");
-        System.out.println("serializedData = " + serializedStr.toString());
+        //System.out.println("scala output: ByteVector(17 bytes, 0x12037b347d38f40340e8075a04726f6f74)");
+        System.out.println("serializedData = " + printByteArray(serializedData));
 
 
         // Hash the serialized data using Blake2b
@@ -396,10 +388,9 @@ public class MemoryFS extends FuseStubFS {
         blake2bDigest.update(serializedData, 0, serializedData.length);
         byte[] hashedData = new byte[blake2bDigest.getDigestSize()];
         blake2bDigest.doFinal(hashedData, 0);
-        String hashedDataHex = String.format("%02x", new BigInteger(1, hashedData));
-        System.out.println("scala output: ByteVector(32 bytes, 0x16124dcc2e8d61f6826833b73cd3ae184fcbf0e8a79d0e14a207a4be87272b29)");
-        System.out.println("java output: Hashed data (hex): " + hashedDataHex);
-        //up to this point looks correct
+        //String hashedDataHex = String.format("%02x", new BigInteger(1, hashedData));
+        //System.out.println("scala output: ByteVector(32 bytes, 0x16124dcc2e8d61f6826833b73cd3ae184fcbf0e8a79d0e14a207a4be87272b29)");
+        //System.out.println("java output: Hashed data (hex): " + hashedDataHex);
 
         // Sign the hash
         BigInteger[] signature = signer.generateSignature(hashedData);
@@ -576,8 +567,8 @@ public class MemoryFS extends FuseStubFS {
             return -ErrorCodes.EEXIST();
         }
         MemoryPath parent = getParentPath(path);
-        System.out.println("create() called with arguments: path = " + path + ", mode = " + mode + ", fi = " + fi);
-        System.out.println("parent: " + parent.toString());
+        //System.out.println("create() called with arguments: path = " + path + ", mode = " + mode + ", fi = " + fi);
+        //System.out.println("parent: " + parent.toString());
         if (parent instanceof MemoryDirectory) {
             System.out.println("is instance");
             ((MemoryDirectory) parent).mkfile(getLastComponent(path));
@@ -597,6 +588,13 @@ public class MemoryFS extends FuseStubFS {
             return 0;
         }
         return -ErrorCodes.ENOENT();
+    }
+
+    public String getFileExtension(String fileName) {
+        if (fileName == null || !fileName.contains(".")) {
+            return ""; // No extension found
+        }
+        return fileName.substring(fileName.lastIndexOf(".") + 1);
     }
 
     private String getLastComponent(String path) {
@@ -774,8 +772,9 @@ public class MemoryFS extends FuseStubFS {
         byte[] data = new byte[(int)size];
         buf.get(0, data, 0, data.length);
         //data can now be passed into rho
-        String dataString = new String(data, StandardCharsets.UTF_8);
-        System.out.println("dataString = " + dataString);
+        String dataString = "";
+        dataString = new String(data, StandardCharsets.UTF_8);
+
         //problems: 
         //get multiple writes() per file...2 different names
         //._filename.txt and filename.txt for example
@@ -790,10 +789,35 @@ public class MemoryFS extends FuseStubFS {
         //might be able to demo one laptop creating and saving a file
         //the other laptop running the same software connected to the node could pull it down
         //drag and drop i only get the ._filename one due to the disk full error from timestamp
-        if (path.contains("abc.txt") && !path.contains("._")) {
-            if (dataString.endsWith("\n")) {
-                dataString = dataString.substring(0, dataString.length() - 1);
+        String fName = getLastComponent(path);
+        if (!fName.contains("._")) {
+
+            String fileType = getFileExtension(fName);
+
+            if(fileType == "rho") {
+                dataString = new String(data, StandardCharsets.UTF_8);
+
+            } else if(fileType == "metta") {
+                dataString = new String(data, StandardCharsets.UTF_8);
+                //convert to rho?
+            } else { //need an encrypt data option here
+                dataString = new String(data, StandardCharsets.UTF_8);
+                System.out.println("not encrypted dataString = " + printByteArray(data));
+                try {
+                    Blake2bDigest blake2bDigest = new Blake2bDigest(data.length);
+                    blake2bDigest.update(data, 0, data.length);
+                    byte[] hashedData = new byte[blake2bDigest.getDigestSize()];
+                    blake2bDigest.doFinal(hashedData, 0);
+                    System.out.println("encrypted dataString = " + printByteArray(hashedData));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
+
+            System.out.println("dataString = " + dataString);
+            // if (dataString.endsWith("\n")) {
+            //     dataString = dataString.substring(0, dataString.length() - 1);
+            // }
             sendProto(dataString);
         }
 
@@ -845,6 +869,18 @@ public class MemoryFS extends FuseStubFS {
 
      public String getFilePath(String fName) {
         return System.getProperty("user.home") + "/f1r3fly/rholang/examples/"+fName+".rho";
+     }
+
+     public String printByteArray(byte[] byteArray) {
+        StringBuilder serializedStr = new StringBuilder();
+        for (byte b : byteArray) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) {
+                serializedStr.append('0');
+            }
+            serializedStr.append(hex);
+        }
+        return serializedStr.toString();
      }
 
      public void saveStringToFile(String filePath, String content) {
