@@ -56,6 +56,12 @@ import java.nio.ByteBuffer;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import org.bouncycastle.crypto.engines.AESEngine;
+import org.bouncycastle.crypto.modes.CBCBlockCipher;
+import org.bouncycastle.crypto.paddings.PaddedBufferedBlockCipher;
+import org.bouncycastle.crypto.params.KeyParameter;
+import org.bouncycastle.crypto.params.ParametersWithIV;
+import java.security.SecureRandom;
 
 import com.google.gson.Gson;
 import org.web3j.crypto.ECKeyPair;
@@ -890,4 +896,26 @@ public class MemoryFS extends FuseStubFS {
              e.printStackTrace();
          }
      }
+    private static final byte[] key = "1234567890123456".getBytes(); // 16-byte key for AES
+    private static final byte[] iv = new byte[16]; // 16-byte IV for AES (should be initialized securely)
+
+    static {
+        // Securely initialize the IV (for example purposes, using random bytes)
+        new SecureRandom().nextBytes(iv);
+    }
+
+    private byte[] encryptData(byte[] data) {
+        try {
+            PaddedBufferedBlockCipher cipher = new PaddedBufferedBlockCipher(new CBCBlockCipher(new AESEngine()));
+            cipher.init(true, new ParametersWithIV(new KeyParameter(key), iv));
+            byte[] output = new byte[cipher.getOutputSize(data.length)];
+            int outputLength = cipher.processBytes(data, 0, data.length, output, 0);
+            outputLength += cipher.doFinal(output, outputLength);
+            byte[] result = new byte[outputLength];
+            System.arraycopy(output, 0, result, 0, outputLength);
+            return result;
+        } catch (Exception e) {
+            throw new RuntimeException("Error encrypting data", e);
+        }
+    }
 }
