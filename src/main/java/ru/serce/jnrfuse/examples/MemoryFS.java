@@ -10,6 +10,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.io.UnsupportedEncodingException;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -22,6 +23,9 @@ import org.bouncycastle.crypto.signers.HMacDSAKCalculator;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.io.IOException;
 
 
 import java.security.Security;
@@ -172,9 +176,9 @@ public class MemoryFS extends FuseStubFS {
         //grospic value in test wallet is this
         String rhoToSend = "new return(`rho:rchain:deployId`) in {\n  return!((42, true, \"Hello from blockchain!\"))\n}";
         return rhoToSend;
-     }
+    }
 
-     public String getRhoTemplate(String data) {
+    public String getRhoTemplate(String data) {
         String rhoToSend = "new helloworld, stdout(`rho:io:stdout`) in {\n" + //
                 "    contract helloworld( world ) = {\n" + //
                 "        for( @msg <- world ) {\n" + //
@@ -191,7 +195,61 @@ public class MemoryFS extends FuseStubFS {
 
         rhoToSend = rhoToSend.replace("$DATA$", data);
         return rhoToSend;
-     }
+    }
+    
+    public String loadFileAsString(String filePath) throws IOException {
+        return new String(Files.readAllBytes(Paths.get(filePath)));
+    }
+
+    public String getInsertRho() {
+        return "new simpleInsertTest, simpleInsertTestReturnID,\n" +
+        "ri(`rho:registry:insertArbitrary`),\n" +
+        "stdout(`rho:io:stdout`),\n" +
+        "stdoutAck(`rho:io:stdoutAck`) in {\n" +
+        "simpleInsertTest!(*simpleInsertTestReturnID) |\n" +
+        "contract simpleInsertTest(registryIdentifier) = {\n" +
+        "    stdout!(\"REGISTRY_SIMPLE_INSERT_TEST: create arbitrary process X to store in the registry\") |\n" +
+        "    new X, Y, innerAck in {\n" +
+        "        stdoutAck!(*X, *innerAck) |\n" +
+        "        for(_ <- innerAck){\n" +
+        "            stdout!(\"REGISTRY_SIMPLE_INSERT_TEST: adding X to the registry and getting back a new identifier\") |\n" +
+        "            ri!(*X, *Y) |\n" +
+        "            for(@uri <- Y) {\n" +
+        "                stdout!(\"@uri <- Y hit\") |\n" +
+        "                stdout!(\"REGISTRY_SIMPLE_INSERT_TEST: got an identifier for X from the registry\") |\n" +
+        "                stdout!(uri) |\n" +
+        "                registryIdentifier!(uri)\n" +
+        "            }\n" +
+        "        }\n" +
+        "    }\n" +
+        "}\n" +
+        "}";
+    }
+
+    public String getLookupRho() {
+        return "new simpleLookupTest, ack,\n" +
+        "rl(`rho:registry:lookup`),\n" +
+        "stdout(`rho:io:stdout`),\n" +
+        "stdoutAck(`rho:io:stdoutAck`) in {\n" +
+        
+        "for(@idFromTest1 <- simpleLookupTest) {\n" +
+        "    simpleLookupTest!(idFromTest1, *ack)\n" +
+        "} |\n" +
+        
+        "contract simpleLookupTest(@uri, result) = {\n" +
+        "    stdout!(\"uri= \" ++ uri) |\n" +
+        "    stdout!(\"REGISTRY_SIMPLE_LOOKUP_TEST: looking up X in the registry using identifier\") |\n" +
+        "    new lookupResponse in {\n" +
+        "        rl!(uri, *lookupResponse) |\n" +
+        "        for(@val <- lookupResponse) {\n" +
+        "            stdout!(\"ajdksfhasdkfhjkasdfhkjasdfdskjh\") |\n" +
+        "            stdout!(\"REGISTRY_SIMPLE_LOOKUP_TEST: got X from the registry using identifier\") |\n" +
+        "            stdoutAck!(val, *result)\n" +
+        "        }\n" +
+        "    }\n" +
+        "}\n" +
+        "}";
+    }
 
 
     private class MemoryDirectory extends MemoryPath {
@@ -409,7 +467,14 @@ public class MemoryFS extends FuseStubFS {
         System.out.println("publicKey= " + publicKey.toString(16));
 
         String rholangCode = getRhoTemplate(dataString);
-        System.out.println("rholangCode = \n\n" + rholangCode + "\n\n");
+        //rholangCode = getInsertRho();
+        //rholangCode = getLookupRho();
+        // try {
+        //     rholangCode = loadFileAsString("/Users/btcmac/f1r3fly/rholang/examples/tut-registry.rho");
+        //     System.out.println("FILE LOADED with code:\n" +rholangCode);
+        // } catch (IOException e) {
+        //     e.printStackTrace();
+        // }
         
         DeployDataProto.Builder builder = DeployDataProto.newBuilder();
         DeployDataProto deployData = 
@@ -712,27 +777,19 @@ public class MemoryFS extends FuseStubFS {
             // on the statvfs call.
             // see https://github.com/billziss-gh/winfsp/blob/14e6b402fe3360fdebcc78868de8df27622b565f/src/dll/fuse/fuse_intf.c#L654
             if ("/".equals(path)) {
-                // stbuf.f_blocks.set(1024 * 1024); // total data blocks in file system
-                // stbuf.f_frsize.set(1024);        // fs block size
-                // stbuf.f_bfree.set(1024 * 1024);  // free blocks in fs
-                // stbuf.f_blocks.set(1024 * 1024 * 1024); // total data blocks in file system
-                // stbuf.f_frsize.set(1024);        // fs block size
-                // stbuf.f_bfree.set(1024 * 1024 * 1024);  // free blocks in fs
-                // stbuf.f_bavail.set(1024 * 1024 * 1024); // free blocks available to unprivileged user
-                stbuf.f_blocks.set(1024 * 1024 * 2);    // total data blocks in file system
-                stbuf.f_bsize.set(1024);                // file system block size
-                stbuf.f_frsize.set(1024);               // fundamental fs block size
-                stbuf.f_bfree.set(1024 * 1024 * 2);     // free blocks in fs
-                stbuf.f_bavail.set(1024 * 1024 * 2);    // free blocks available to unprivileged user
+                stbuf.f_blocks.set(1024 * 1024); // total data blocks in file system
+                stbuf.f_frsize.set(1024);        // fs block size
+                stbuf.f_bfree.set(1024 * 1024);  // free blocks in fs
             }
         }
         //called all the time...too much spam on printouts
         //System.out.println("statfs() called with arguments: path = " + path);// + ", stbuf = " + stbuf);
+        //can now drag and drop in Finder UI with these options set
         stbuf.f_blocks.set(1024 * 1024 * 2);    // total data blocks in file system
-                stbuf.f_bsize.set(1024);                // file system block size
-                stbuf.f_frsize.set(1024);               // fundamental fs block size
-                stbuf.f_bfree.set(1024 * 1024 * 2);     // free blocks in fs
-                stbuf.f_bavail.set(1024 * 1024 * 2);    // free blocks available to unprivileged user
+        stbuf.f_bsize.set(1024);                // file system block size
+        stbuf.f_frsize.set(1024);               // fundamental fs block size
+        stbuf.f_bfree.set(1024 * 1024 * 2);     // free blocks in fs
+        stbuf.f_bavail.set(1024 * 1024 * 2);    // free blocks available to unprivileged user
         return super.statfs(path, stbuf);
     }
 
@@ -833,23 +890,33 @@ public class MemoryFS extends FuseStubFS {
         //the other laptop running the same software connected to the node could pull it down
         //drag and drop i only get the ._filename one due to the disk full error from timestamp
         String fName = getLastComponent(path);
+        System.out.println("fName = " + fName);
         if (!fName.contains("._")) {
 
             String fileType = getFileExtension(fName);
+            System.out.println("fileType = " + fileType);
 
-            if(fileType == "rho") {
+            if(fileType.equals("rho")) {
                 dataString = new String(data, StandardCharsets.UTF_8);
 
-            } else if(fileType == "metta") {
+            } else if(fileType.equals("metta")) {
                 dataString = new String(data, StandardCharsets.UTF_8);
                 //convert to rho?
-            } else { //need an encrypt data option here
+            } else if (fileType.equals("encrypted")) {
                 dataString = new String(data, StandardCharsets.UTF_8);
                 System.out.println("not encrypted dataString = " + printByteArray(data));
                 byte[] encryptedData = encryptData(data);
                 System.out.println("encrypted dataString = " + printByteArray(encryptedData));
+                try {
+                    dataString = new String(encryptedData, "UTF-8");
+                    System.out.println("encrypted dataString 2 = " + printByteArray(encryptedData));
+                } catch (UnsupportedEncodingException e) {
+                    System.out.println("unable to encrypt data: " + e.getStackTrace());
+                }
                 byte[] decryptedData = decryptData(encryptedData);
                 System.out.println("decryptedData dataString = " + printByteArray(decryptedData));
+            } else {
+                dataString = new String(data, StandardCharsets.UTF_8);
             }
 
             System.out.println("dataString = " + dataString);
