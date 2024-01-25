@@ -1,9 +1,9 @@
 package ru.serce.jnrfuse.examples;
 
 import casper.CasperMessage.DeployDataProto;
-import casper.ServiceErrorOuterClass.ServiceError;
+import servicemodelapi.ServiceErrorOuterClass.ServiceError;
 import casper.v1.DeployServiceV1.DeployResponse;
-import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
+// import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
 import casper.v1.DeployServiceGrpc;
 import java.io.BufferedReader;
 import java.io.FileReader;
