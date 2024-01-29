@@ -73,7 +73,7 @@ dependencies {
     implementation 'io.grpc:grpc-services:1.45.1'
 
     // Web3J
-implementation group: 'org.web3j', name: 'crypto', version: '4.10.3'
+implementation group: 'org.web3j', name: 'crypto', version: '5.0.0'
 
     testImplementation 'junit:junit:4.13.2'
 }
