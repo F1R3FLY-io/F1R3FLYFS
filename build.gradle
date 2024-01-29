@@ -58,7 +58,7 @@ dependencies {
     // gRPC
     implementation 'io.grpc:grpc-netty-shaded:1.45.1'
     implementation 'io.grpc:grpc-protobuf:1.45.1'
-    implementation 'io.grpc:grpc-stub:1.45.1'
+    implementation 'io.grpc:grpc-stub:1.61.0'
     implementation 'io.grpc:grpc-core:1.45.1'
 
     implementation 'com.google.api.grpc:proto-google-common-protos:1.17.0'
