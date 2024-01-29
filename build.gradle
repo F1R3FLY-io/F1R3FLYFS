@@ -70,7 +70,7 @@ dependencies {
     implementation 'com.google.protobuf:protobuf-java:3.19.4'
     implementation 'com.google.protobuf:protobuf-java-util:3.19.4'
     // gRPC services (if you need server-side)
-    implementation 'io.grpc:grpc-services:1.45.1'
+    implementation 'io.grpc:grpc-services:1.61.0'
 
     // Web3J
 implementation group: 'org.web3j', name: 'crypto', version: '4.10.3'
