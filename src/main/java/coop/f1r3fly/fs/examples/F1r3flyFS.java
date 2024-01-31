@@ -49,12 +49,13 @@ public class F1r3flyFS extends FuseStubFS {
 
         DeployDataProto.Builder builder = DeployDataProto.newBuilder();
 
-        builder.setTerm(deploy.getTerm());
-        builder.setTimestamp(deploy.getTimestamp());
-        builder.setPhloPrice(deploy.getPhloPrice());
-        builder.setPhloLimit(deploy.getPhloLimit());
-        builder.setValidAfterBlockNumber(deploy.getValidAfterBlockNumber());
-        builder.setShardId(deploy.getShardId());
+        builder
+            .setTerm(deploy.getTerm())
+            .setTimestamp(deploy.getTimestamp())
+            .setPhloPrice(deploy.getPhloPrice())
+            .setPhloLimit(deploy.getPhloLimit())
+            .setValidAfterBlockNumber(deploy.getValidAfterBlockNumber())
+            .setShardId(deploy.getShardId());
 
         DeployDataProto signed = builder.build();
         
@@ -64,9 +65,10 @@ public class F1r3flyFS extends FuseStubFS {
         byte[] signature = secp256k1.sign(hashed, signingKey);
 
         DeployDataProto.Builder outbound = signed.toBuilder();
-        outbound.setSigAlgorithm("secp256k1")
-        .setSig(ByteString.copyFrom(signature))
-        .setDeployer(ByteString.copyFrom(secp256k1.pubkeyCreate(signingKey)));
+        outbound
+            .setSigAlgorithm("secp256k1")
+            .setSig(ByteString.copyFrom(signature))
+            .setDeployer(ByteString.copyFrom(secp256k1.pubkeyCreate(signingKey)));
 
         return outbound.build();
     }
