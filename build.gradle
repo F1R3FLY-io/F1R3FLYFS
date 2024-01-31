@@ -37,15 +37,15 @@ dependencies {
 }
 
 release {
-    newVersionCommitMessage = '[jnr-fuse release] - '
-    preTagCommitMessage = '[jnr-fuse release] - pre tag commit: '
+    newVersionCommitMessage = '[f1r3flyfs release] - '
+    preTagCommitMessage = '[f1r3flyfs release] - pre tag commit: '
     buildTasks = ['clean', 'assemble', 'publishToSonatype', 'closeAndReleaseSonatypeStagingRepository']
 }
 
 publishing {
     publications {
         mavenJava(MavenPublication) {
-            artifactId = 'jnr-fuse'
+            artifactId = 'f1r3flyfs'
             from components.java
 
             versionMapping {
@@ -57,8 +57,8 @@ publishing {
                 }
             }
             pom {
-                name = 'jnr-fuse'
-                description = 'jnr-fuse is a FUSE implementation in java using Java Native Runtime (JNR).'
+                name = 'f1r3flyfs'
+                description = 'f1r3flyfs is a FUSE implementation in java using Java Native Runtime (JNR) and Rholang.'
                 url = 'https://github.com/SerCeMan/jnr-fuse'
                 licenses {
                     license {
