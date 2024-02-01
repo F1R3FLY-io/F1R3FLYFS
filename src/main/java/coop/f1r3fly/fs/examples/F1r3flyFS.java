@@ -149,7 +149,7 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
     public static void main(String[] args) {
-        HelloFuse stub = new HelloFuse();
+        F1r3flyFS stub = new F1r3flyFS();
         try {
             String path;
             switch (Platform.getNativePlatform().getOS()) {

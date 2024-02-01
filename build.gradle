@@ -11,6 +11,7 @@ plugins {
 def protobufVersion = '3.25.2'
 def secpVersion     = '0.13.0'
 def tcVersion       = '1.19.4'
+def junitVersion    = '5.10.1'
 
 repositories {
     jcenter()
@@ -70,6 +71,10 @@ tasks.withType(Javadoc).configureEach {
     options.addStringOption('Xdoclint:none', '-quiet')
 }
 
+test {
+    useJUnitPlatform()
+}
+
 dependencies {
     api 'com.github.jnr:jnr-ffi:2.2.7'
     api 'com.github.jnr:jnr-posix:3.1.10'
@@ -85,8 +90,13 @@ dependencies {
     implementation group: 'fr.acinq.secp256k1', name: 'secp256k1-kmp', version: secpVersion
     runtimeOnly group: 'fr.acinq.secp256k1', name: 'secp256k1-kmp-jni-jvm', version: secpVersion
 
+    testImplementation "org.junit.jupiter:junit-jupiter-api:$junitVersion"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:$junitVersion"
+
     testImplementation "org.testcontainers:testcontainers:$tcVersion"
     testImplementation "org.testcontainers:junit-jupiter:$tcVersion"
+
+    testImplementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.13'
 }
 
 release {
