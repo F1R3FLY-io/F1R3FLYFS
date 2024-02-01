@@ -16,10 +16,10 @@ public class F1r3flyFSTest {
   @Container
   public static ComposeContainer environment =
       new ComposeContainer(new File("src/test/resources/compose-test.yml"))
-      .waitingFor("boot", Wait.forListeningPorts(40401))
-      .waitingFor("validator1", Wait.forListeningPorts(50401))
-      .waitingFor("validator2", Wait.forListeningPorts(60401))
-      .waitingFor("validator3", Wait.forListeningPorts(60501));
+      .withExposedService("boot",       40401, Wait.forListeningPort())
+      .withExposedService("validator1", 40401, Wait.forListeningPort())
+      .withExposedService("validator2", 40401, Wait.forListeningPort())
+      .withExposedService("validator3", 40401, Wait.forListeningPort());
   
   @Test
   void shouldBlah() {
