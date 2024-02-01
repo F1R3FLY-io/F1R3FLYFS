@@ -11,6 +11,9 @@ import coop.f1r3fly.fs.struct.FileStat;
 import coop.f1r3fly.fs.struct.FuseFileInfo;
 import fr.acinq.secp256k1.Secp256k1;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.util.Objects;
 import java.security.MessageDigest;
@@ -37,15 +40,19 @@ public class F1r3flyFS extends FuseStubFS {
     public static final String HELLO_PATH = "/hello";
     public static final String HELLO_STR = "Hello World!";
 
+    private F1r3flyFS() {}                // Disable nullary constructor
+
     public F1r3flyFS(byte[] signingKey, DeployServiceBlockingStub deployService) {
+        super();
+
         Security.addProvider(new Blake2bProvider());
         this.signingKey = signingKey;
         this.deployService = deployService;
     }
 
-    public DeployDataProto signDeploy(DeployDataProto deploy) throws NoSuchAlgorithmException {
+    private DeployDataProto signDeploy(DeployDataProto deploy) throws NoSuchAlgorithmException {
         final MessageDigest digest = MessageDigest.getInstance(Blake2b.BLAKE2_B_256);
-        Secp256k1 secp256k1 = Secp256k1.get();
+        final Secp256k1 secp256k1 = Secp256k1.get();
 
         DeployDataProto.Builder builder = DeployDataProto.newBuilder();
 
@@ -71,6 +78,19 @@ public class F1r3flyFS extends FuseStubFS {
             .setDeployer(ByteString.copyFrom(secp256k1.pubkeyCreate(signingKey)));
 
         return outbound.build();
+    }
+
+    private String loadStringResource(String path) throws IOException {
+        byte[] bytes;
+
+        InputStream stream = Thread.currentThread().getContextClassLoader().getResourceAsStream(path);
+
+        try {
+            bytes = stream.readAllBytes();
+            return new String(bytes, StandardCharsets.UTF_8);
+        } finally {
+            stream.close();
+        }
     }
 
     @Override
