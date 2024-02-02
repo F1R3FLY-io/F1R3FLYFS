@@ -8,6 +8,7 @@ import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
+import org.testcontainers.utility.MountableFile;
 import org.testcontainers.images.builder.Transferable;
 
 import org.junit.jupiter.api.Test;
@@ -21,7 +22,7 @@ public class F1r3flyFSTest {
 
   @Container
   static GenericContainer<?> f1r3fly = new GenericContainer<>(F1R3FLY_IMAGE)
-      .withFileSystemBind("data/", "/var/lib/rnode/", BindMode.READ_WRITE)
+      .withCopyFileToContainer(MountableFile.forHostPath("data/", 0766), "/var/lib/rnode/")
       .withExposedPorts(40401)
       .withCommand("run -s --no-upnp --allow-private-addresses --synchrony-constraint-threshold=0.0 --validator-private-key \"aebb63dc0d50e4dd29ddd94fb52103bfe0dc4941fa0c2c8a9082a191af35ffa1\"")
       .waitingFor(Wait.forListeningPort())
