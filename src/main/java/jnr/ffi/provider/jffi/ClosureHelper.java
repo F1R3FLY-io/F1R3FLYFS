@@ -7,7 +7,7 @@ import jnr.ffi.mapper.DefaultSignatureType;
 import jnr.ffi.mapper.FromNativeContext;
 import jnr.ffi.mapper.FromNativeConverter;
 import jnr.ffi.provider.ClosureManager;
-import ru.serce.jnrfuse.FuseException;
+import coop.f1r3fly.fs.FuseException;
 
 import java.lang.reflect.Field;
 import java.util.Collections;

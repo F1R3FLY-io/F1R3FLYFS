@@ -15,7 +15,7 @@ sudo apt-get install libfuse-dev
 [`osxfuse`](https://osxfuse.github.io) needs to be installed.
 
 ```bash
-brew install --cask osxfuse
+brew cask install osxfuse
 ```
 
 ## Windows
