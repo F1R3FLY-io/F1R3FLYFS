@@ -1,16 +1,6 @@
-### Quickstart for Rholang File System / MacFuse Demo
-```
-gradle build
-gradle shadowTar # builds class path
-java -cp build/libs/jnr-fuse-0.5.8-SNAPSHOT-shadow.jar ru.serce.jnrfuse.examples.MemoryFS # executes Rholang template code against Fuse events
-```
-See: [Demo Instructions.md](./Demo_instructions.md)
-
-
-
-## jnr-fuse
+jnr-fuse
 ==
-[![Build Status](https://circleci.com/gh/SerCeMan/jnr-fuse.svg?style=svg)](https://circleci.com/gh/SerCeMan/jnr-fuse)  [![Join the chat at https://gitter.im/SerCeMan/jnr-fuse](https://badges.gitter.im/SerCeMan/jnr-fuse.svg)](https://gitter.im/SerCeMan/jnr-fuse?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Build Status](https://travis-ci.com/SerCeMan/jnr-fuse.svg?branch=master)](https://travis-ci.com/SerCeMan/jnr-fuse)  [![Join the chat at https://gitter.im/SerCeMan/jnr-fuse](https://badges.gitter.im/SerCeMan/jnr-fuse.svg)](https://gitter.im/SerCeMan/jnr-fuse?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 jnr-fuse is a FUSE implementation in java using Java Native Runtime (JNR). 
 
@@ -30,7 +20,7 @@ Prior to `0.5.5`, jnr-fuse was only available in [JCenter](https://bintray.com/s
 ### Gradle
 ```groovy
 dependencies {
-    compile 'com.github.serceman:jnr-fuse:0.5.7'
+    compile 'com.github.serceman:jnr-fuse:0.5.6'
 }
 ````
 ### Maven
@@ -39,7 +29,7 @@ dependencies {
     <dependency>
         <groupId>com.github.serceman</groupId>
         <artifactId>jnr-fuse</artifactId>
-        <version>0.5.7</version>
+        <version>0.5.6</version>
     </dependency>
 </dependencies>
 ```
