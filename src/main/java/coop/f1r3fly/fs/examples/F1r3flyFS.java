@@ -37,6 +37,8 @@ public class F1r3flyFS extends FuseStubFS {
     private byte[] signingKey;
     private DeployServiceBlockingStub deployService;
 
+    // Add private `String` variables for Rholang code here
+
     public static final String HELLO_PATH = "/hello";
     public static final String HELLO_STR = "Hello World!";
 
@@ -48,9 +50,12 @@ public class F1r3flyFS extends FuseStubFS {
         Security.addProvider(new Blake2bProvider());
         this.signingKey = signingKey;
         this.deployService = deployService;
+
+        // Initialize private `String` variables with `loadStringResource()` here
     }
 
-    private DeployDataProto signDeploy(DeployDataProto deploy) throws NoSuchAlgorithmException {
+    // public for use by clients of the filesystem, e.g. tests
+    public DeployDataProto signDeploy(DeployDataProto deploy) throws NoSuchAlgorithmException {
         final MessageDigest digest = MessageDigest.getInstance(Blake2b.BLAKE2_B_256);
         final Secp256k1 secp256k1 = Secp256k1.get();
 
@@ -92,6 +97,8 @@ public class F1r3flyFS extends FuseStubFS {
             stream.close();
         }
     }
+
+// Implement `@Override`n FS methods with `signDeploy()` and `deployService` calls
 
     @Override
     public int getattr(String path, FileStat stat) {
