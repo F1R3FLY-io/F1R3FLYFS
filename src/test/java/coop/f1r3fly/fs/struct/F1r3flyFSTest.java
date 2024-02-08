@@ -39,7 +39,7 @@ public class F1r3flyFSTest {
 
   public static final DockerImageName F1R3FLY_IMAGE = DockerImageName.parse("ghcr.io/f1r3fly-io/rnode:latest");
 
-  private static final Duration STARTUP_TIMEOUT      = Duration.ofMinutes(1);
+  private static final Duration STARTUP_TIMEOUT      = Duration.ofMinutes(2);
   private static final String[] osxFuseLibraries     = {"fuse4x", "osxfuse", "macfuse", "fuse"};
   private static final String   PROPERTY_WINLIB_PATH = "jnr-fuse.windows.libpath";
   private static final String   validatorPrivateKey  = "aebb63dc0d50e4dd29ddd94fb52103bfe0dc4941fa0c2c8a9082a191af35ffa1";
