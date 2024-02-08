@@ -2,6 +2,11 @@ package coop.f1r3fly.fs.struct;
 
 import java.time.Duration;
 
+import com.github.dockerjava.api.model.HostConfig;
+import com.github.dockerjava.api.model.Ports;
+import com.github.dockerjava.api.model.PortBinding;
+import com.github.dockerjava.api.model.ExposedPort;
+
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.containers.BindMode;
@@ -44,7 +49,7 @@ public class F1r3flyFSTest {
       .withFileSystemBind("data/", "/var/lib/rnode/", BindMode.READ_WRITE)
       .withExposedPorts(GRPC_PORT)
       .withCommand("run -s --no-upnp --allow-private-addresses --synchrony-constraint-threshold=0.0 --validator-private-key \"" + validatorPrivateKey + "\"")
-      .waitingFor(Wait.forListeningPort())
+      .waitingFor(Wait.forHealthcheck())
       .withStartupTimeout(STARTUP_TIMEOUT);
 
   private static F1r3flyFS             f1r3flyFS;
