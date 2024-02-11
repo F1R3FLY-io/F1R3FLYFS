@@ -130,8 +130,7 @@ public class F1r3flyFSTest {
 
     DeployDataProto signed  = f1r3flyFS.signDeploy(deployment);
     DeployResponse response = stub.doDeploy(signed);
-    String result           = response.getResult();
 
-    assertTrue(result.startsWith("Success!"));
+    assertTrue(response.hasResult() && response.getResult().startsWith("Success!"));
   }
 }
