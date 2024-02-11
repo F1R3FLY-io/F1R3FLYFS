@@ -1,6 +1,9 @@
 package coop.f1r3fly.fs.struct;
 
+import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.Iterator;
 
 import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.Ports;
@@ -14,8 +17,13 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
+import com.google.protobuf.ProtocolStringList;
+
+import casper.CasperMessage.DeployDataProto;
 import casper.v1.DeployServiceGrpc;
 import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
+import casper.v1.DeployServiceV1.DeployResponse;
+import servicemodelapi.ServiceErrorOuterClass.ServiceError;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -53,11 +61,12 @@ public class F1r3flyFSTest {
       .withStartupTimeout(STARTUP_TIMEOUT);
 
   private static F1r3flyFS             f1r3flyFS;
+  private static DeployServiceBlockingStub stub;
 
   @BeforeAll
   static void setUp() {
     ManagedChannel            channel   = ManagedChannelBuilder.forAddress(f1r3fly.getHost(), f1r3fly.getMappedPort(GRPC_PORT)).usePlaintext().build();
-    DeployServiceBlockingStub stub      = DeployServiceGrpc.newBlockingStub(channel);
+    stub                                = DeployServiceGrpc.newBlockingStub(channel);
                               f1r3flyFS = new F1r3flyFS(Hex.decode(validatorPrivateKey), stub);
   }
 
@@ -114,5 +123,26 @@ public class F1r3flyFSTest {
   @Test
   void shouldRunF1r3fly() {
     assertTrue(f1r3fly.isRunning());
+  }
+
+  @Test
+  void shouldDeployRholang() throws IOException, NoSuchAlgorithmException {
+    String rhoCode = f1r3flyFS.loadStringResource("tut-registry.rho");
+
+    DeployDataProto deployment = DeployDataProto.newBuilder()
+        .setTerm(rhoCode)
+        .setTimestamp(12345)
+        .setPhloPrice(56789)
+        .setPhloLimit(98765)
+        .setShardId("root")
+        .build();
+
+    DeployDataProto signed = f1r3flyFS.signDeploy(deployment);
+
+    DeployResponse response = stub.doDeploy(signed);
+
+    String result = response.getResult();
+        
+    assertTrue(!result.isBlank());
   }
 }

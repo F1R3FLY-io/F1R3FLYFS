@@ -9,6 +9,7 @@ import coop.f1r3fly.fs.FuseFillDir;
 import coop.f1r3fly.fs.FuseStubFS;
 import coop.f1r3fly.fs.struct.FileStat;
 import coop.f1r3fly.fs.struct.FuseFileInfo;
+
 import fr.acinq.secp256k1.Secp256k1;
 
 import java.io.IOException;
@@ -70,22 +71,23 @@ public class F1r3flyFS extends FuseStubFS {
             .setShardId(deploy.getShardId());
 
         DeployDataProto signed = builder.build();
-        
+
         byte[] serial = signed.toByteArray();
         digest.update(serial);
         byte[] hashed = digest.digest();
-        byte[] signature = secp256k1.sign(hashed, signingKey);
+        byte[] signature = secp256k1.compact2der(secp256k1.sign(hashed, signingKey));
+        byte[] pubKey = secp256k1.pubKeyCompress(secp256k1.pubkeyCreate(signingKey));
 
         DeployDataProto.Builder outbound = signed.toBuilder();
         outbound
             .setSigAlgorithm("secp256k1")
             .setSig(ByteString.copyFrom(signature))
-            .setDeployer(ByteString.copyFrom(secp256k1.pubkeyCreate(signingKey)));
+            .setDeployer(ByteString.copyFrom(pubKey));
 
         return outbound.build();
     }
 
-    private String loadStringResource(String path) throws IOException {
+    public String loadStringResource(String path) throws IOException {
         byte[] bytes;
 
         InputStream stream = Thread.currentThread().getContextClassLoader().getResourceAsStream(path);
