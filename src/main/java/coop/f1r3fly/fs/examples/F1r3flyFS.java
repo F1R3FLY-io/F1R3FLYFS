@@ -44,6 +44,7 @@ import java.util.Objects;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Security;
+import java.util.stream.Collectors;
 
 import com.rfksystems.blake2b.Blake2b;
 import com.rfksystems.blake2b.security.Blake2bProvider;
@@ -96,7 +97,11 @@ public class F1r3flyFS extends FuseStubFS {
 	// Check response
 
 	if (response.hasError()) {
-	    throw new RuntimeException("bad robot");
+      ServiceError error = response.getError();
+      ProtocolStringList messages = error.getMessagesList();
+      String message = messages.stream().collect(Collectors.joining("\n"));
+
+	    throw new RuntimeException(message);
 	}
     }
 
