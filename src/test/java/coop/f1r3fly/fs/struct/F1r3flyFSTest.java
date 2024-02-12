@@ -3,12 +3,6 @@ package coop.f1r3fly.fs.struct;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.util.Iterator;
-
-import com.github.dockerjava.api.model.HostConfig;
-import com.github.dockerjava.api.model.Ports;
-import com.github.dockerjava.api.model.PortBinding;
-import com.github.dockerjava.api.model.ExposedPort;
 
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -17,13 +11,10 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
-import com.google.protobuf.ProtocolStringList;
-
 import casper.CasperMessage.DeployDataProto;
 import casper.v1.DeployServiceGrpc;
 import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
 import casper.v1.DeployServiceV1.DeployResponse;
-import servicemodelapi.ServiceErrorOuterClass.ServiceError;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -148,12 +139,9 @@ public class F1r3flyFSTest {
         .setShardId("root")
         .build();
 
-    DeployDataProto signed = f1r3flyFS.signDeploy(deployment);
-
+    DeployDataProto signed  = f1r3flyFS.signDeploy(deployment);
     DeployResponse response = stub.doDeploy(signed);
 
-    String result = response.getResult();
-        
-    assertTrue(!result.isBlank());
+    assertTrue(response.hasResult() && response.getResult().startsWith("Success!"));
   }
 }
