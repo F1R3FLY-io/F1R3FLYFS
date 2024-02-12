@@ -44,7 +44,7 @@ new makeVolume, makeVolumeReturnID, makeNode, getVolume, getNode,
           [head ...tail] => {
             match folder.get(head) {
               Nil => {
-                let chldFldr <- { ".." : head } in { // CHECK let syntax!!!
+                let @chldFldr <- { ".." : head } in { // CHECK let syntax!!!
                   folder.set(head,chldFldr) |
                   makeNode!(tail,chldFldr,handle,node,*result)
                 }
@@ -53,7 +53,7 @@ new makeVolume, makeVolumeReturnID, makeNode, getVolume, getNode,
             }
           }
         }
-      }
+      } |
 
       contract getNode(@path, @node, result) = {
      	match path {
@@ -74,7 +74,7 @@ new makeVolume, makeVolumeReturnID, makeNode, getVolume, getNode,
           rl!(uri, *lookupResponse) |
           for(@volume <- lookupResponse) {
             stdout!("ONCHAIN_VOLUME_LOOKUP_TEST: got volume map from the registry using identifier") |
-            getNode!(path,volume,getNodeCB) |
+            getNode!(path,volume,*getNodeCB) |
             for(@node <- getNodeCB) {
               stdoutAck!(node, *result)
             }
