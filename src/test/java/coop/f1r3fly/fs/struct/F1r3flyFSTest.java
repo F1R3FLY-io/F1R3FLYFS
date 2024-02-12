@@ -47,6 +47,17 @@ public class F1r3flyFSTest {
 
   public static final DockerImageName F1R3FLY_IMAGE = DockerImageName.parse("ghcr.io/f1r3fly-io/rnode:latest");
 
+    public static String _host       = "localhost"; //f1r3fly.getHost()
+    public static int    _port       = 50401;  //f1r3fly.getMappedPort(GRPC_PORT)
+    public static long   _phloPrice  = 56789;
+    public static long   _phloLimit  = 98765;
+    //private static long _validAfterBlockNumber = ;
+    public static String _shardId    = "root";
+    public static String _createMap  = "createMap.rho";
+    public static String _addEntry   = "addEntry.rho";
+    public static String _regTest    = "tut-registry.rho";
+
+
   private static final Duration STARTUP_TIMEOUT      = Duration.ofMinutes(1);
   private static final String[] osxFuseLibraries     = {"fuse4x", "osxfuse", "macfuse", "fuse"};
   private static final String   PROPERTY_WINLIB_PATH = "jnr-fuse.windows.libpath";
@@ -64,10 +75,10 @@ public class F1r3flyFSTest {
   private static DeployServiceBlockingStub stub;
 
   @BeforeAll
-  static void setUp() {
+  static void setUp() throws IOException, NoSuchAlgorithmException {
     ManagedChannel            channel   = ManagedChannelBuilder.forAddress(f1r3fly.getHost(), f1r3fly.getMappedPort(GRPC_PORT)).usePlaintext().build();
     stub                                = DeployServiceGrpc.newBlockingStub(channel);
-                              f1r3flyFS = new F1r3flyFS(Hex.decode(validatorPrivateKey), stub);
+    f1r3flyFS = new F1r3flyFS(Hex.decode(validatorPrivateKey), stub, "onchain-volume.rho");
   }
 
   // Copied from AbstractFuseFS constructor. Ugh.

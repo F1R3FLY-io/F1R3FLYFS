@@ -2,13 +2,37 @@ package coop.f1r3fly.fs.examples;
 
 import jnr.ffi.Platform;
 import jnr.ffi.Pointer;
+
+import jnr.ffi.types.dev_t;
+import jnr.ffi.types.gid_t;
+import jnr.ffi.types.mode_t;
 import jnr.ffi.types.off_t;
 import jnr.ffi.types.size_t;
+import jnr.ffi.types.u_int32_t;
+import jnr.ffi.types.uid_t;
+import coop.f1r3fly.fs.struct.FileStat;
+import coop.f1r3fly.fs.struct.Flock;
+import coop.f1r3fly.fs.struct.FuseBuf;
+import coop.f1r3fly.fs.flags.FuseBufFlags;
+import coop.f1r3fly.fs.struct.FuseBufvec;
+import coop.f1r3fly.fs.struct.FuseFileInfo;
+import coop.f1r3fly.fs.struct.FusePollhandle;
+import coop.f1r3fly.fs.struct.Statvfs;
+import coop.f1r3fly.fs.struct.Timespec;
+
 import coop.f1r3fly.fs.ErrorCodes;
 import coop.f1r3fly.fs.FuseFillDir;
 import coop.f1r3fly.fs.FuseStubFS;
 import coop.f1r3fly.fs.struct.FileStat;
 import coop.f1r3fly.fs.struct.FuseFileInfo;
+
+import com.google.protobuf.ProtocolStringList;
+
+import casper.CasperMessage.DeployDataProto;
+import casper.v1.DeployServiceGrpc;
+import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
+import casper.v1.DeployServiceV1.DeployResponse;
+import servicemodelapi.ServiceErrorOuterClass.ServiceError;
 
 import fr.acinq.secp256k1.Secp256k1;
 
@@ -45,14 +69,35 @@ public class F1r3flyFS extends FuseStubFS {
 
     private F1r3flyFS() {}                // Disable nullary constructor
 
-    public F1r3flyFS(byte[] signingKey, DeployServiceBlockingStub deployService) {
+    public F1r3flyFS(byte[] signingKey, DeployServiceBlockingStub deployService, String onChainVolumeCode) throws IOException, NoSuchAlgorithmException {
         super();
 
         Security.addProvider(new Blake2bProvider());
         this.signingKey = signingKey;
         this.deployService = deployService;
 
-        // Initialize private `String` variables with `loadStringResource()` here
+	// Initialize private `String` variables with `loadStringResource()` here
+	String rhoCode = loadStringResource( onChainVolumeCode );
+	// Make deployment
+	DeployDataProto deployment = DeployDataProto.newBuilder()
+        .setTerm(rhoCode)
+        .setTimestamp(12345)
+        .setPhloPrice(56789)
+        .setPhloLimit(98765)
+        .setShardId("root")
+        .build();
+
+	// Sign deployment
+	DeployDataProto signed = signDeploy(deployment);
+
+	// Deploy
+	DeployResponse response = deployService.doDeploy(signed);
+
+	// Check response
+
+	if (response.hasError()) {
+	    throw new RuntimeException("bad robot");
+	}
     }
 
     // public for use by clients of the filesystem, e.g. tests
@@ -155,6 +200,18 @@ public class F1r3flyFS extends FuseStubFS {
             size = 0;
         }
         return (int) size;
+    }
+
+    @Override
+    public int mkdir(String path, @mode_t long mode) {
+        return 0;
+    }
+
+    @Override
+    public int create(String path, @mode_t long mode, FuseFileInfo fi) {
+        //return -ErrorCodes.ENOSYS();
+	
+	return 0;
     }
 
     public static void main(String[] args) {
