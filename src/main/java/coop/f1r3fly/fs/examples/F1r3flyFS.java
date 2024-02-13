@@ -3,36 +3,23 @@ package coop.f1r3fly.fs.examples;
 import jnr.ffi.Platform;
 import jnr.ffi.Pointer;
 
-import jnr.ffi.types.dev_t;
-import jnr.ffi.types.gid_t;
 import jnr.ffi.types.mode_t;
 import jnr.ffi.types.off_t;
 import jnr.ffi.types.size_t;
-import jnr.ffi.types.u_int32_t;
-import jnr.ffi.types.uid_t;
 import coop.f1r3fly.fs.struct.FileStat;
-import coop.f1r3fly.fs.struct.Flock;
-import coop.f1r3fly.fs.struct.FuseBuf;
-import coop.f1r3fly.fs.flags.FuseBufFlags;
-import coop.f1r3fly.fs.struct.FuseBufvec;
 import coop.f1r3fly.fs.struct.FuseFileInfo;
-import coop.f1r3fly.fs.struct.FusePollhandle;
-import coop.f1r3fly.fs.struct.Statvfs;
-import coop.f1r3fly.fs.struct.Timespec;
 
 import coop.f1r3fly.fs.ErrorCodes;
 import coop.f1r3fly.fs.FuseFillDir;
 import coop.f1r3fly.fs.FuseStubFS;
-import coop.f1r3fly.fs.struct.FileStat;
-import coop.f1r3fly.fs.struct.FuseFileInfo;
 
 import com.google.protobuf.ProtocolStringList;
 
 import casper.CasperMessage.DeployDataProto;
-import casper.DeployServiceCommon.DataAtNameQuery;
-import casper.v1.DeployServiceGrpc;
+import casper.DeployServiceCommon.DataAtNameByBlockQuery;
 import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
 import casper.v1.DeployServiceV1.DeployResponse;
+import casper.v1.DeployServiceV1.RhoDataResponse;
 import servicemodelapi.ServiceErrorOuterClass.ServiceError;
 
 import fr.acinq.secp256k1.Secp256k1;
@@ -47,16 +34,12 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Security;
 import java.util.Arrays;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.List;
 
 import com.rfksystems.blake2b.Blake2b;
 import com.rfksystems.blake2b.security.Blake2bProvider;
 
 import com.google.protobuf.ByteString;
-
-import casper.CasperMessage.DeployDataProto;
-import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
 
 /**
  * @author Sergey Tselovalnikov
@@ -104,15 +87,14 @@ public class F1r3flyFS extends FuseStubFS {
             ServiceError error = response.getError();
             ProtocolStringList messages = error.getMessagesList();
             String message = messages.stream().collect(Collectors.joining("\n"));
-      
+
       	    throw new RuntimeException(message);
       	} else {
-/*
-            DataAtNameQuery query = DataAtNameQuery.newBuilder()
-            .build();
+            DataAtNameByBlockQuery query = DataAtNameByBlockQuery.newBuilder()
+                .build();
 
-            deployService.getDataAtName(query)
-*/
+            RhoDataResponse dataResponse = deployService.getDataAtName(query);
+
             // ListenForDataAtName
             // Using well-known name
             // To get some URI to use throughout, i.e. declare a new private variable for it
