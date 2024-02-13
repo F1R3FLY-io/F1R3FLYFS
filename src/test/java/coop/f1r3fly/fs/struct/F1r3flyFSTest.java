@@ -17,6 +17,7 @@ import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
 import casper.v1.DeployServiceV1.DeployResponse;
 
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -27,14 +28,18 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 
 import jnr.ffi.LibraryLoader;
+import jnr.ffi.Platform;
 
 import coop.f1r3fly.fs.examples.F1r3flyFS;
 import coop.f1r3fly.fs.LibFuse;
 import coop.f1r3fly.fs.utils.WinPathUtils;
 
+import java.nio.file.Paths;
+
 @Testcontainers
 public class F1r3flyFSTest {
-  public static final int GRPC_PORT = 40401;
+    //public static final int GRPC_PORT = 40401;
+    public static final int GRPC_PORT = 50401;
 
   public static final DockerImageName F1R3FLY_IMAGE = DockerImageName.parse("ghcr.io/f1r3fly-io/rnode:latest");
 
@@ -67,10 +72,29 @@ public class F1r3flyFSTest {
 
   @BeforeAll
   static void setUp() throws IOException, NoSuchAlgorithmException {
-    ManagedChannel            channel   = ManagedChannelBuilder.forAddress(f1r3fly.getHost(), f1r3fly.getMappedPort(GRPC_PORT)).usePlaintext().build();
+      //ManagedChannel            channel   = ManagedChannelBuilder.forAddress(f1r3fly.getHost(), f1r3fly.getMappedPort(GRPC_PORT)).usePlaintext().build();
+      ManagedChannel            channel   = ManagedChannelBuilder.forAddress(_host, GRPC_PORT).usePlaintext().build();
     stub                                = DeployServiceGrpc.newBlockingStub(channel);
     f1r3flyFS = new F1r3flyFS(Hex.decode(validatorPrivateKey), stub, "onchain-volume.rho");
+    //try {
+	String path;
+	switch (Platform.getNativePlatform().getOS()) {
+	case WINDOWS:
+	    path = "J:\\";
+	    break;
+	default:
+	    path = "/tmp/mnth";
+	}
+	f1r3flyFS.mount(Paths.get(path), false, true);
+	//} finally {
+	//f1r3flyFS.umount();
+	//}
   }
+
+    @AfterAll
+    static void cleanUp() {
+	f1r3flyFS.umount();
+    }
 
   // Copied from AbstractFuseFS constructor. Ugh.
   private Boolean libFUSEAvailable() {
@@ -143,5 +167,11 @@ public class F1r3flyFSTest {
     DeployResponse response = stub.doDeploy(signed);
 
     assertTrue(response.hasResult() && response.getResult().startsWith("Success!"));
+  }
+
+  @Test
+  void shouldMountF1r3FLYFS() {      
+      
+      assertTrue(f1r3fly.isRunning());
   }
 }
