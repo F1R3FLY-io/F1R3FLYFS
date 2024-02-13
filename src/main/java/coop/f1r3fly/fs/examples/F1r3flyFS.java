@@ -8,6 +8,7 @@ import jnr.ffi.types.off_t;
 import jnr.ffi.types.size_t;
 import coop.f1r3fly.fs.struct.FileStat;
 import coop.f1r3fly.fs.struct.FuseFileInfo;
+import coop.f1r3fly.fs.struct.Statvfs;
 
 import coop.f1r3fly.fs.ErrorCodes;
 import coop.f1r3fly.fs.FuseFillDir;
@@ -227,6 +228,30 @@ public class F1r3flyFS extends FuseStubFS {
       String toDeploy = "makeNodeFromVolume!(<uri>, " + rhoPath + ", " + segments.subList(0, partsSize - 2) + segments.subList(partsSize - 1, partsSize - 1) + ", \"\")";
 	
       return 0;
+    }
+
+    @Override
+    public int statfs(String path, Statvfs stbuf) {
+    }
+
+    @Override
+    public int rename(String path, String newName) {
+    }
+
+    @Override
+    public int rmdir(String path) {
+    }
+
+    @Override
+    public int truncate(String path, long offset) {
+    }
+
+    @Override
+    public int unlink(String path) {
+    }
+
+    @Override
+    public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
     }
 
     public static void main(String[] args) {
