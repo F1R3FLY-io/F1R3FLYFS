@@ -29,6 +29,7 @@ import coop.f1r3fly.fs.struct.FuseFileInfo;
 import com.google.protobuf.ProtocolStringList;
 
 import casper.CasperMessage.DeployDataProto;
+import casper.DeployServiceCommon.DataAtNameQuery;
 import casper.v1.DeployServiceGrpc;
 import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
 import casper.v1.DeployServiceV1.DeployResponse;
@@ -44,7 +45,10 @@ import java.util.Objects;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Security;
+import java.util.Arrays;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.List;
 
 import com.rfksystems.blake2b.Blake2b;
 import com.rfksystems.blake2b.security.Blake2bProvider;
@@ -77,32 +81,42 @@ public class F1r3flyFS extends FuseStubFS {
         this.signingKey = signingKey;
         this.deployService = deployService;
 
-	// Initialize private `String` variables with `loadStringResource()` here
-	String rhoCode = loadStringResource( onChainVolumeCode );
-	// Make deployment
-	DeployDataProto deployment = DeployDataProto.newBuilder()
-        .setTerm(rhoCode)
-        .setTimestamp(12345)
-        .setPhloPrice(56789)
-        .setPhloLimit(98765)
-        .setShardId("root")
-        .build();
+      	// Initialize private `String` variables with `loadStringResource()` here
+      	String rhoCode = loadStringResource( onChainVolumeCode );
+      	// Make deployment
+      	DeployDataProto deployment = DeployDataProto.newBuilder()
+              .setTerm(rhoCode)
+              .setTimestamp(12345)
+              .setPhloPrice(56789)
+              .setPhloLimit(98765)
+              .setShardId("root")
+              .build();
+      
+      	// Sign deployment
+      	DeployDataProto signed = signDeploy(deployment);
+      
+      	// Deploy
+      	DeployResponse response = deployService.doDeploy(signed);
+      
+      	// Check response
+      
+      	if (response.hasError()) {
+            ServiceError error = response.getError();
+            ProtocolStringList messages = error.getMessagesList();
+            String message = messages.stream().collect(Collectors.joining("\n"));
+      
+      	    throw new RuntimeException(message);
+      	} else {
+/*
+            DataAtNameQuery query = DataAtNameQuery.newBuilder()
+            .build();
 
-	// Sign deployment
-	DeployDataProto signed = signDeploy(deployment);
-
-	// Deploy
-	DeployResponse response = deployService.doDeploy(signed);
-
-	// Check response
-
-	if (response.hasError()) {
-      ServiceError error = response.getError();
-      ProtocolStringList messages = error.getMessagesList();
-      String message = messages.stream().collect(Collectors.joining("\n"));
-
-	    throw new RuntimeException(message);
-	}
+            deployService.getDataAtName(query)
+*/
+            // ListenForDataAtName
+            // Using well-known name
+            // To get some URI to use throughout, i.e. declare a new private variable for it
+        }
     }
 
     // public for use by clients of the filesystem, e.g. tests
@@ -215,8 +229,22 @@ public class F1r3flyFS extends FuseStubFS {
     @Override
     public int create(String path, @mode_t long mode, FuseFileInfo fi) {
         //return -ErrorCodes.ENOSYS();
+        List<String>   segments  = Arrays.asList(path.split("\\/"));
+        int            partsSize = segments.size();
+        
+        // "/mumble/frotz/fu/bar" -> [ "/mumble" "/frotz" "/fu" "/bar" ]
+        String rhoPath = "[ " + segments.stream().map(element -> "\"/" + element + "\"").collect(Collectors.joining(" ")) + " ]";
+
+      // "/mumble/frotz/fu/bar" -> [ "/mumble" "/frotz" "/fu" "/bar" ]
+      // Java variables:
+      // <path> = path from the client split as above
+      // <uri> = URI generated from registry insert
+      // <dirPath> = path minus the file name (end of the path)
+      // <fileName> = the last element in the path
+      // <parent> = the directory immediately above file
+      String toDeploy = "makeNodeFromVolume!(<uri>, " + rhoPath + ", " + segments.subList(0, partsSize - 2) + segments.subList(partsSize - 1, partsSize - 1) + ", \"\")";
 	
-	return 0;
+      return 0;
     }
 
     public static void main(String[] args) {

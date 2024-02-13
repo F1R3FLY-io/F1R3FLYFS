@@ -37,6 +37,18 @@ new makeVolume, makeVolumeReturnID, makeNode, getVolume, getNode,
             }
         } |
 
+      contract makeNodeFromVolume(@uri, @path, @dirPath, @volume, @fileName, @node) = {
+        new clientCB, volumeCB in {
+          getVolume!( uri, path, *clientCB ) |
+          for( @volume <- clientCB ) {
+            makeNode!( dirPath, volume, fileName, volume.get("/f1r3fly"), *volumeCB ) |
+            for( @folder <- volumeCB ) {
+              stdout!( folder )
+            }
+          }
+        }
+      } |
+
       // "/mumble/frotz/fu/bar" -> [ "/mumble" "/frotz" "/fu" "/bar" ]
       contract makeNode(@path, @folder, @handle, @node, result) = {
         match path {
@@ -82,4 +94,6 @@ new makeVolume, makeVolumeReturnID, makeNode, getVolume, getNode,
         }
       }
     }
+
+
 
