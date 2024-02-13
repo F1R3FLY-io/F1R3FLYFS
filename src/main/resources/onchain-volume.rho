@@ -9,7 +9,7 @@
 // "ONCHAIN_VOLUME_LOOKUP_TEST: got volume map from the registry using identifier"
 // Unforgeable(0xd3f4cbdcc634e7d6f8edb05689395fef7e190f68fe3a2712e2a9bbe21eb6dd10)
 
-new makeVolume, makeVolumeReturnID, makeNode, getVolume, getNode,
+new makeVolume, makeVolumeReturnID, makeNodeFromVolume, makeNode, getVolume, getNode,
     signedInsertTest, signedInsertTestReturnID, signedLookupTest, 
     ri(`rho:registry:insertArbitrary`), 
     rl(`rho:registry:lookup`),
