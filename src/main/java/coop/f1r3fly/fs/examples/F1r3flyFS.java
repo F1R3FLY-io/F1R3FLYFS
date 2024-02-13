@@ -51,7 +51,7 @@ public class F1r3flyFS extends FuseStubFS {
     private byte[] signingKey;
     private DeployServiceBlockingStub deployService;
 
-    // Add private `String` variables for Rholang code here
+    // TODO: Add private `String` variables for Rholang code here
 
     public static final String HELLO_PATH = "/hello";
     public static final String HELLO_STR = "Hello World!";
@@ -147,7 +147,7 @@ public class F1r3flyFS extends FuseStubFS {
         }
     }
 
-// Implement `@Override`n FS methods with `signDeploy()` and `deployService` calls
+// TODO: Implement `@Override`n FS methods with `signDeploy()` and `deployService` calls
 
     @Override
     public int getattr(String path, FileStat stat) {
@@ -254,7 +254,9 @@ public class F1r3flyFS extends FuseStubFS {
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
     }
 
+    
     public static void main(String[] args) {
+        // TODO: Revise this to take signing key and F1r3fly node host and port from args
         F1r3flyFS stub = new F1r3flyFS();
         try {
             String path;
