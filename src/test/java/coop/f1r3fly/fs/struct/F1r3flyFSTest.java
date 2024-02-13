@@ -38,13 +38,13 @@ import java.nio.file.Paths;
 
 @Testcontainers
 public class F1r3flyFSTest {
-    //public static final int GRPC_PORT = 40401;
-    public static final int GRPC_PORT = 50401;
+    public static Boolean _useLocalContainer = false;
+    public static final int GRPC_PORT = 40401;    
 
   public static final DockerImageName F1R3FLY_IMAGE = DockerImageName.parse("ghcr.io/f1r3fly-io/rnode:latest");
 
-    public static String _host       = "localhost"; //f1r3fly.getHost()
-    public static int    _port       = 50401;  //f1r3fly.getMappedPort(GRPC_PORT)
+    public static String _host       = "localhost"; 
+    public static int    _port       = 40401;  //40401;  
     public static long   _phloPrice  = 56789;
     public static long   _phloLimit  = 98765;
     //private static long _validAfterBlockNumber = ;
@@ -72,9 +72,11 @@ public class F1r3flyFSTest {
 
   @BeforeAll
   static void setUp() throws IOException, NoSuchAlgorithmException {
-      //ManagedChannel            channel   = ManagedChannelBuilder.forAddress(f1r3fly.getHost(), f1r3fly.getMappedPort(GRPC_PORT)).usePlaintext().build();
-      ManagedChannel            channel   = ManagedChannelBuilder.forAddress(_host, GRPC_PORT).usePlaintext().build();
-    stub                                = DeployServiceGrpc.newBlockingStub(channel);
+      ManagedChannel            channel   =
+	  (_useLocalContainer) ?
+	  ManagedChannelBuilder.forAddress(f1r3fly.getHost(), f1r3fly.getMappedPort(GRPC_PORT)).usePlaintext().build() :
+	  ManagedChannelBuilder.forAddress(_host, _port).usePlaintext().build();
+      stub                                = DeployServiceGrpc.newBlockingStub(channel);
     f1r3flyFS = new F1r3flyFS(Hex.decode(validatorPrivateKey), stub, "onchain-volume.rho");
     //try {
 	String path;
