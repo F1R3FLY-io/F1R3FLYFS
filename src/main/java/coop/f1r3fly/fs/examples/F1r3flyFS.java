@@ -17,10 +17,9 @@ import coop.f1r3fly.fs.FuseStubFS;
 import com.google.protobuf.ProtocolStringList;
 
 import casper.CasperMessage.DeployDataProto;
-import casper.DeployServiceCommon.DataAtNameByBlockQuery;
-import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
-import casper.v1.DeployServiceV1.DeployResponse;
-import casper.v1.DeployServiceV1.RhoDataResponse;
+import casper.DeployServiceCommon.FindDeployQuery;
+import casper.DeployServiceCommon.IsFinalizedQuery;
+import casper.v1.DeployServiceGrpc.DeployServiceFutureStub;
 import servicemodelapi.ServiceErrorOuterClass.ServiceError;
 
 import fr.acinq.secp256k1.Secp256k1;
@@ -33,6 +32,7 @@ import java.util.Objects;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Security;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 import java.util.List;
@@ -42,6 +42,8 @@ import com.rfksystems.blake2b.security.Blake2bProvider;
 
 import com.google.protobuf.ByteString;
 
+import io.smallrye.mutiny.Uni;
+
 /**
  * @author Sergey Tselovalnikov
  * @see <a href="http://fuse.sourceforge.net/helloworld.html">helloworld</a>
@@ -49,7 +51,7 @@ import com.google.protobuf.ByteString;
  */
 public class F1r3flyFS extends FuseStubFS {
     private byte[] signingKey;
-    private DeployServiceBlockingStub deployService;
+    private DeployServiceFutureStub deployService;
 
     // TODO: Add private `String` variables for Rholang code here
 
@@ -58,7 +60,7 @@ public class F1r3flyFS extends FuseStubFS {
 
     private F1r3flyFS() {}                // Disable nullary constructor
 
-    public F1r3flyFS(byte[] signingKey, DeployServiceBlockingStub deployService, String onChainVolumeCode) throws IOException, NoSuchAlgorithmException {
+    public F1r3flyFS(byte[] signingKey, DeployServiceFutureStub deployService, String onChainVolumeCode) throws IOException, NoSuchAlgorithmException {
         super();
 
         Security.addProvider(new Blake2bProvider());
@@ -80,26 +82,61 @@ public class F1r3flyFS extends FuseStubFS {
       	DeployDataProto signed = signDeploy(deployment);
       
       	// Deploy
-      	DeployResponse response = deployService.doDeploy(signed);
-      
-      	// Check response
-      
-      	if (response.hasError()) {
-            ServiceError error = response.getError();
-            ProtocolStringList messages = error.getMessagesList();
-            String message = messages.stream().collect(Collectors.joining("\n"));
+      	Uni<Void> deployVolumeContract =
+        Uni.createFrom().future(deployService.doDeploy(signed))
+        .flatMap(deployResponse -> {
+            if (deployResponse.hasError()) {
+                return this.<String>fail(deployResponse.getError());
+            } else {
+                return succeed(deployResponse.getResult());
+            }
+        })
+        .flatMap(deployResult -> {
+            String      deployId   = deployResult.substring(deployResult.indexOf("DeployId is: ") + 13, deployResult.length());
+            ByteString  b64        = ByteString.copyFrom(decodeHex(deployId.toCharArray()));
+            return Uni.createFrom().future(deployService.findDeploy(FindDeployQuery.newBuilder().setDeployId(b64).build()))
+            .flatMap(findResponse -> {
+                if (findResponse.hasError()) {
+                    return this.<String>fail(findResponse.getError());
+                } else {
+                    return succeed(findResponse.getBlockInfo().getBlockHash());
+                }
+            });
+        })
+        .onFailure().retry()
+        .withBackOff(Duration.ofMillis(100), Duration.ofSeconds(1))
+        .atMost(3)
+        .flatMap(blockHash -> {
+            return Uni.createFrom().future(deployService.isFinalized(IsFinalizedQuery.newBuilder().setHash(blockHash).build()))
+            .flatMap(isFinalizedResponse -> {
+                if (isFinalizedResponse.hasError()) {
+                    return fail(isFinalizedResponse.getError());
+                } else {
+                    return Uni.createFrom().voidItem();
+                }
+            });
+        })
+        .onFailure().retry()
+        .withBackOff(Duration.ofMillis(100), Duration.ofSeconds(1))
+        .atMost(3);
 
-      	    throw new RuntimeException(message);
-      	} else {
-            DataAtNameByBlockQuery query = DataAtNameByBlockQuery.newBuilder()
-                .build();
+        // Drummer Hoff Fired It Off
+        deployVolumeContract.await().indefinitely();
+    }
 
-            RhoDataResponse dataResponse = deployService.getDataAtName(query);
+    // Cut down on verbosity of surfacing successes
+    <T> Uni<T> succeed(T t) {
+        return Uni.createFrom().item(t);
+    }
 
-            // ListenForDataAtName
-            // Using well-known name
-            // To get some URI to use throughout, i.e. declare a new private variable for it
-        }
+    // Cut down on verbosity of surfacing errors
+    <T> Uni<T> fail(ServiceError error) {
+        return Uni.createFrom().failure(new RuntimeException(gatherErrors(error)));
+    }
+
+    private String gatherErrors(ServiceError error) {
+        ProtocolStringList messages = error.getMessagesList();
+        return messages.stream().collect(Collectors.joining("\n"));
     }
 
     // public for use by clients of the filesystem, e.g. tests
@@ -146,6 +183,61 @@ public class F1r3flyFS extends FuseStubFS {
             stream.close();
         }
     }
+
+  /**
+   * Converts an array of characters representing hexidecimal values into an
+   * array of bytes of those same values. The returned array will be half the
+   * length of the passed array, as it takes two characters to represent any
+   * given byte. An exception is thrown if the passed char array has an odd
+   * number of elements.
+   * 
+   * @param data
+   *          An array of characters containing hexidecimal digits
+   * @return A byte array containing binary data decoded from the supplied char
+   *         array.
+   * @throws DecoderException
+   *           Thrown if an odd number or illegal of characters is supplied
+   */
+  public static byte[] decodeHex(char[] data) throws RuntimeException {
+
+    int len = data.length;
+
+    if ((len & 0x01) != 0) {
+      throw new RuntimeException("Odd number of characters.");
+    }
+
+    byte[] out = new byte[len >> 1];
+
+    // two characters form the hex value.
+    for (int i = 0, j = 0; j < len; i++) {
+      int f = toDigit(data[j], j) << 4;
+      j++;
+      f = f | toDigit(data[j], j);
+      j++;
+      out[i] = (byte) (f & 0xFF);
+    }
+
+    return out;
+  }
+
+  /**
+   * Converts a hexadecimal character to an integer.
+   * 
+   * @param ch
+   *          A character to convert to an integer digit
+   * @param index
+   *          The index of the character in the source
+   * @return An integer
+   * @throws DecoderException
+   *           Thrown if ch is an illegal hex character
+   */
+  protected static int toDigit(char ch, int index) throws RuntimeException {
+    int digit = Character.digit(ch, 16);
+    if (digit == -1) {
+      throw new RuntimeException("Illegal hexadecimal charcter " + ch + " at index " + index);
+    }
+    return digit;
+  }
 
 // TODO: Implement `@Override`n FS methods with `signDeploy()` and `deployService` calls
 

@@ -90,6 +90,8 @@ dependencies {
     implementation group: 'fr.acinq.secp256k1', name: 'secp256k1-kmp', version: secpVersion
     runtimeOnly group: 'fr.acinq.secp256k1', name: 'secp256k1-kmp-jni-jvm', version: secpVersion
 
+    implementation group: 'io.smallrye.reactive', name: 'mutiny', version: '2.5.6'
+
     testImplementation "org.junit.jupiter:junit-jupiter-api:$junitVersion"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:$junitVersion"
 
