@@ -33,7 +33,7 @@ public class F1r3flyFSTest {
   private static final int      GRPC_PORT           = 40401;
   private static final String   MOUNT_POINT         = "/tmp/f1r3fly-fs";
   private static final Duration STARTUP_TIMEOUT     = Duration.ofMinutes(1);
-  private static final String   validatorPrivateKey = "7775484dc1544b3724149fbaf46d543301848d643c57d6185facea7306571db1";
+  private static final String   validatorPrivateKey = "f86517290f832e6631fdb2ab61cf31a28be9f8c5ed48846db3a564df65fccc16";
 
   public static final DockerImageName F1R3FLY_IMAGE = DockerImageName.parse("ghcr.io/f1r3fly-io/rnode:latest");
 
