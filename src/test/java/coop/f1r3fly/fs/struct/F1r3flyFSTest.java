@@ -30,7 +30,7 @@ import coop.f1r3fly.fs.examples.F1r3flyFS;
 
 @Testcontainers
 public class F1r3flyFSTest {
-  private static final int      GRPC_PORT           = 40401;
+  private static final int      GRPC_PORT           = 40402;
   private static final String   MOUNT_POINT         = "/tmp/f1r3fly-fs";
   private static final Duration STARTUP_TIMEOUT     = Duration.ofMinutes(1);
   private static final String   validatorPrivateKey = "f9854c5199bc86237206c75b25c6aeca024dccc0f55df3a553131111fd25dd85";
