@@ -13,7 +13,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
 import casper.v1.DeployServiceGrpc;
-import casper.v1.DeployServiceGrpc.DeployServiceBlockingStub;
+import casper.v1.DeployServiceGrpc.DeployServiceFutureStub;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -33,7 +33,7 @@ public class F1r3flyFSTest {
   private static final int      GRPC_PORT           = 40401;
   private static final String   MOUNT_POINT         = "/tmp/f1r3fly-fs";
   private static final Duration STARTUP_TIMEOUT     = Duration.ofMinutes(1);
-  private static final String   validatorPrivateKey = "aebb63dc0d50e4dd29ddd94fb52103bfe0dc4941fa0c2c8a9082a191af35ffa1";
+  private static final String   validatorPrivateKey = "7775484dc1544b3724149fbaf46d543301848d643c57d6185facea7306571db1";
 
   public static final DockerImageName F1R3FLY_IMAGE = DockerImageName.parse("ghcr.io/f1r3fly-io/rnode:latest");
 
@@ -50,7 +50,7 @@ public class F1r3flyFSTest {
   @BeforeAll
   static void setUp() throws IOException, NoSuchAlgorithmException {
     ManagedChannel            channel       = ManagedChannelBuilder.forAddress(f1r3fly.getHost(), f1r3fly.getMappedPort(GRPC_PORT)).usePlaintext().build();
-    DeployServiceBlockingStub deployService = DeployServiceGrpc.newBlockingStub(channel);
+    DeployServiceFutureStub   deployService = DeployServiceGrpc.newFutureStub(channel);
                               f1r3flyFS     = new F1r3flyFS(Hex.decode(validatorPrivateKey), deployService, "onchain-volume.rho");
                               f1r3flyFS.mount(Paths.get(MOUNT_POINT), false);
   }
