@@ -13,7 +13,9 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
 import casper.v1.DeployServiceGrpc;
+import casper.v1.ProposeServiceGrpc;
 import casper.v1.DeployServiceGrpc.DeployServiceFutureStub;
+import casper.v1.ProposeServiceGrpc.ProposeServiceFutureStub;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -49,10 +51,11 @@ public class F1r3flyFSTest {
 
   @BeforeAll
   static void setUp() throws IOException, NoSuchAlgorithmException {
-    ManagedChannel            channel       = ManagedChannelBuilder.forAddress(f1r3fly.getHost(), f1r3fly.getMappedPort(GRPC_PORT)).usePlaintext().build();
-    DeployServiceFutureStub   deployService = DeployServiceGrpc.newFutureStub(channel);
-                              f1r3flyFS     = new F1r3flyFS(Hex.decode(validatorPrivateKey), deployService, "onchain-volume.rho");
-                              f1r3flyFS.mount(Paths.get(MOUNT_POINT), false);
+    ManagedChannel           channel        = ManagedChannelBuilder.forAddress(f1r3fly.getHost(), f1r3fly.getMappedPort(GRPC_PORT)).usePlaintext().build();
+    DeployServiceFutureStub  deployService  = DeployServiceGrpc.newFutureStub(channel);
+    ProposeServiceFutureStub proposeService = ProposeServiceGrpc.newFutureStub(channel);
+                             f1r3flyFS      = new F1r3flyFS(Hex.decode(validatorPrivateKey), deployService, proposeService, "onchain-volume.rho");
+                             f1r3flyFS.mount(Paths.get(MOUNT_POINT), false);
   }
 
   @AfterAll

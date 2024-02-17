@@ -19,7 +19,9 @@ import com.google.protobuf.ProtocolStringList;
 import casper.CasperMessage.DeployDataProto;
 import casper.DeployServiceCommon.FindDeployQuery;
 import casper.DeployServiceCommon.IsFinalizedQuery;
+import casper.ProposeServiceCommon.ProposeQuery;
 import casper.v1.DeployServiceGrpc.DeployServiceFutureStub;
+import casper.v1.ProposeServiceGrpc.ProposeServiceFutureStub;
 import servicemodelapi.ServiceErrorOuterClass.ServiceError;
 
 import fr.acinq.secp256k1.Secp256k1;
@@ -50,22 +52,32 @@ import io.smallrye.mutiny.Uni;
  * @since 31.05.15
  */
 public class F1r3flyFS extends FuseStubFS {
-    private byte[] signingKey;
-    private DeployServiceFutureStub deployService;
+    private byte[]                   signingKey;
+    private DeployServiceFutureStub  deployService;
+    private ProposeServiceFutureStub proposeService;
 
     // TODO: Add private `String` variables for Rholang code here
 
     public static final String HELLO_PATH = "/hello";
     public static final String HELLO_STR = "Hello World!";
+    private static final Duration INIT_DELAY          = Duration.ofMillis(100);
+    private static final Duration MAX_DELAY           = Duration.ofSeconds(5);
+    private static final int      RETRIES             = 10;
 
     private F1r3flyFS() {}                // Disable nullary constructor
 
-    public F1r3flyFS(byte[] signingKey, DeployServiceFutureStub deployService, String onChainVolumeCode) throws IOException, NoSuchAlgorithmException {
+    public F1r3flyFS(
+        byte[]                   signingKey,
+        DeployServiceFutureStub  deployService,
+        ProposeServiceFutureStub proposeService,
+        String                   onChainVolumeCode
+    ) throws IOException, NoSuchAlgorithmException {
         super();
 
         Security.addProvider(new Blake2bProvider());
-        this.signingKey = signingKey;
-        this.deployService = deployService;
+        this.signingKey     = signingKey;
+        this.deployService  = deployService;
+        this.proposeService = proposeService;
 
       	// Initialize private `String` variables with `loadStringResource()` here
       	String rhoCode = loadStringResource( onChainVolumeCode );
@@ -93,6 +105,16 @@ public class F1r3flyFS extends FuseStubFS {
         })
         .flatMap(deployResult -> {
             String      deployId   = deployResult.substring(deployResult.indexOf("DeployId is: ") + 13, deployResult.length());
+            return Uni.createFrom().future(proposeService.propose(ProposeQuery.newBuilder().setIsAsync(false).build()))
+            .flatMap(proposeResponse -> {
+                if (proposeResponse.hasError()) {
+                    return this.<String>fail(proposeResponse.getError());
+                } else {
+                    return succeed(deployId);
+                }
+            });
+        })
+        .flatMap(deployId -> {
             ByteString  b64        = ByteString.copyFrom(decodeHex(deployId.toCharArray()));
             return Uni.createFrom().future(deployService.findDeploy(FindDeployQuery.newBuilder().setDeployId(b64).build()))
             .flatMap(findResponse -> {
@@ -103,22 +125,22 @@ public class F1r3flyFS extends FuseStubFS {
                 }
             });
         })
-        .onFailure().retry()
-        .withBackOff(Duration.ofMillis(100), Duration.ofSeconds(1))
-        .atMost(3)
         .flatMap(blockHash -> {
             return Uni.createFrom().future(deployService.isFinalized(IsFinalizedQuery.newBuilder().setHash(blockHash).build()))
             .flatMap(isFinalizedResponse -> {
                 if (isFinalizedResponse.hasError()) {
+                    String errMsg = gatherErrors(isFinalizedResponse.getError());
+                    System.err.println("*** FINALIZATION CHECK FAILED: " + errMsg + " ***");
                     return fail(isFinalizedResponse.getError());
                 } else {
                     return Uni.createFrom().voidItem();
                 }
-            });
-        })
-        .onFailure().retry()
-        .withBackOff(Duration.ofMillis(100), Duration.ofSeconds(1))
-        .atMost(3);
+            })
+            .onFailure().retry()
+            .withBackOff(INIT_DELAY, MAX_DELAY)
+            .atMost(RETRIES);
+        });
+        
 
         // Drummer Hoff Fired It Off
         deployVolumeContract.await().indefinitely();
@@ -240,6 +262,7 @@ public class F1r3flyFS extends FuseStubFS {
   }
 
 // TODO: Implement `@Override`n FS methods with `signDeploy()` and `deployService` calls
+/*
 
     @Override
     public int getattr(String path, FileStat stat) {
@@ -346,6 +369,7 @@ public class F1r3flyFS extends FuseStubFS {
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
     }
 
+*/
     
     public static void main(String[] args) {
         // TODO: Revise this to take signing key and F1r3fly node host and port from args
