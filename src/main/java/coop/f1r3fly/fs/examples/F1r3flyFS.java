@@ -84,9 +84,9 @@ public class F1r3flyFS extends FuseStubFS {
       	// Make deployment
       	DeployDataProto deployment = DeployDataProto.newBuilder()
               .setTerm(rhoCode)
-              .setTimestamp(12345)
-              .setPhloPrice(56789)
-              .setPhloLimit(98765)
+              .setTimestamp(0)
+              .setPhloPrice(1)
+              .setPhloLimit(1000000)
               .setShardId("root")
               .build();
       
@@ -103,6 +103,7 @@ public class F1r3flyFS extends FuseStubFS {
                 return succeed(deployResponse.getResult());
             }
         })
+        
         .flatMap(deployResult -> {
             String      deployId   = deployResult.substring(deployResult.indexOf("DeployId is: ") + 13, deployResult.length());
             return Uni.createFrom().future(proposeService.propose(ProposeQuery.newBuilder().setIsAsync(false).build()))
@@ -129,8 +130,6 @@ public class F1r3flyFS extends FuseStubFS {
             return Uni.createFrom().future(deployService.isFinalized(IsFinalizedQuery.newBuilder().setHash(blockHash).build()))
             .flatMap(isFinalizedResponse -> {
                 if (isFinalizedResponse.hasError()) {
-                    String errMsg = gatherErrors(isFinalizedResponse.getError());
-                    System.err.println("*** FINALIZATION CHECK FAILED: " + errMsg + " ***");
                     return fail(isFinalizedResponse.getError());
                 } else {
                     return Uni.createFrom().voidItem();
@@ -140,7 +139,6 @@ public class F1r3flyFS extends FuseStubFS {
             .withBackOff(INIT_DELAY, MAX_DELAY)
             .atMost(RETRIES);
         });
-        
 
         // Drummer Hoff Fired It Off
         deployVolumeContract.await().indefinitely();

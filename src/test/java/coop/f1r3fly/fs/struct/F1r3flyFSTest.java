@@ -9,6 +9,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
@@ -30,6 +31,9 @@ import io.grpc.ManagedChannelBuilder;
 
 import coop.f1r3fly.fs.examples.F1r3flyFS;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Testcontainers
 public class F1r3flyFSTest {
   private static final int      GRPC_PORT           = 40402;
@@ -49,18 +53,21 @@ public class F1r3flyFSTest {
 
   private static F1r3flyFS f1r3flyFS;
 
-  @BeforeAll
+  private static Logger log = LoggerFactory.getLogger(F1r3flyFSTest.class);
+  private static Slf4jLogConsumer logConsumer = new Slf4jLogConsumer(log);
+
   static void setUp() throws IOException, NoSuchAlgorithmException {
-    ManagedChannel           channel        = ManagedChannelBuilder.forAddress(f1r3fly.getHost(), f1r3fly.getMappedPort(GRPC_PORT)).usePlaintext().build();
-    DeployServiceFutureStub  deployService  = DeployServiceGrpc.newFutureStub(channel);
-    ProposeServiceFutureStub proposeService = ProposeServiceGrpc.newFutureStub(channel);
-                             f1r3flyFS      = new F1r3flyFS(Hex.decode(validatorPrivateKey), deployService, proposeService, "onchain-volume.rho");
+    ManagedChannel           channel         = ManagedChannelBuilder.forAddress(f1r3fly.getHost(), f1r3fly.getMappedPort(GRPC_PORT)).usePlaintext().build();
+    DeployServiceFutureStub  deployService   = DeployServiceGrpc.newFutureStub(channel);
+    ProposeServiceFutureStub proposeService  = ProposeServiceGrpc.newFutureStub(channel);
+                             f1r3fly.followOutput(logConsumer);
+                             f1r3flyFS       = new F1r3flyFS(Hex.decode(validatorPrivateKey), deployService, proposeService, "onchain-volume.rho");
                              f1r3flyFS.mount(Paths.get(MOUNT_POINT), false);
   }
 
   @AfterAll
   static void tearDown() {
-    f1r3flyFS.umount();    
+    if (!(f1r3flyFS == null)) f1r3flyFS.umount();    
   }
 
   @Test
