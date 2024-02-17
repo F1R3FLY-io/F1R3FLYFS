@@ -129,7 +129,7 @@ public class F1r3flyFS extends FuseStubFS {
         .flatMap(blockHash -> {
             return Uni.createFrom().future(deployService.isFinalized(IsFinalizedQuery.newBuilder().setHash(blockHash).build()))
             .flatMap(isFinalizedResponse -> {
-                if (isFinalizedResponse.hasError()) {
+                if (isFinalizedResponse.hasError() || !isFinalizedResponse.getIsFinalized()) {
                     return fail(isFinalizedResponse.getError());
                 } else {
                     return Uni.createFrom().voidItem();
