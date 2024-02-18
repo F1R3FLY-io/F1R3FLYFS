@@ -1,6 +1,9 @@
 package coop.f1r3fly.fs.examples;
 
-import jnr.ffi.Platform;
+import coop.f1r3fly.fs.FuseStubFS;
+
+import com.google.protobuf.ProtocolStringList;
+
 import jnr.ffi.Pointer;
 
 import jnr.ffi.types.mode_t;
@@ -12,9 +15,6 @@ import coop.f1r3fly.fs.struct.Statvfs;
 
 import coop.f1r3fly.fs.ErrorCodes;
 import coop.f1r3fly.fs.FuseFillDir;
-import coop.f1r3fly.fs.FuseStubFS;
-
-import com.google.protobuf.ProtocolStringList;
 
 import casper.CasperMessage.DeployDataProto;
 import casper.DeployServiceCommon.FindDeployQuery;
@@ -25,19 +25,16 @@ import casper.v1.ProposeServiceGrpc.ProposeServiceFutureStub;
 import servicemodelapi.ServiceErrorOuterClass.ServiceError;
 
 import fr.acinq.secp256k1.Secp256k1;
+import fr.acinq.secp256k1.Hex;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
-import java.util.Objects;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Security;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.stream.Collectors;
-import java.util.List;
 
 import com.rfksystems.blake2b.Blake2b;
 import com.rfksystems.blake2b.security.Blake2bProvider;
@@ -63,8 +60,6 @@ public class F1r3flyFS extends FuseStubFS {
     private static final Duration INIT_DELAY          = Duration.ofMillis(100);
     private static final Duration MAX_DELAY           = Duration.ofSeconds(5);
     private static final int      RETRIES             = 10;
-
-    private F1r3flyFS() {}                // Disable nullary constructor
 
     public F1r3flyFS(
         byte[]                   signingKey,
@@ -116,7 +111,7 @@ public class F1r3flyFS extends FuseStubFS {
             });
         })
         .flatMap(deployId -> {
-            ByteString  b64        = ByteString.copyFrom(decodeHex(deployId.toCharArray()));
+            ByteString  b64        = ByteString.copyFrom(Hex.decode(deployId));
             return Uni.createFrom().future(deployService.findDeploy(FindDeployQuery.newBuilder().setDeployId(b64).build()))
             .flatMap(findResponse -> {
                 if (findResponse.hasError()) {
@@ -204,186 +199,65 @@ public class F1r3flyFS extends FuseStubFS {
         }
     }
 
-  /**
-   * Converts an array of characters representing hexidecimal values into an
-   * array of bytes of those same values. The returned array will be half the
-   * length of the passed array, as it takes two characters to represent any
-   * given byte. An exception is thrown if the passed char array has an odd
-   * number of elements.
-   * 
-   * @param data
-   *          An array of characters containing hexidecimal digits
-   * @return A byte array containing binary data decoded from the supplied char
-   *         array.
-   * @throws DecoderException
-   *           Thrown if an odd number or illegal of characters is supplied
-   */
-  public static byte[] decodeHex(char[] data) throws RuntimeException {
-
-    int len = data.length;
-
-    if ((len & 0x01) != 0) {
-      throw new RuntimeException("Odd number of characters.");
-    }
-
-    byte[] out = new byte[len >> 1];
-
-    // two characters form the hex value.
-    for (int i = 0, j = 0; j < len; i++) {
-      int f = toDigit(data[j], j) << 4;
-      j++;
-      f = f | toDigit(data[j], j);
-      j++;
-      out[i] = (byte) (f & 0xFF);
-    }
-
-    return out;
-  }
-
-  /**
-   * Converts a hexadecimal character to an integer.
-   * 
-   * @param ch
-   *          A character to convert to an integer digit
-   * @param index
-   *          The index of the character in the source
-   * @return An integer
-   * @throws DecoderException
-   *           Thrown if ch is an illegal hex character
-   */
-  protected static int toDigit(char ch, int index) throws RuntimeException {
-    int digit = Character.digit(ch, 16);
-    if (digit == -1) {
-      throw new RuntimeException("Illegal hexadecimal charcter " + ch + " at index " + index);
-    }
-    return digit;
-  }
-
 // TODO: Implement `@Override`n FS methods with `signDeploy()` and `deployService` calls
-/*
 
     @Override
     public int getattr(String path, FileStat stat) {
-        int res = 0;
-        if (Objects.equals(path, "/")) {
-            stat.st_mode.set(FileStat.S_IFDIR | 0755);
-            stat.st_nlink.set(2);
-        } else if (HELLO_PATH.equals(path)) {
-            stat.st_mode.set(FileStat.S_IFREG | 0444);
-            stat.st_nlink.set(1);
-            stat.st_size.set(HELLO_STR.getBytes().length);
-        } else {
-            res = -ErrorCodes.ENOENT();
-        }
-        return res;
+        return -ErrorCodes.ENOENT();
     }
 
     @Override
     public int readdir(String path, Pointer buf, FuseFillDir filter, @off_t long offset, FuseFileInfo fi) {
-        if (!"/".equals(path)) {
-            return -ErrorCodes.ENOENT();
-        }
-
-        filter.apply(buf, ".", null, 0);
-        filter.apply(buf, "..", null, 0);
-        filter.apply(buf, HELLO_PATH.substring(1), null, 0);
-        return 0;
+        return -ErrorCodes.ENOENT();
     }
 
     @Override
     public int open(String path, FuseFileInfo fi) {
-        if (!HELLO_PATH.equals(path)) {
-            return -ErrorCodes.ENOENT();
-        }
-        return 0;
+        return -ErrorCodes.ENOENT();
     }
 
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        if (!HELLO_PATH.equals(path)) {
-            return -ErrorCodes.ENOENT();
-        }
-
-        byte[] bytes = HELLO_STR.getBytes();
-        int length = bytes.length;
-        if (offset < length) {
-            if (offset + size > length) {
-                size = length - offset;
-            }
-            buf.put(0, bytes, 0, bytes.length);
-        } else {
-            size = 0;
-        }
-        return (int) size;
+        return -ErrorCodes.ENOENT();
     }
 
     @Override
     public int mkdir(String path, @mode_t long mode) {
-        return 0;
+        return -ErrorCodes.ENOENT();
     }
 
     @Override
     public int create(String path, @mode_t long mode, FuseFileInfo fi) {
-        //return -ErrorCodes.ENOSYS();
-        List<String>   segments  = Arrays.asList(path.split("\\/"));
-        int            partsSize = segments.size();
-        
-        // "/mumble/frotz/fu/bar" -> [ "/mumble" "/frotz" "/fu" "/bar" ]
-        String rhoPath = "[ " + segments.stream().map(element -> "\"/" + element + "\"").collect(Collectors.joining(" ")) + " ]";
-
-      // "/mumble/frotz/fu/bar" -> [ "/mumble" "/frotz" "/fu" "/bar" ]
-      // Java variables:
-      // <path> = path from the client split as above
-      // <uri> = URI generated from registry insert
-      // <dirPath> = path minus the file name (end of the path)
-      // <fileName> = the last element in the path
-      // <parent> = the directory immediately above file
-      String toDeploy = "makeNodeFromVolume!(<uri>, " + rhoPath + ", " + segments.subList(0, partsSize - 2) + segments.subList(partsSize - 1, partsSize - 1) + ", \"\")";
-	
-      return 0;
+        return -ErrorCodes.ENOSYS();
     }
 
     @Override
     public int statfs(String path, Statvfs stbuf) {
+        return -ErrorCodes.ENOENT();
     }
 
     @Override
     public int rename(String path, String newName) {
+        return -ErrorCodes.ENOENT();
     }
 
     @Override
     public int rmdir(String path) {
+        return -ErrorCodes.ENOENT();
     }
 
     @Override
     public int truncate(String path, long offset) {
+        return -ErrorCodes.ENOENT();
     }
 
     @Override
     public int unlink(String path) {
+        return -ErrorCodes.ENOENT();
     }
 
     @Override
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-    }
-
-*/
-    
-    public static void main(String[] args) {
-        // TODO: Revise this to take signing key and F1r3fly node host and port from args
-        F1r3flyFS stub = new F1r3flyFS();
-        try {
-            String path;
-            switch (Platform.getNativePlatform().getOS()) {
-                case WINDOWS:
-                    path = "J:\\";
-                    break;
-                default:
-                    path = "/tmp/mnth";
-            }
-            stub.mount(Paths.get(path), true, true);
-        } finally {
-            stub.umount();
-        }
+        return -ErrorCodes.ENOENT();
     }
 }

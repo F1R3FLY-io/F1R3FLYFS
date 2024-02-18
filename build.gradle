@@ -67,6 +67,13 @@ shadowJar {
     relocate 'org.objectweb.asm', 'org.objectweb.asm.shaded'
 }
 
+task run(type: JavaExec) {
+    group = "Execution"
+    description = "Run the main class with JavaExecTask"
+    classpath = sourceSets.main.runtimeClasspath
+    main = "coop.f1r3fly.fs.examples.F1r3flyFSMain"
+}
+
 tasks.withType(Javadoc).configureEach {
     options.addStringOption('Xdoclint:none', '-quiet')
 }
@@ -92,6 +99,9 @@ dependencies {
 
     implementation group: 'io.smallrye.reactive', name: 'mutiny', version: '2.5.6'
 
+    implementation 'info.picocli:picocli:4.7.5'
+    annotationProcessor 'info.picocli:picocli-codegen:4.7.5'
+
     testImplementation "org.junit.jupiter:junit-jupiter-api:$junitVersion"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:$junitVersion"
 
@@ -99,6 +109,10 @@ dependencies {
     testImplementation "org.testcontainers:junit-jupiter:$tcVersion"
 
     testImplementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.13'
+}
+
+compileJava {
+    options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
 }
 
 release {
