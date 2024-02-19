@@ -56,6 +56,7 @@ public class F1r3flyFSTest {
   private static Logger log = LoggerFactory.getLogger(F1r3flyFSTest.class);
   private static Slf4jLogConsumer logConsumer = new Slf4jLogConsumer(log);
 
+  @BeforeAll
   static void setUp() throws IOException, NoSuchAlgorithmException {
     ManagedChannel           channel         = ManagedChannelBuilder.forAddress(f1r3fly.getHost(), f1r3fly.getMappedPort(GRPC_PORT)).usePlaintext().build();
     DeployServiceFutureStub  deployService   = DeployServiceGrpc.newFutureStub(channel);
