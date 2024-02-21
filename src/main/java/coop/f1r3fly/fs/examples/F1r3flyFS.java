@@ -16,6 +16,8 @@ import coop.f1r3fly.fs.struct.Statvfs;
 import coop.f1r3fly.fs.ErrorCodes;
 import coop.f1r3fly.fs.FuseFillDir;
 
+import rhoapi.RhoTypes.Expr;
+import rhoapi.RhoTypes.Par;
 import casper.CasperMessage.DeployDataProto;
 import casper.DeployServiceCommon.FindDeployQuery;
 import casper.DeployServiceCommon.IsFinalizedQuery;
@@ -35,6 +37,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Security;
 import java.time.Duration;
 import java.util.stream.Collectors;
+import java.util.Arrays;
+import java.util.List;
 
 import com.rfksystems.blake2b.Blake2b;
 import com.rfksystems.blake2b.security.Blake2bProvider;
@@ -98,7 +102,6 @@ public class F1r3flyFS extends FuseStubFS {
                 return succeed(deployResponse.getResult());
             }
         })
-        
         .flatMap(deployResult -> {
             String      deployId   = deployResult.substring(deployResult.indexOf("DeployId is: ") + 13, deployResult.length());
             return Uni.createFrom().future(proposeService.propose(ProposeQuery.newBuilder().setIsAsync(false).build()))
@@ -152,6 +155,24 @@ public class F1r3flyFS extends FuseStubFS {
     private String gatherErrors(ServiceError error) {
         ProtocolStringList messages = error.getMessagesList();
         return messages.stream().collect(Collectors.joining("\n"));
+    }
+
+    /*
+     * Method to deploy a Rholang contract, and then get results from the deployment.
+     * 1. doDeploy
+     * 2. propose
+     * 3. findDeployment
+     * 3. isFinalized (poll)
+     * 4. ???
+     * 5. getDataAtName
+     */
+
+    void foo() {
+        Par name = Par.newBuilder()
+            .setExprs(
+                0, Expr.newBuilder().build()
+            )
+            .build();
     }
 
     // public for use by clients of the filesystem, e.g. tests
@@ -228,7 +249,23 @@ public class F1r3flyFS extends FuseStubFS {
 
     @Override
     public int create(String path, @mode_t long mode, FuseFileInfo fi) {
-        return -ErrorCodes.ENOSYS();
+        //return -ErrorCodes.ENOSYS();
+        List<String>   segments  = Arrays.asList(path.split("\\/"));
+        int            partsSize = segments.size();
+        
+        // "/mumble/frotz/fu/bar" -> [ "/mumble" "/frotz" "/fu" "/bar" ]
+        String rhoPath = "[ " + segments.stream().map(element -> "\"/" + element + "\"").collect(Collectors.joining(" ")) + " ]";
+
+      // "/mumble/frotz/fu/bar" -> [ "/mumble" "/frotz" "/fu" "/bar" ]
+      // Java variables:
+      // <path> = path from the client split as above
+      // <uri> = URI generated from registry insert
+      // <dirPath> = path minus the file name (end of the path)
+      // <fileName> = the last element in the path
+      // <parent> = the directory immediately above file
+      String toDeploy = "makeNodeFromVolume!(<uri>, " + rhoPath + ", " + segments.subList(0, partsSize - 2) + segments.subList(partsSize - 1, partsSize - 1) + ", \"\")";
+	
+      return 0;
     }
 
     @Override
