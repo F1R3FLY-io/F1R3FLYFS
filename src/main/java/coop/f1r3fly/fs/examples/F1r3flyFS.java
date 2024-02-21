@@ -170,7 +170,7 @@ public class F1r3flyFS extends FuseStubFS {
     void foo() {
         Par name = Par.newBuilder()
             .setExprs(
-                0, Expr.newBuilder().build()
+                0, Expr.newBuilder().setGString("foo").build()
             )
             .build();
     }
