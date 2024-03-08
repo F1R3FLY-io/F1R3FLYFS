@@ -196,7 +196,7 @@ public class F1r3flyFS extends FuseStubFS {
         digest.update(serial);
         byte[] hashed = digest.digest();
         byte[] signature = secp256k1.compact2der(secp256k1.sign(hashed, signingKey));
-        byte[] pubKey = secp256k1.pubKeyCompress(secp256k1.pubkeyCreate(signingKey));
+        byte[] pubKey = secp256k1.pubkeyCreate(signingKey);
 
         DeployDataProto.Builder outbound = signed.toBuilder();
         outbound

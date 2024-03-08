@@ -5,6 +5,7 @@ import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 
+import org.bitcoins.crypto.ECPrivateKey;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.containers.BindMode;
@@ -37,9 +38,10 @@ import org.slf4j.LoggerFactory;
 @Testcontainers
 public class F1r3flyFSTest {
   private static final int      GRPC_PORT           = 40402;
-  private static final String   MOUNT_POINT         = "/tmp/f1r3fly-fs";
   private static final Duration STARTUP_TIMEOUT     = Duration.ofMinutes(1);
   private static final String   validatorPrivateKey = "f9854c5199bc86237206c75b25c6aeca024dccc0f55df3a553131111fd25dd85";
+  private static final String   clientPrivateKey    = ECPrivateKey.freshPrivateKey().hex();
+  private static final String   MOUNT_POINT         = "/tmp/f1r3flyfs" + clientPrivateKey; // random name for each test
 
   public static final DockerImageName F1R3FLY_IMAGE = DockerImageName.parse("ghcr.io/f1r3fly-io/rnode:latest");
 
@@ -47,7 +49,7 @@ public class F1r3flyFSTest {
   static GenericContainer<?> f1r3fly = new GenericContainer<>(F1R3FLY_IMAGE)
       .withFileSystemBind("data/", "/var/lib/rnode/", BindMode.READ_WRITE)
       .withExposedPorts(GRPC_PORT)
-      .withCommand("run -s --no-upnp --allow-private-addresses --synchrony-constraint-threshold=0.0 --validator-private-key \"" + validatorPrivateKey + "\"")
+      .withCommand("run -s --no-upnp --allow-private-addresses --synchrony-constraint-threshold=0.0 --validator-private-key " + validatorPrivateKey)
       .waitingFor(Wait.forHealthcheck())
       .withStartupTimeout(STARTUP_TIMEOUT);
 
@@ -57,12 +59,19 @@ public class F1r3flyFSTest {
   private static Slf4jLogConsumer logConsumer = new Slf4jLogConsumer(log);
 
   @BeforeAll
-  static void setUp() throws IOException, NoSuchAlgorithmException {
+  static void setUp() throws IOException, NoSuchAlgorithmException, InterruptedException {
     ManagedChannel           channel         = ManagedChannelBuilder.forAddress(f1r3fly.getHost(), f1r3fly.getMappedPort(GRPC_PORT)).usePlaintext().build();
     DeployServiceFutureStub  deployService   = DeployServiceGrpc.newFutureStub(channel);
     ProposeServiceFutureStub proposeService  = ProposeServiceGrpc.newFutureStub(channel);
                              f1r3fly.followOutput(logConsumer);
-                             f1r3flyFS       = new F1r3flyFS(Hex.decode(validatorPrivateKey), deployService, proposeService, "onchain-volume.rho");
+
+                             // Waits on the node initialization
+                             // Fresh start could take ~10 seconds
+                             Thread.sleep(10 * 1000);
+
+                             // if test fails, try to cleanup the data folder of the node:
+                             // cd data && rm -rf blockstorage dagstorage eval rspace casperbuffer deploystorage rnode.log && cd -
+                             f1r3flyFS       = new F1r3flyFS(Hex.decode(clientPrivateKey), deployService, proposeService, "onchain-volume.rho");
                              f1r3flyFS.mount(Paths.get(MOUNT_POINT), false);
   }
 
