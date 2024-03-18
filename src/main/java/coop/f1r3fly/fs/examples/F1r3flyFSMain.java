@@ -38,11 +38,9 @@ class F1r3flyFSMain implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception { // your business logic goes here...
-      ManagedChannel           channel         = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build();
-      DeployServiceFutureStub  deployService   = DeployServiceGrpc.newFutureStub(channel);
-      ProposeServiceFutureStub proposeService  = ProposeServiceGrpc.newFutureStub(channel);
-                               f1r3flyFS       = new F1r3flyFS(Hex.decode(signingKey), deployService, proposeService, "onchain-volume.rho");
-                               f1r3flyFS.mount(mountPoint, true);
+                               F1r3flyDeployer deployer = new F1r3flyDeployer(Hex.decode(signingKey), host, port);
+                               f1r3flyFS       = new F1r3flyFS(deployer);
+                               f1r3flyFS.mkdir("abc", 0);
                                return 0;
     }
 
