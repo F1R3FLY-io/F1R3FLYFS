@@ -40,7 +40,7 @@ class F1r3flyFSMain implements Callable<Integer> {
     public Integer call() throws Exception { // your business logic goes here...
                                F1r3flyDeployer deployer = new F1r3flyDeployer(Hex.decode(signingKey), host, port);
                                f1r3flyFS       = new F1r3flyFS(deployer);
-                               f1r3flyFS.mkdir("abc", 0);
+                               f1r3flyFS.mkdir("onchain-volume.rho", 0);
                                return 0;
     }
 

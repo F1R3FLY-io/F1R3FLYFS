@@ -13,6 +13,8 @@ import coop.f1r3fly.fs.struct.Statvfs;
 
 import coop.f1r3fly.fs.ErrorCodes;
 import coop.f1r3fly.fs.FuseFillDir;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,6 +30,7 @@ import java.util.List;
  * @since 31.05.15
  */
 public class F1r3flyFS extends FuseStubFS {
+    private static final Logger LOGGER = LoggerFactory.getLogger(F1r3flyFS.class);
 
     private final F1r3flyDeployer deployer;
 
@@ -62,13 +65,30 @@ public class F1r3flyFS extends FuseStubFS {
 
     @Override
     public int mkdir(String path, @mode_t long mode) {
-        String rho = "new helloworld, stdout(`rho:io:stdout`) in { contract helloworld( world ) = { for( @msg <- world ) { stdout!(msg) } } | new world, world2 in { helloworld!(*world) | world!(\"Hello World\") | helloworld!(*world2) | world2!(\"Hello World again\") } }";
-        this.deployer.executeAndGet(
-            rho
-        );
+        if (path.endsWith("onchain-volume.rho")) {
+            //String rhoCode = "new helloworld, stdout(`rho:io:stdout`) in { contract helloworld( world ) = { for( @msg <- world ) { stdout!(msg) } } | new world, world2 in { helloworld!(*world) | world!(\"Hello World\") | helloworld!(*world2) | world2!(\"Hello World again\") } }";
+            try {
+                String rhoCode = loadStringResource(path);
+//                    .trim() //
+//                    .replaceAll("\\s+", " ");
 
-        return 0;
+                LOGGER.debug("Updated rhoCode \n{}", rhoCode);
+
+                // Using deployer to deploy code on the RChain blockchain
+                this.deployer.executeAndGet(rhoCode);
+
+                return 0;
+            } catch (Exception e) {
+                e.printStackTrace();
+
+                // Повертаємо помилку, якщо щось не так
+                return -ErrorCodes.EIO();
+            }
+        }
+
+        return -ErrorCodes.ENOENT();
     }
+
 
     @Override
     public int create(String path, @mode_t long mode, FuseFileInfo fi) {
@@ -131,11 +151,17 @@ public class F1r3flyFS extends FuseStubFS {
 
         try {
             bytes = stream.readAllBytes();
-            return new String(bytes, StandardCharsets.UTF_8);
+            String content = new String(bytes, StandardCharsets.UTF_8);
+
+            // Логування змісту файлу
+            LOGGER.debug("Loaded Rholang code: \n{}", content);
+
+            return content;
         } finally {
             stream.close();
         }
     }
+
     @Override
     public void mount(Path mountPoint, boolean blocking, boolean debug, String[] fuseOpts) {
 //        super.mount(mountPoint, blocking, debug, fuseOpts);
