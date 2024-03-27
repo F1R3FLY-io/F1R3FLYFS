@@ -14,5 +14,7 @@
     <logger name="tc" level="INFO"/>
     <logger name="com.github.dockerjava" level="WARN"/>
     <logger name="com.github.dockerjava.zerodep.shaded.org.apache.hc.client5.http.wire" level="OFF"/>
+
+    <logger name="coop.f1r3fly.fs.struct" level="DEBUG"/>
 </configuration>
 

@@ -104,8 +104,10 @@ dependencies {
     // https://mvnrepository.com/artifact/org.bitcoin-s/bitcoin-s-crypto
     // needed for creating a fresh (EC) private key
     implementation group: 'org.bitcoin-s', name: 'bitcoin-s-crypto_2.13', version: '1.9.3'
+
+    implementation 'ch.qos.logback:logback-classic:1.2.3'
+    implementation 'ch.qos.logback:logback-core:1.2.3'
     implementation 'org.slf4j:slf4j-api:1.7.30'
-    implementation 'org.slf4j:slf4j-simple:1.7.30'
 
     annotationProcessor 'info.picocli:picocli-codegen:4.7.5'
 

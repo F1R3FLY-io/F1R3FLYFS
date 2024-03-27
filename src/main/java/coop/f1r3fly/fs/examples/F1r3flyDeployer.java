@@ -14,6 +14,8 @@ import fr.acinq.secp256k1.Secp256k1;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.smallrye.mutiny.Uni;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import servicemodelapi.ServiceErrorOuterClass;
 
 import java.security.MessageDigest;
@@ -23,6 +25,7 @@ import java.time.Duration;
 import java.util.stream.Collectors;
 
 public class F1r3flyDeployer {
+    private static final Logger LOGGER = LoggerFactory.getLogger(F1r3flyDeployer.class);
 
     private static final Duration INIT_DELAY = Duration.ofMillis(100);
     private static final Duration MAX_DELAY = Duration.ofSeconds(5);
@@ -86,11 +89,13 @@ public class F1r3flyDeployer {
 
         // Sign deployment
         CasperMessage.DeployDataProto signed = signDeploy(deployment);
+        LOGGER.debug("Signed \n{}", signed);
 
         // Deploy
         Uni<Void> deployVolumeContract =
             Uni.createFrom().future(deployService.doDeploy(signed))
                 .flatMap(deployResponse -> {
+                    LOGGER.debug("Deploy Response \n{}", deployResponse);
                     if (deployResponse.hasError()) {
                         return this.<String>fail(deployResponse.getError());
                     } else {
@@ -101,6 +106,7 @@ public class F1r3flyDeployer {
                     String deployId = deployResult.substring(deployResult.indexOf("DeployId is: ") + 13, deployResult.length());
                     return Uni.createFrom().future(proposeService.propose(ProposeServiceCommon.ProposeQuery.newBuilder().setIsAsync(false).build()))
                         .flatMap(proposeResponse -> {
+                            LOGGER.debug("Propose Response \n{}", proposeResponse);
                             if (proposeResponse.hasError()) {
                                 return this.<String>fail(proposeResponse.getError());
                             } else {
@@ -112,6 +118,7 @@ public class F1r3flyDeployer {
                     ByteString b64 = ByteString.copyFrom(Hex.decode(deployId));
                     return Uni.createFrom().future(deployService.findDeploy(DeployServiceCommon.FindDeployQuery.newBuilder().setDeployId(b64).build()))
                         .flatMap(findResponse -> {
+                            LOGGER.debug("Find Response \n{}", findResponse);
                             if (findResponse.hasError()) {
                                 return this.<String>fail(findResponse.getError());
                             } else {
@@ -120,8 +127,10 @@ public class F1r3flyDeployer {
                         });
                 })
                 .flatMap(blockHash -> {
+                    LOGGER.debug("Block Hash \n{}", blockHash);
                     return Uni.createFrom().future(deployService.isFinalized(DeployServiceCommon.IsFinalizedQuery.newBuilder().setHash(blockHash).build()))
                         .flatMap(isFinalizedResponse -> {
+                            LOGGER.debug("isFinalizedResponse \n{}", isFinalizedResponse);
                             if (isFinalizedResponse.hasError() || !isFinalizedResponse.getIsFinalized()) {
                                 return fail(isFinalizedResponse.getError());
                             } else {
