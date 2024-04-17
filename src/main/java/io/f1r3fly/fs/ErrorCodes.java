@@ -241,7 +241,7 @@ public class ErrorCodes {
 
 
     /**
-     * File getType
+     * File exists
      */
     public static int EEXIST() {
         return Errno.EEXIST.intValue();

@@ -137,6 +137,7 @@ public class F1r3flyFS extends FuseStubFS {
     public int truncate(String path, long size) {
         LOGGER.info("Truncating file: {}", prependMountId(path));
         return 0;
+        //TODO: use remove?
 //        try {
 //            checkMount();
 //            checkPath(path);
