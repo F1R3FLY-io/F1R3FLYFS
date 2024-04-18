@@ -3,6 +3,7 @@ package io.f1r3fly.fs.examples.storage;
 import io.f1r3fly.fs.examples.storage.errors.*;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
+import io.f1r3fly.fs.utils.PathUtils;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +24,8 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     private final F1r3flyApi f1R3FlyApi;
     private final String stateChanelName;
 
-    public F1r3flyFixedFSStorage(F1r3flyApi f1R3FlyApi, String stateChanelName) {
+    public F1r3flyFixedFSStorage(F1r3flyApi f1R3FlyApi,
+                                 @NotNull String stateChanelName) {
         this.f1f3flyFSStorage = new F1f3flyFSStorage(f1R3FlyApi);
         this.f1R3FlyApi = f1R3FlyApi;
         this.stateChanelName = stateChanelName;
@@ -31,7 +33,9 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     }
 
     @Override
-    public OperationResult<TypeAndSize> getTypeAndSize(@NotNull String path, @NotNull String blockHash) throws NoDataByPath {
+    public OperationResult<TypeAndSize> getTypeAndSize(
+        @NotNull String path,
+        @NotNull String blockHash) throws NoDataByPath {
         Map<String, String> state = fetchState(blockHash);
 
         String blockHashWithPath = state.get(path);
@@ -45,7 +49,37 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     }
 
     @Override
-    public OperationResult<Void> saveFile(String path, String content, String blockHash) throws F1r3flyDeployError, NoDataByPath, InvalidFSStructure, DirectoryNotFound {
+    public OperationResult<Void> rename(
+        @NotNull String oldPath,
+        @NotNull String newPath,
+        @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, DirectoryNotFound, PathIsNotADirectory, DirectoryIsNotEmpty, AlreadyExists {
+
+        synchronized (this) {
+            HashMap<String, String> state = fetchState(blockHash);
+
+            String blockHashWithOldPath = state.get(oldPath);
+
+            if (blockHashWithOldPath == null) {
+                LOGGER.info("No data found by path {} in the state", oldPath);
+                throw new NoDataByPath(oldPath);
+            }
+
+            OperationResult<Void> result = this.f1f3flyFSStorage.rename(oldPath, newPath, blockHashWithOldPath);
+
+            // update state
+            state.remove(oldPath);
+            state.put(newPath, result.blockHash());
+            String newLastBlockHash = updateState(state);
+
+            return new OperationResult<>(null, newLastBlockHash);
+        }
+    }
+
+    @Override
+    public OperationResult<Void> saveFile(
+        @NotNull String path,
+        @NotNull String content,
+        @NotNull String blockHash) throws F1r3flyDeployError {
         synchronized (this) {
             HashMap<String, String> state = fetchState(blockHash);
 
@@ -62,7 +96,9 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     }
 
     @Override
-    public OperationResult<String> readFile(String path, String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile {
+    public OperationResult<String> readFile(
+        @NotNull String path,
+        @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile {
         Map<String, String> state = fetchState(blockHash);
 
         String blockHashWithPath = state.get(path);
@@ -76,7 +112,9 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     }
 
     @Override
-    public OperationResult<Void> deleteFile(String path, String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile {
+    public OperationResult<Void> deleteFile(
+        @NotNull String path,
+        @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile {
         synchronized (this) {
             HashMap<String, String> state = fetchState(blockHash);
 
@@ -98,7 +136,9 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     }
 
     @Override
-    public OperationResult<Void> createDir(String path, String blockHash) throws NoDataByPath, F1r3flyDeployError {
+    public OperationResult<Void> createDir(
+        @NotNull String path,
+        @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError {
         synchronized (this) {
             HashMap<String, String> state = fetchState(blockHash);
 
@@ -113,7 +153,9 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     }
 
     @Override
-    public OperationResult<Set<String>> readDir(String path, String blockHash) throws NoDataByPath, DirectoryNotFound, PathIsNotADirectory {
+    public OperationResult<Set<String>> readDir(
+        @NotNull String path,
+        @NotNull String blockHash) throws NoDataByPath, DirectoryNotFound, PathIsNotADirectory {
         Map<String, String> state = fetchState(blockHash);
 
         String blockHashWithPath = state.get(path);
@@ -127,7 +169,9 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     }
 
     @Override
-    public OperationResult<Void> deleteDir(String path, String blockHash) throws PathIsNotADirectory, DirectoryNotFound, F1r3flyDeployError, DirectoryIsNotEmpty {
+    public OperationResult<Void> deleteDir(
+        @NotNull String path,
+        @NotNull String blockHash) throws PathIsNotADirectory, DirectoryNotFound, F1r3flyDeployError, DirectoryIsNotEmpty {
         synchronized (this) {
             HashMap<String, String> state = fetchState(blockHash);
 
@@ -150,7 +194,9 @@ public class F1r3flyFixedFSStorage implements FSStorage {
 
 
     @Override
-    public OperationResult<Void> addToParent(String path, String blockHash) throws PathIsNotADirectory, F1r3flyDeployError, DirectoryNotFound {
+    public OperationResult<Void> addToParent(
+        @NotNull String path,
+        @NotNull String blockHash) throws PathIsNotADirectory, F1r3flyDeployError, DirectoryNotFound {
         synchronized (this) {
             HashMap<String, String> state = fetchState(blockHash);
             String parentPath = path.substring(0, path.lastIndexOf('/'));
@@ -173,10 +219,12 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     }
 
     @Override
-    public OperationResult<Void> removeFromParent(String path, String blockHash) throws PathIsNotADirectory, DirectoryNotFound, F1r3flyDeployError {
+    public OperationResult<Void> removeFromParent(
+        @NotNull String path,
+        @NotNull String blockHash) throws PathIsNotADirectory, DirectoryNotFound, F1r3flyDeployError {
         synchronized (this) {
             HashMap<String, String> state = fetchState(blockHash);
-            String parentPath = path.substring(0, path.lastIndexOf('/'));
+            String parentPath = PathUtils.getParentPath(path);
 
             String blockWithParent = state.get(parentPath);
 
@@ -195,7 +243,8 @@ public class F1r3flyFixedFSStorage implements FSStorage {
         }
     }
 
-    private HashMap<String, String> fetchState(String lastBlockHash) {
+    private HashMap<String, String> fetchState(
+        @NotNull String lastBlockHash) {
         try {
             List<RhoTypes.Par> response = this.f1R3FlyApi.getDataAtName(lastBlockHash, this.stateChanelName);
 
@@ -209,7 +258,7 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     public String initState() {
         try {
             return this.f1R3FlyApi.deploy(
-                RholangExpressionConstructor.createChanelSending(
+                RholangExpressionConstructor.sendValueIntoNewChanel(
                     this.stateChanelName,
                     Map.of()
                 ));
@@ -221,11 +270,11 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     }
 
     private String updateState(HashMap<String, String> state) {
-        state.put("lastUpdated", String.valueOf(System.currentTimeMillis())); // prevent "NoNewDeploys" //FIXME
+        state.put("lastUpdated", String.valueOf(System.currentTimeMillis())); // prevent "NoNewDeploys" //FIXME: remove this hack
 
         try {
             return this.f1R3FlyApi.deploy(
-                RholangExpressionConstructor.createResendToChanel(
+                RholangExpressionConstructor.replaceValue(
                     this.stateChanelName,
                     state
                 ));

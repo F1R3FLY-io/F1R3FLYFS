@@ -12,7 +12,8 @@ public class RholangExpressionConstructor {
     public static final String Nil = "Nil";
     private static final String LIST_DELIMITER = ",";
 
-    public static String createChanelSending(String channelName, Map<String, String> chanelValueAsMap) {
+    //** Creates a chanel with a value */
+    public static String sendValueIntoNewChanel(String channelName, Map<String, String> chanelValueAsMap) {
         // output looks like '@"/tmp/file"!({"type": "f", "value": "rolangValueAsString"})'
 
 
@@ -26,7 +27,8 @@ public class RholangExpressionConstructor {
             .toString();
     }
 
-    public static String createConsumeFromChanel(String chanel) {
+    //** Consumes a value from a chanel */
+    public static String readAndForget(String chanel) {
         // output looks like `for(_ <- @"path/to/something"){ Nil }`
         return new StringBuilder()
             .append("for(_ <- @\"")
@@ -35,12 +37,36 @@ public class RholangExpressionConstructor {
             .toString();
     }
 
-    public static String createResendToChanel(String chanel, Map<String, String> chanelValueAsMap) {
+    //** Replaces a value inside a chanel */
+    public static String replaceValue(String chanel, Map<String, String> chanelValueAsMap) {
+        // output looks like:
+        // for(_ <- @"path/to/something"){
+        //      @"path/to/something"!({"type": "f", "value": "rolangValueAsString"})
+        // }
+
         return new StringBuilder()
             .append("for(_ <- @\"")
             .append(chanel)
             .append("\"){")
-            .append(createChanelSending(chanel, chanelValueAsMap))
+            .append(sendValueIntoNewChanel(chanel, chanelValueAsMap))
+            .append("}")
+            .toString();
+    }
+
+    //** Consume a value from old chanel and send to a new one */
+    public static String renameChanel(String oldChanel, String newChanel) {
+        // output looks like:
+        // for(@v <- @"oldPath"){
+        //      @"newPath"!(@v)
+        // }
+
+        return new StringBuilder()
+            .append("for(@v <- @\"")
+            .append(oldChanel)
+            .append("\"){")
+            .append("@\"")
+            .append(newChanel)
+            .append("\"!(v)")
             .append("}")
             .toString();
     }

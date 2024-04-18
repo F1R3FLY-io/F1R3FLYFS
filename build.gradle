@@ -71,7 +71,7 @@ task run(type: JavaExec) {
     group = "Execution"
     description = "Run the main class with JavaExecTask"
     classpath = sourceSets.main.runtimeClasspath
-    main = "coop.f1r3fly.fs.examples.F1r3flyFSMain"
+    mainClass = "io.f1r3fly.fs.examples.F1r3flyFSMain"
 }
 
 tasks.withType(Javadoc).configureEach {

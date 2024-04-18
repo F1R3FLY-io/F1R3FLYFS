@@ -7,23 +7,62 @@ import java.util.Set;
 
 public interface FSStorage {
 
-    /** type as a string and a size. Size could be 0 if type is dir */
-    record TypeAndSize(String type, long size){} ;
+    /**
+     * type as a string and a size. Size could be 0 if type is dir
+     */
+    record TypeAndSize(String type, long size) {
+    }
 
-    record OperationResult<Payload>(Payload payload, @NotNull String blockHash){} ;
+    record OperationResult<Payload>(Payload payload, @NotNull String blockHash) {
+    }
+
+    // COMMON OPERATIONS
 
     // Size could be zeo if type is dir
-    OperationResult<TypeAndSize> getTypeAndSize(@NotNull String path, @NotNull String blockHash) throws NoDataByPath;
+    OperationResult<TypeAndSize> getTypeAndSize(
+        @NotNull String path,
+        @NotNull String blockHash) throws NoDataByPath;
 
-    OperationResult<Void> saveFile(String path, String content, String blockHash) throws F1r3flyDeployError, NoDataByPath, InvalidFSStructure, DirectoryNotFound;
-    OperationResult<String> readFile(String path, String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile;
-    OperationResult<Void> deleteFile(String path, String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile;
+    OperationResult<Void> rename(
+        @NotNull String oldPath,
+        @NotNull String newPath,
+        @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, DirectoryNotFound, PathIsNotADirectory, DirectoryIsNotEmpty, AlreadyExists;
 
-    OperationResult<Void> createDir(String path, String blockHash) throws NoDataByPath, F1r3flyDeployError;
-    OperationResult<Set<String>> readDir(String path, String blockHash) throws NoDataByPath, DirectoryNotFound, PathIsNotADirectory;
-    OperationResult<Void> deleteDir(String path, String blockHash) throws PathIsNotADirectory, DirectoryNotFound, F1r3flyDeployError, DirectoryIsNotEmpty;
+    // FILE OPERATIONS
 
-    OperationResult<Void> addToParent(String path, String blockHash) throws PathIsNotADirectory, F1r3flyDeployError, DirectoryNotFound;
-    OperationResult<Void> removeFromParent(String path, String blockHash) throws PathIsNotADirectory, DirectoryNotFound, F1r3flyDeployError;
+    OperationResult<Void> saveFile(
+        @NotNull String path,
+        @NotNull String content,
+        @NotNull String blockHash) throws F1r3flyDeployError;
+
+    OperationResult<String> readFile(
+        @NotNull String path,
+        @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile;
+
+    OperationResult<Void> deleteFile(
+        @NotNull String path,
+        @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile;
+
+    // DIRECTORY OPERATIONS
+
+    OperationResult<Void> createDir(
+        @NotNull String path,
+        @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError;
+
+    OperationResult<Set<String>> readDir(
+        @NotNull String path,
+        @NotNull String blockHash) throws NoDataByPath, DirectoryNotFound, PathIsNotADirectory;
+
+    OperationResult<Void> deleteDir(
+        @NotNull String path,
+        @NotNull String blockHash) throws PathIsNotADirectory, DirectoryNotFound, F1r3flyDeployError, DirectoryIsNotEmpty;
+
+    OperationResult<Void> addToParent(
+        @NotNull String path,
+        @NotNull String blockHash) throws PathIsNotADirectory, F1r3flyDeployError, DirectoryNotFound;
+
+    OperationResult<Void> removeFromParent(
+        @NotNull String path,
+        @NotNull String blockHash) throws PathIsNotADirectory, DirectoryNotFound, F1r3flyDeployError;
 
 }

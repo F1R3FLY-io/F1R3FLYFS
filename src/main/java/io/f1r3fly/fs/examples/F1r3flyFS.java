@@ -9,6 +9,7 @@ import io.f1r3fly.fs.FuseException;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
 import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseFileInfo;
+import io.f1r3fly.fs.utils.PathUtils;
 import jnr.ffi.Pointer;
 import jnr.ffi.types.off_t;
 import jnr.ffi.types.size_t;
@@ -20,7 +21,7 @@ import java.nio.file.Path;
 import java.util.Set;
 
 public class F1r3flyFS extends FuseStubFS {
-    private final static String PATH_DELIMITER = "/";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(F1r3flyFS.class);
 
     private final F1r3flyApi f1R3FlyApi;
@@ -36,7 +37,7 @@ public class F1r3flyFS extends FuseStubFS {
 
     @Override
     public int getattr(String path, FileStat stat) {
-        LOGGER.info("Getting attributes for path: {}", prependMountId(path));
+        LOGGER.info("Called getting attributes for path: {}", prependMountId(path));
         try {
             checkMount();
             checkPath(path);
@@ -100,13 +101,13 @@ public class F1r3flyFS extends FuseStubFS {
 
     @Override
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        LOGGER.info("Writing file: {} with parameters size {} offset {} fi {}", prependMountId(path), size, offset, fi);
+        LOGGER.info("Called write file: {} with parameters size {} offset {} fi {}", prependMountId(path), size, offset, fi);
         try {
             checkMount();
             checkPath(path);
 
-            Set<String> siblings = this.storage.readDir(prependMountId(path.substring(0, path.lastIndexOf("/"))), this.lastBlockHash).payload(); // check if path is a directory
-            String filename = path.substring(path.lastIndexOf("/") + 1);
+            Set<String> siblings = this.storage.readDir(prependMountId(PathUtils.getParentPath(path)), this.lastBlockHash).payload(); // check if path is a directory
+            String filename = PathUtils.getFileName(path);
             if (!siblings.contains(filename)) {
                 // no need to add to parent if already added
                 this.lastBlockHash = this.storage.addToParent(prependMountId(path), this.lastBlockHash).blockHash();
@@ -127,43 +128,12 @@ public class F1r3flyFS extends FuseStubFS {
         } catch (PathIsNotADirectory e) {
             LOGGER.warn("Path is not a directory", e);
             return -ErrorCodes.EIO(); // is a directory?
-        } catch (InvalidFSStructure e) {
-            LOGGER.error("Invalid FS structure", e);
-            return -ErrorCodes.EIO(); // general error
         }
     }
 
     @Override
-    public int truncate(String path, long size) {
-        LOGGER.info("Truncating file: {}", prependMountId(path));
-        return 0;
-        //TODO: use remove?
-//        try {
-//            checkMount();
-//            checkPath(path);
-//
-//            // erase a file
-//            this.lastBlockHash = this.storage.saveFile(prependMountId(path), "", this.lastBlockHash).blockHash();
-//
-//            return SuccessCodes.OK;
-//        } catch (NoDataByPath e) {
-//            LOGGER.warn("Failed to get data", e);
-//            return -ErrorCodes.EIO(); // general error
-//        } catch (F1r3flyDeployError e) {
-//            LOGGER.error("Failed to deploy", e);
-//            return -ErrorCodes.EIO(); // general error
-//        } catch (InvalidFSStructure e) {
-//            LOGGER.error("Invalid FS structure", e);
-//            return -ErrorCodes.EIO(); // general error
-//        } catch (DirectoryNotFound e) {
-//            LOGGER.warn("Directory not found", e);
-//            return -ErrorCodes.ENOENT(); // not found
-//        }
-    }
-
-    @Override
     public int create(String path, long mode, FuseFileInfo fi) {
-        LOGGER.info("Creating file: {}", prependMountId(path));
+        LOGGER.info("Called create file: {}", prependMountId(path));
         try {
             checkMount();
             checkPath(path);
@@ -173,7 +143,7 @@ public class F1r3flyFS extends FuseStubFS {
 
             return SuccessCodes.OK;
 
-        } catch (DirectoryNotFound | NoDataByPath e) {
+        } catch (DirectoryNotFound e) {
             LOGGER.warn("Directory not found", e);
             return -ErrorCodes.ENOENT(); // not found
         } catch (F1r3flyDeployError e) {
@@ -182,15 +152,12 @@ public class F1r3flyFS extends FuseStubFS {
         } catch (PathIsNotADirectory e) {
             LOGGER.warn("Path is not a directory", e);
             return -ErrorCodes.EIO(); // is a directory?
-        } catch (InvalidFSStructure e) {
-            LOGGER.error("Invalid FS structure", e);
-            return -ErrorCodes.EIO(); // general error
         }
     }
 
     @Override
     public int mkdir(String path, long mode) {
-        LOGGER.info("Creating folder: {}", prependMountId(path));
+        LOGGER.info("Called mkdir: {}", prependMountId(path));
         try {
             checkMount();
             checkPath(path);
@@ -214,7 +181,7 @@ public class F1r3flyFS extends FuseStubFS {
 
     @Override
     public int readdir(String path, Pointer buf, FuseFillDir filter, long offset, FuseFileInfo fi) {
-        LOGGER.info("readdir: {}", prependMountId(path));
+        LOGGER.info("Called readdir: {}", prependMountId(path));
         try {
             Set<String> childs = this.storage.readDir(prependMountId(path), this.lastBlockHash).payload();
 
@@ -242,8 +209,40 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
     @Override
+    public int rename(String oldpath, String newpath) {
+        LOGGER.info("Called rename: {} -> {}", prependMountId(oldpath), prependMountId(newpath));
+        try {
+            checkMount();
+            checkPath(oldpath);
+            checkPath(newpath);
+
+            this.lastBlockHash = this.storage.addToParent(prependMountId(newpath), this.lastBlockHash).blockHash(); // fails if parent not found
+            this.lastBlockHash = this.storage.removeFromParent(prependMountId(oldpath), this.lastBlockHash).blockHash(); // fails if parent not found
+            this.lastBlockHash = this.storage.rename(prependMountId(oldpath), prependMountId(newpath), this.lastBlockHash).blockHash();
+
+            return SuccessCodes.OK;
+
+        } catch (DirectoryNotFound | NoDataByPath e) {
+            LOGGER.warn("Directory not found", e);
+            return -ErrorCodes.ENOENT(); // not found
+        } catch (F1r3flyDeployError e) {
+            LOGGER.error("Failed to deploy", e);
+            return -ErrorCodes.EIO(); // general error
+        } catch (PathIsNotADirectory e) {
+            LOGGER.warn("Path is not a directory", e);
+            return -ErrorCodes.EIO(); // is a directory?
+        } catch (DirectoryIsNotEmpty e) {
+            LOGGER.warn("Directory is not empty", e);
+            return -ErrorCodes.ENOTEMPTY(); // directory is not empty
+        } catch (AlreadyExists e) {
+            LOGGER.warn("Already exists", e);
+            return -ErrorCodes.EEXIST(); // already exists
+        }
+    }
+
+    @Override
     public int unlink(String path) {
-        LOGGER.info("Removing file: {}", prependMountId(path));
+        LOGGER.info("Called unlink: {}", prependMountId(path));
 
         try {
             checkMount();
@@ -274,7 +273,7 @@ public class F1r3flyFS extends FuseStubFS {
 
     @Override
     public int rmdir(String path) {
-        LOGGER.info("Removing folder: {}", prependMountId(path));
+        LOGGER.info("Called rmdir: {}", prependMountId(path));
 
         try {
             checkMount();
@@ -302,7 +301,7 @@ public class F1r3flyFS extends FuseStubFS {
 
     @Override
     public void mount(Path mountPoint, boolean blocking, boolean debug, String[] fuseOpts) {
-        LOGGER.info("Mounting filesystem with mountPoint: {}", mountPoint.toString());
+        LOGGER.info("Called mounting filesystem with mountPoint: {}", mountPoint.toString());
 
         if (this.mountId != null) {
             throw new FuseException("Already mounted");
@@ -330,20 +329,29 @@ public class F1r3flyFS extends FuseStubFS {
 
         }
 
-        // call super method to mount
-        super.mount(mountPoint, blocking, debug, fuseOpts);
+        try {
+            // call super method to mount
+            super.mount(mountPoint, blocking, debug, fuseOpts);
+        } catch (FuseException e) {
+            forgetMountIds();
+            throw new FuseException("Failed to mount", e);
+        }
     }
 
     @Override
     public void umount() {
-        LOGGER.info("Unmounting filesystem");
+        LOGGER.info("Called unmounting filesystem");
 
         super.umount();
 
+        forgetMountIds();
+    }
+
+    private void forgetMountIds() {
         synchronized (this) {
 
             if (this.mountPoint == null) {
-                LOGGER.warn("Already unmounted");
+                LOGGER.info("Already unmounted");
             }
 
             this.storage = null;
@@ -353,7 +361,7 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
     private void checkPath(String path) {
-        if (path == null || !path.startsWith(PATH_DELIMITER)) {
+        if (path == null || !path.startsWith(PathUtils.getPathDelimiterBasedOnOS())) {
             throw new IllegalArgumentException("Invalid path: %s".formatted(path));
         }
     }
@@ -365,7 +373,10 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
     private void generateMountId() {
-        this.mountId = "f1r3flyfs://" + System.currentTimeMillis();
+        String pathDelimiter = PathUtils.getPathDelimiterBasedOnOS();
+
+        // example: f1r3flyfs://123123123
+        this.mountId = "f1r3flyfs:" + pathDelimiter + pathDelimiter + System.currentTimeMillis();
     }
 
 
@@ -373,7 +384,7 @@ public class F1r3flyFS extends FuseStubFS {
         // example: f1r3flyfs://123123123/mounted-path/path-to-file
         String fullPath = this.mountId + this.mountPoint.toAbsolutePath() + path;
 
-        if (fullPath.endsWith(PATH_DELIMITER)) {
+        if (fullPath.endsWith(PathUtils.getPathDelimiterBasedOnOS())) {
             fullPath = fullPath.substring(0, fullPath.length() - 1);
         }
 
