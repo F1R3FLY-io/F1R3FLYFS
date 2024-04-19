@@ -1,6 +1,6 @@
 plugins {
     id 'java-library'
-    id 'com.github.johnrengelman.shadow' version '6.1.0'
+    id 'com.github.johnrengelman.shadow' version '7.0.0'
     id 'net.researchgate.release' version '2.8.1'
     id 'io.github.gradle-nexus.publish-plugin' version '1.1.0'
     id 'maven-publish'
@@ -58,13 +58,22 @@ java {
 //    withSourcesJar()
 //    withJavadocJar()
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(16)
     }
 }
 
 shadowJar {
+    mergeServiceFiles()
     archiveClassifier = 'shadow'
     relocate 'org.objectweb.asm', 'org.objectweb.asm.shaded'
+}
+
+jar {
+    manifest {
+        attributes(
+                'Main-Class': 'io.f1r3fly.fs.examples.F1r3flyFSMain'
+        )
+    }
 }
 
 task run(type: JavaExec) {
