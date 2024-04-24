@@ -76,7 +76,7 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     }
 
     @Override
-    public OperationResult<Void> saveFile(
+    public OperationResult<Void> createFile(
         @NotNull String path,
         @NotNull String content,
         @NotNull String blockHash) throws F1r3flyDeployError {
@@ -85,7 +85,27 @@ public class F1r3flyFixedFSStorage implements FSStorage {
 
             String blockHashWithPath = state.get(path); // null if a new file, contains block hash if file exists
 
-            OperationResult<Void> result = this.f1f3flyFSStorage.saveFile(path, content, blockHashWithPath);
+            OperationResult<Void> result = this.f1f3flyFSStorage.createFile(path, content, blockHashWithPath);
+
+            // update state
+            state.put(path, result.blockHash());
+            String newLastBlockHash = updateState(state);
+
+            return new OperationResult<>(null, newLastBlockHash);
+        }
+    }
+
+    @Override
+    public OperationResult<Void> appendFile(
+        @NotNull String path,
+        @NotNull String content,
+        @NotNull String blockHash) throws F1r3flyDeployError {
+        synchronized (this) {
+            HashMap<String, String> state = fetchState(blockHash);
+
+            String blockHashWithPath = state.get(path); // null if a new file, contains block hash if file exists
+
+            OperationResult<Void> result = this.f1f3flyFSStorage.appendFile(path, content, blockHashWithPath);
 
             // update state
             state.put(path, result.blockHash());

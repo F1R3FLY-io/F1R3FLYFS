@@ -62,8 +62,8 @@ public class F1r3flyApi {
     }
 
     // Cut down on verbosity of surfacing errors
-    private <T> Uni<T> fail(ServiceErrorOuterClass.ServiceError error) {
-        return Uni.createFrom().failure(new F1r3flyDeployError(gatherErrors(error)));
+    private <T> Uni<T> fail(String rho, ServiceErrorOuterClass.ServiceError error) {
+        return Uni.createFrom().failure(new F1r3flyDeployError(rho, gatherErrors(error)));
     }
 
     private String gatherErrors(ServiceErrorOuterClass.ServiceError error) {
@@ -94,7 +94,7 @@ public class F1r3flyApi {
                     .flatMap(deployResponse -> {
                         LOGGER.debug("Deploy Response {}", deployResponse);
                         if (deployResponse.hasError()) {
-                            return this.<String>fail(deployResponse.getError());
+                            return this.<String>fail(rhoCode, deployResponse.getError());
                         } else {
                             return succeed(deployResponse.getResult());
                         }
@@ -105,7 +105,7 @@ public class F1r3flyApi {
                             .flatMap(proposeResponse -> {
                                 LOGGER.debug("Propose Response {}", proposeResponse);
                                 if (proposeResponse.hasError()) {
-                                    return this.<String>fail(proposeResponse.getError());
+                                    return this.<String>fail(rhoCode, proposeResponse.getError());
                                 } else {
                                     return succeed(deployId);
                                 }
@@ -117,7 +117,7 @@ public class F1r3flyApi {
                             .flatMap(findResponse -> {
                                 LOGGER.debug("Find Response {}", findResponse);
                                 if (findResponse.hasError()) {
-                                    return this.<String>fail(findResponse.getError());
+                                    return this.<String>fail(rhoCode, findResponse.getError());
                                 } else {
                                     return succeed(findResponse.getBlockInfo().getBlockHash());
                                 }
@@ -129,7 +129,7 @@ public class F1r3flyApi {
                             .flatMap(isFinalizedResponse -> {
                                 LOGGER.debug("isFinalizedResponse {}", isFinalizedResponse);
                                 if (isFinalizedResponse.hasError() || !isFinalizedResponse.getIsFinalized()) {
-                                    return fail(isFinalizedResponse.getError());
+                                    return fail(rhoCode, isFinalizedResponse.getError());
                                 } else {
                                     return succeed(blockHash);
                                 }
@@ -142,8 +142,12 @@ public class F1r3flyApi {
             // Drummer Hoff Fired It Off
             return deployVolumeContract.await().indefinitely();
         } catch (Exception e) {
-            LOGGER.warn("failed to deploy", e);
-            throw new F1r3flyDeployError("Failed to deploy", e);
+            if (e instanceof F1r3flyDeployError) {
+                throw (F1r3flyDeployError) e;
+            } else {
+                LOGGER.warn("failed to deploy Rho {}", rhoCode, e);
+                throw new F1r3flyDeployError(rhoCode, "Failed to deploy", e);
+            }
         }
     }
 

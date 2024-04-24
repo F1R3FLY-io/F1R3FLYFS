@@ -35,6 +35,7 @@ public abstract class AbstractFuseFS implements FuseFS {
     protected final AtomicBoolean mounted = new AtomicBoolean();
     protected Path mountPoint;
     private volatile Pointer fusePointer;
+    protected String mountName = null; // REGENERATE IT FOR EACH MOUNT
 
     public AbstractFuseFS() {
         jnr.ffi.Platform p = jnr.ffi.Platform.getNativePlatform();
@@ -248,9 +249,9 @@ public abstract class AbstractFuseFS implements FuseFS {
             mountPointStr = mountPointStr.substring(0, mountPointStr.length() - 1);
         }
         if (!debug) {
-            arg = new String[]{getFSName(), "-f", mountPointStr};
+            arg = new String[]{this.mountName, "-o", "fsname=" + this.mountName, "-f", mountPointStr};
         } else {
-            arg = new String[]{getFSName(), "-f", "-d", mountPointStr};
+            arg = new String[]{this.mountName, "-o", "fsname=" + this.mountName, "-f", "-d", mountPointStr};
         }
         if (fuseOpts.length != 0) {
             int argLen = arg.length;
@@ -318,7 +319,4 @@ public abstract class AbstractFuseFS implements FuseFS {
         mounted.set(false);
     }
 
-    protected String getFSName() {
-        return "fusefs" + ThreadLocalRandom.current().nextInt();
-    }
 }

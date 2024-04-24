@@ -28,12 +28,15 @@ public class RholangExpressionConstructor {
     }
 
     //** Consumes a value from a chanel */
-    public static String readAndForget(String chanel) {
+    public static String readAndForget(String chanel, String currentTime) {
         // output looks like `for(_ <- @"path/to/something"){ Nil }`
         return new StringBuilder()
-            .append("for(_ <- @\"")
+            .append("for(@v <- @\"")
             .append(chanel)
-            .append("\"){ Nil }")
+            .append("\"){")
+            .append("v.set(\"lastUpdated\",") //TODO: this is needed to prevent 'NoNewDeploy' error (updates a map and forgets)
+            .append(string2RholngString(currentTime)) // use Nil when fixed
+            .append(")}")
             .toString();
     }
 
@@ -57,7 +60,7 @@ public class RholangExpressionConstructor {
     public static String renameChanel(String oldChanel, String newChanel) {
         // output looks like:
         // for(@v <- @"oldPath"){
-        //      @"newPath"!(@v)
+        //      @"newPath"!(v)
         // }
 
         return new StringBuilder()
@@ -67,6 +70,28 @@ public class RholangExpressionConstructor {
             .append("@\"")
             .append(newChanel)
             .append("\"!(v)")
+            .append("}")
+            .toString();
+    }
+
+    //** Consume a value from a chanel and send to an appended value */
+    public static String appendValue(String chanel, String lastUpdated, String newChunk) {
+        // output looks like:
+        // for(@v <- @"path"){
+        //      @"path"!(v.set("lastUpdated","123").set("value", v.get("value) ++ "newChunk"))
+        // }
+
+        return new StringBuilder()
+            .append("for(@v <- @\"")
+            .append(chanel)
+            .append("\"){")
+            .append("@\"")
+            .append(chanel)
+            .append("\"!(v.set(\"lastUpdated\",")
+            .append(string2RholngString(lastUpdated))
+            .append(").set(\"value\",v.get(\"value\") ++ ")
+            .append(string2RholngString(newChunk))
+            .append("))")
             .append("}")
             .toString();
     }
@@ -104,8 +129,14 @@ public class RholangExpressionConstructor {
     }
 
     public static HashMap<String, String> parseEMapFromLastExpr(@NotNull List<RhoTypes.Par> pars) {
+        RhoTypes.Par par = pars.get(pars.size() - 1);
+        int exprsCount = par.getExprsCount() - 1;
+        if (exprsCount < 0) {
+            return new HashMap<>();
+        }
+
         List<rhoapi.RhoTypes.KeyValuePair> keyValues =
-            pars.get(pars.size() - 1).getExprs(0).getEMapBody().getKvsList();
+            par.getExprs(exprsCount).getEMapBody().getKvsList();
 
         HashMap<String, String> result = new HashMap<>();
 

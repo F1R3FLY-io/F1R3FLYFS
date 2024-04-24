@@ -9,10 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rhoapi.RhoTypes;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class F1f3flyFSStorage implements FSStorage {
 
@@ -25,6 +22,7 @@ public class F1f3flyFSStorage implements FSStorage {
     public static final String FILE_TYPE = "f";
 
     private static final String VALUE = "value";
+    private static final String LAST_UPDATED = "lastUpdated";
 
     public F1f3flyFSStorage(F1r3flyApi f1R3FlyApi) {
         this.f1R3FlyApi = f1R3FlyApi;
@@ -40,9 +38,13 @@ public class F1f3flyFSStorage implements FSStorage {
         HashMap<String, String> parsed = RholangExpressionConstructor.parseEMapFromLastExpr(response);
 
         String fileOrDirType = parsed.get(TYPE);
-        int size = 0;
+        int size = -1;
         if (fileOrDirType.equals(FILE_TYPE)) {
-            size = parsed.get(VALUE).length();
+            try {
+                size = Base64.getDecoder().decode(parsed.get(VALUE)).length; // TODO: don't get data back for 'size' field
+            } catch (IllegalArgumentException e) {
+                LOGGER.error("Failed to decode base64 'value' field for path: {}", path, e);
+            }
         }
 
         // block hash is the same because of no changes
@@ -86,19 +88,19 @@ public class F1f3flyFSStorage implements FSStorage {
     }
 
     @Override
-    public OperationResult<Void> saveFile(
+    public OperationResult<Void> createFile(
         @NotNull String path,
         @NotNull String content,
-        @NotNull String lastBlockHash) throws F1r3flyDeployError {
+        @NotNull String blockHash) throws F1r3flyDeployError {
         // TODO remove lastBlockHash, no need to pass it here
 
         synchronized (this) {
-            // Rholang looks like `@"path/to/something"!({"type": "f", "value": "content"})`
             String rholangExpression =
                 RholangExpressionConstructor.sendValueIntoNewChanel(
                     path,
                     Map.of(
                         TYPE, FILE_TYPE, // add 'mode' field here later
+                        LAST_UPDATED, currentTime(),
                         VALUE, content)
                 );
 
@@ -106,6 +108,32 @@ public class F1f3flyFSStorage implements FSStorage {
 
             return new OperationResult<>(null, newBlockHash);
         }
+    }
+
+
+    @Override
+    public OperationResult<Void> appendFile(
+        @NotNull String path,
+        @NotNull String content,
+        @NotNull String lastBlockHash) throws F1r3flyDeployError {
+        // TODO remove lastBlockHash, no need to pass it here
+
+        synchronized (this) {
+            String rholangExpression =
+                RholangExpressionConstructor.appendValue(
+                    path,
+                    currentTime(),
+                    content
+                );
+
+            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression);
+
+            return new OperationResult<>(null, newBlockHash);
+        }
+    }
+
+    private static @NotNull String currentTime() {
+        return String.valueOf(System.currentTimeMillis());
     }
 
     @Override
@@ -128,7 +156,7 @@ public class F1f3flyFSStorage implements FSStorage {
             getFile(path, lastBlockHash); // check if file getType
 
             String newBlockHash =
-                this.f1R3FlyApi.deploy(RholangExpressionConstructor.readAndForget(path)); // forges a data
+                this.f1R3FlyApi.deploy(RholangExpressionConstructor.readAndForget(path, currentTime())); // forges a data
 
             return new OperationResult<>(null, newBlockHash);
         }
@@ -147,6 +175,7 @@ public class F1f3flyFSStorage implements FSStorage {
                     path,
                     Map.of(
                         TYPE, DIR_TYPE, // add 'mode' field here later
+                        LAST_UPDATED, currentTime(),
                         VALUE, RholangExpressionConstructor.EmptyList)
                 );
 
@@ -185,7 +214,7 @@ public class F1f3flyFSStorage implements FSStorage {
             }
 
             String newBlockHash =
-                this.f1R3FlyApi.deploy(RholangExpressionConstructor.readAndForget(path)); // forgets a data
+                this.f1R3FlyApi.deploy(RholangExpressionConstructor.readAndForget(path, currentTime())); // forgets a data
 
             return new OperationResult<>(null, newBlockHash);
         }
@@ -213,6 +242,7 @@ public class F1f3flyFSStorage implements FSStorage {
                     parentPath,
                     Map.of(
                         TYPE, DIR_TYPE, // add 'mode' field here later
+                        LAST_UPDATED, currentTime(),
                         VALUE, RholangExpressionConstructor.set2String(children)
                     )
                 );
@@ -243,6 +273,7 @@ public class F1f3flyFSStorage implements FSStorage {
                     parentPath,
                     Map.of(
                         TYPE, DIR_TYPE, // add 'mode' field here later
+                        LAST_UPDATED, currentTime(),
                         VALUE, RholangExpressionConstructor.set2String(children)
                     )
                 );

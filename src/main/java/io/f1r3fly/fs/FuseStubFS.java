@@ -251,7 +251,7 @@ public class FuseStubFS extends AbstractFuseFS {
     @Override
     public int poll(String path, FuseFileInfo fi, FusePollhandle ph, Pointer reventsp) {
         LOGGER.info("Called poll for path: " + mountPoint.toAbsolutePath() + path);
-        return  0; // -ErrorCodes.ENOSYS();
+        return 0; // -ErrorCodes.ENOSYS();
     }
 
     @Override

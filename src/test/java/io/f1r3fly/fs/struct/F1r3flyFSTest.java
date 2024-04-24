@@ -23,11 +23,14 @@ import org.testcontainers.utility.DockerImageName;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -53,31 +56,32 @@ class F1r3flyFSTest {
 
     @BeforeEach
     void mount() throws InterruptedException {
+        Utils.cleanDataDirectory("data", Arrays.asList("genesis", "node.certificate.pem", "node.key.pem"));
+
+        listAppender.start();
+        log.addAppender(listAppender);
+
+        f1r3fly = new GenericContainer<>(F1R3FLY_IMAGE)
+            .withFileSystemBind("data/", "/var/lib/rnode/", BindMode.READ_WRITE)
+            .withExposedPorts(GRPC_PORT)
+            .withCommand("run -s --no-upnp --allow-private-addresses --api-max-blocks-limit " + MAX_BLOCK_LIMIT + " --synchrony-constraint-threshold=0.0 --validator-private-key " + validatorPrivateKey)
+            .waitingFor(Wait.forListeningPorts(GRPC_PORT))
+            .withStartupTimeout(STARTUP_TIMEOUT);
+
+
+        f1r3fly.start(); // Manually start the container
+
+        f1r3fly.followOutput(logConsumer);
+
+        // Waits on the node initialization
+        // Fresh start could take ~10 seconds
+        Thread.sleep(20 * 1000);
+
+        F1r3flyApi f1R3FlyApi = new F1r3flyApi(Hex.decode(clientPrivateKey), "localhost", f1r3fly.getMappedPort(GRPC_PORT));
+        f1r3flyFS = new F1r3flyFS(f1R3FlyApi);
+
+
         try {
-            Utils.cleanDataDirectory("data", Arrays.asList("genesis", "node.certificate.pem", "node.key.pem"));
-
-            listAppender.start();
-            log.addAppender(listAppender);
-
-            f1r3fly = new GenericContainer<>(F1R3FLY_IMAGE)
-                .withFileSystemBind("data/", "/var/lib/rnode/", BindMode.READ_WRITE)
-                .withExposedPorts(GRPC_PORT)
-                .withCommand("run -s --no-upnp --allow-private-addresses --api-max-blocks-limit " + MAX_BLOCK_LIMIT + " --synchrony-constraint-threshold=0.0 --validator-private-key " + validatorPrivateKey)
-                .waitingFor(Wait.forListeningPorts(GRPC_PORT))
-                .withStartupTimeout(STARTUP_TIMEOUT);
-
-
-            f1r3fly.start(); // Manually start the container
-
-            f1r3fly.followOutput(logConsumer);
-
-            // Waits on the node initialization
-            // Fresh start could take ~10 seconds
-            Thread.sleep(20 * 1000);
-
-            F1r3flyApi f1R3FlyApi = new F1r3flyApi(Hex.decode(clientPrivateKey), "localhost", f1r3fly.getMappedPort(GRPC_PORT));
-            f1r3flyFS = new F1r3flyFS(f1R3FlyApi);
-
             f1r3flyFS.mount(MOUNT_POINT);
         } catch (FuseException e) {
             // could fail if the mount point is already mounted from previous run
@@ -85,6 +89,8 @@ class F1r3flyFSTest {
             e.printStackTrace();
 
             MountUtils.umount(MOUNT_POINT); // try to unmount
+
+            f1r3flyFS.mount(MOUNT_POINT);
         }
     }
 
@@ -99,24 +105,32 @@ class F1r3flyFSTest {
 
     @Test
     void shouldCreateRenameGetDeleteFiles() throws IOException {
-        File file1 = new File(MOUNT_POINT_FILE, "test.txt");
+        File file = new File(MOUNT_POINT_FILE, "file.bin");
 
-        assertFalse(file1.exists(), "File should not exist");
-        assertTrue(file1.createNewFile(), "Failed to create test file");
-        assertTrue(file1.exists(), "File should exist");
+        assertFalse(file.exists(), "File should not exist");
+        assertTrue(file.createNewFile(), "Failed to create test file");
+        assertTrue(file.exists(), "File should exist");
 
-        String inputData = "Hello, F1r3fly!";
-        Files.write(file1.toPath(), inputData.getBytes());
-        String readData = new String(Files.readAllBytes(file1.toPath()));
-        assertEquals(inputData, readData, "Read data should be equal to written data");
+        byte[] inputDataAsBinary = new byte[1024]; // 1 kb
+        new Random().nextBytes(inputDataAsBinary);
+        Files.write(file.toPath(), inputDataAsBinary);
+        byte[] readDatAsBinary = Files.readAllBytes(file.toPath());
+        assertArrayEquals(inputDataAsBinary, readDatAsBinary, "Read data should be equal to written data");
 
-        assertContainChilds(MOUNT_POINT_FILE, file1);
+        File renamedFile = new File(file.getParent(), "renamed.txt");
+        assertTrue(file.renameTo(renamedFile), "Failed to rename file");
 
-        File renamedFile = new File(file1.getParent(), "renamed.txt");
-        assertTrue(file1.renameTo(renamedFile), "Failed to rename file");
+        assertContainChilds(MOUNT_POINT_FILE, renamedFile);
 
-        String readData2 = new String(Files.readAllBytes(renamedFile.toPath()));
-        assertEquals(inputData, readData2, "Read data (from renamed file) should be equal to written data");
+        byte[] inputDataAsBinary2 = Files.readAllBytes(renamedFile.toPath());
+        assertArrayEquals(inputDataAsBinary, inputDataAsBinary2, "Read data (from renamed file) should be equal to written data");
+
+        String inputDataAsString = "a".repeat(3 * 1024); // 3 kb
+        Files.writeString(renamedFile.toPath(), inputDataAsString, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING); // truncate and override
+        String readDataAsString = Files.readString(renamedFile.toPath());
+        assertEquals(inputDataAsString, readDataAsString, "Read data should be equal to written data");
+
+        assertContainChilds(MOUNT_POINT_FILE, renamedFile); // it has to be the same folder after truncate and overide
 
         File dir = new File(MOUNT_POINT_FILE, "testDir");
         assertTrue(dir.mkdir(), "Failed to create test directory");
