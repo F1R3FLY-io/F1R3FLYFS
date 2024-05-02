@@ -281,7 +281,8 @@ public class F1r3flyFixedFSStorage implements FSStorage {
                 RholangExpressionConstructor.sendValueIntoNewChanel(
                     this.stateChanelName,
                     Map.of()
-                ));
+                ),
+                false);
 
         } catch (F1r3flyDeployError e) {
             LOGGER.warn("Failed to update state", e);
@@ -297,7 +298,8 @@ public class F1r3flyFixedFSStorage implements FSStorage {
                 RholangExpressionConstructor.replaceValue(
                     this.stateChanelName,
                     state
-                ));
+                ),
+                false);
 
         } catch (F1r3flyDeployError e) {
             LOGGER.warn("Failed to update state", e);

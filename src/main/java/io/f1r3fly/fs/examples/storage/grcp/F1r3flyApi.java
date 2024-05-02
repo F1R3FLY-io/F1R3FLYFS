@@ -71,16 +71,18 @@ public class F1r3flyApi {
         return messages.stream().collect(Collectors.joining("\n"));
     }
 
-    public String deploy(String rhoCode) throws F1r3flyDeployError {
+    public String deploy(String rhoCode, boolean useBiggerRhloPrice) throws F1r3flyDeployError {
         try {
             Security.addProvider(new Blake2bProvider());
+
+            long phloLimit = useBiggerRhloPrice ? 5_000_000_000L : 100_000;
 
             // Make deployment
             CasperMessage.DeployDataProto deployment = CasperMessage.DeployDataProto.newBuilder()
                 .setTerm(rhoCode)
                 .setTimestamp(0)
                 .setPhloPrice(1)
-                .setPhloLimit(1000000)
+                .setPhloLimit(phloLimit)
                 .setShardId("root")
                 .build();
 

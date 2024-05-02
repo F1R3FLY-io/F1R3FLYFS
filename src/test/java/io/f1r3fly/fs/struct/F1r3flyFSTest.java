@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class F1r3flyFSTest {
     private static final int GRPC_PORT = 40402;
     private static final String MAX_BLOCK_LIMIT = "2"; // FIXME: THIS DOESN'T WORK
-    private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(1);
+    private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
     private static final String validatorPrivateKey = "f9854c5199bc86237206c75b25c6aeca024dccc0f55df3a553131111fd25dd85";
     private static final String clientPrivateKey = "a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954";
     private static final Path MOUNT_POINT = new File("/tmp/f1r3flyfs/").toPath();
@@ -71,11 +71,11 @@ class F1r3flyFSTest {
 
         f1r3fly.start(); // Manually start the container
 
-        f1r3fly.followOutput(logConsumer);
+//        f1r3fly.followOutput(logConsumer);
 
         // Waits on the node initialization
         // Fresh start could take ~10 seconds
-        Thread.sleep(20 * 1000);
+        Thread.sleep(10 * 1000);
 
         F1r3flyApi f1R3FlyApi = new F1r3flyApi(Hex.decode(clientPrivateKey), "localhost", f1r3fly.getMappedPort(GRPC_PORT));
         f1r3flyFS = new F1r3flyFS(f1R3FlyApi);
@@ -88,7 +88,12 @@ class F1r3flyFSTest {
 
             e.printStackTrace();
 
-            MountUtils.umount(MOUNT_POINT); // try to unmount
+            try { // try to unmount
+                MountUtils.umount(MOUNT_POINT);
+                f1r3flyFS.umount();
+            } catch (Throwable e2) {
+                // ignore
+            }
 
             f1r3flyFS.mount(MOUNT_POINT);
         }
@@ -111,7 +116,7 @@ class F1r3flyFSTest {
         assertTrue(file.createNewFile(), "Failed to create test file");
         assertTrue(file.exists(), "File should exist");
 
-        byte[] inputDataAsBinary = new byte[1024]; // 1 kb
+        byte[] inputDataAsBinary = new byte[1024 * 1024]; // 1 MB
         new Random().nextBytes(inputDataAsBinary);
         Files.write(file.toPath(), inputDataAsBinary);
         byte[] readDatAsBinary = Files.readAllBytes(file.toPath());
@@ -125,7 +130,7 @@ class F1r3flyFSTest {
         byte[] inputDataAsBinary2 = Files.readAllBytes(renamedFile.toPath());
         assertArrayEquals(inputDataAsBinary, inputDataAsBinary2, "Read data (from renamed file) should be equal to written data");
 
-        String inputDataAsString = "a".repeat(3 * 1024); // 3 kb
+        String inputDataAsString = "a".repeat(2 * 1024 * 1024); // 2 MB
         Files.writeString(renamedFile.toPath(), inputDataAsString, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING); // truncate and override
         String readDataAsString = Files.readString(renamedFile.toPath());
         assertEquals(inputDataAsString, readDataAsString, "Read data should be equal to written data");
