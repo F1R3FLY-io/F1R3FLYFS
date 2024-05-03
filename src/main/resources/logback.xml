@@ -7,7 +7,7 @@
         </encoder>
     </appender>
 
-    <logger name="io.f1r3fly.fs" level="DEBUG"/>
+    <logger name="io.f1r3fly.fs" level="INFO"/>
 
     <root level="INFO">
         <appender-ref ref="STDOUT" />

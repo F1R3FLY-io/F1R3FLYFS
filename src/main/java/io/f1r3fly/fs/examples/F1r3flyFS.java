@@ -34,18 +34,20 @@ public class F1r3flyFS extends FuseStubFS {
 
     // it should be a number that can be divisible by 3
     // because we want to avoid a padding at the end of a base64 string
-    private final int MAX_CHUNK_SIZE = 6 * 1024 * 1024; // 6MB
+    private final int MAX_CHUNK_SIZE = 300 * 1024 * 1024; // 6MB
 
     private final String[] MOUNT_OPTIONS = {
         // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options#iosize
         "-o", "noappledouble"
     };
 
-    private final ConcurrentHashMap<String, BlockingQueue<Byte>> cache;
+    private final ConcurrentHashMap<String, BlockingQueue<Byte>> writingCache;
+    private String lastReadFilePath;
+    private byte[] lastReadFileData;
 
     private void cacheAndAppendChunk(String path, byte[] data) throws F1r3flyDeployError, IOException {
 
-        BlockingQueue<Byte> cached = cache.get(path);
+        BlockingQueue<Byte> cached = writingCache.get(path);
 
         if (cached == null) {
             cached = new LinkedBlockingQueue<>();
@@ -55,7 +57,7 @@ public class F1r3flyFS extends FuseStubFS {
             cached.add(b);
         }
 
-        this.cache.put(path, cached);
+        this.writingCache.put(path, cached);
 
         if (cached.size() >= MAX_CHUNK_SIZE) {
             appendChunkNow(path);
@@ -64,7 +66,7 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
     private void appendAllChunks(String path) throws F1r3flyDeployError {
-        if (cache.containsKey(path)) {
+        if (writingCache.containsKey(path)) {
             appendChunkNow(path);
 
             appendAllChunks(path);
@@ -73,8 +75,8 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
     private void appendChunkNow(String path) throws F1r3flyDeployError {
-        if (cache.containsKey(path)) {
-            BlockingQueue<Byte> cached = cache.get(path);
+        if (writingCache.containsKey(path)) {
+            BlockingQueue<Byte> cached = writingCache.get(path);
 
             int chunkSize = Math.min(MAX_CHUNK_SIZE, cached.size());
             ArrayList<Byte> buffer = new ArrayList<>();
@@ -91,7 +93,7 @@ public class F1r3flyFS extends FuseStubFS {
 
             if (cached.isEmpty()) {
                 LOGGER.debug("Cache is empty, removing path: {}", path);
-                cache.remove(path);
+                writingCache.remove(path);
             }
         }
     }
@@ -101,7 +103,7 @@ public class F1r3flyFS extends FuseStubFS {
         super(); // no need to call Fuse constructor
 
         this.f1R3FlyApi = f1R3FlyApi;
-        this.cache = new ConcurrentHashMap<>();
+        this.writingCache = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -134,7 +136,7 @@ public class F1r3flyFS extends FuseStubFS {
 
             if (typeAndSize.type().equals(F1f3flyFSStorage.FILE_TYPE)) {
 
-                Queue<Byte> cached = cache.get(prependMountName(path));
+                Queue<Byte> cached = writingCache.get(prependMountName(path));
                 int size = (int) (cached == null ? typeAndSize.size() : typeAndSize.size() + cached.size());
 
                 stat.st_mode.set(FileStat.S_IFREG | 0777);
@@ -166,6 +168,16 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
     @Override
+    public int flush(String path, FuseFileInfo fi) {
+        LOGGER.debug("Called flush: {}", prependMountName(path));
+        if (lastReadFilePath != null && lastReadFilePath.equals(prependMountName(path))) {
+            lastReadFilePath = null;
+            lastReadFileData = null;
+        }
+        return SuccessCodes.OK;
+    }
+
+    @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
         LOGGER.debug("Called read: {}, size {}, offset {}", prependMountName(path), size, offset);
         try {
@@ -174,11 +186,18 @@ public class F1r3flyFS extends FuseStubFS {
 
             appendAllChunks(prependMountName(path));
 
-            String fileContent = this.storage.readFile(prependMountName(path), this.lastBlockHash).payload();
+            byte[] decoded;
+            if (lastReadFilePath != null && lastReadFilePath.equals(prependMountName(path))) {
+                decoded = lastReadFileData;
+            } else {
+                String fileContent = this.storage.readFile(prependMountName(path), this.lastBlockHash).payload();
+                decoded = Base64.getDecoder().decode(fileContent);
+                lastReadFilePath = prependMountName(path);
+                lastReadFileData = decoded; // some caching
+            }
 
-            byte[] decoded = Base64.getDecoder().decode(fileContent);
             // slice the buffer to the size
-            byte[] sliced = Arrays.copyOfRange(decoded, (int) offset, (int) (offset + size)); //TODO don't fetch all data
+            byte[] sliced = Arrays.copyOfRange(decoded, (int) offset, (int) (offset + size));
             buf.put(0, sliced, 0, sliced.length);
 
             return sliced.length;

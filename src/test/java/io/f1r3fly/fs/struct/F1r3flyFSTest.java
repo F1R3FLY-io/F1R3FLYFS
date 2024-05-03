@@ -38,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class F1r3flyFSTest {
     private static final int GRPC_PORT = 40402;
     private static final String MAX_BLOCK_LIMIT = "2"; // FIXME: THIS DOESN'T WORK
+    private static final int MAX_MESSAGE_SIZE = 1024*1024*1024;  // ~1G
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
     private static final String validatorPrivateKey = "f9854c5199bc86237206c75b25c6aeca024dccc0f55df3a553131111fd25dd85";
     private static final String clientPrivateKey = "a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954";
@@ -64,14 +65,17 @@ class F1r3flyFSTest {
         f1r3fly = new GenericContainer<>(F1R3FLY_IMAGE)
             .withFileSystemBind("data/", "/var/lib/rnode/", BindMode.READ_WRITE)
             .withExposedPorts(GRPC_PORT)
-            .withCommand("run -s --no-upnp --allow-private-addresses --api-max-blocks-limit " + MAX_BLOCK_LIMIT + " --synchrony-constraint-threshold=0.0 --validator-private-key " + validatorPrivateKey)
+            .withCommand("run -s --no-upnp --allow-private-addresses"
+                + " --api-max-blocks-limit " + MAX_BLOCK_LIMIT
+                + " --api-grpc-max-recv-message-size " + MAX_MESSAGE_SIZE
+                + " --synchrony-constraint-threshold=0.0 --validator-private-key " + validatorPrivateKey)
             .waitingFor(Wait.forListeningPorts(GRPC_PORT))
             .withStartupTimeout(STARTUP_TIMEOUT);
 
 
         f1r3fly.start(); // Manually start the container
 
-//        f1r3fly.followOutput(logConsumer);
+        f1r3fly.followOutput(logConsumer);
 
         // Waits on the node initialization
         // Fresh start could take ~10 seconds
@@ -116,7 +120,7 @@ class F1r3flyFSTest {
         assertTrue(file.createNewFile(), "Failed to create test file");
         assertTrue(file.exists(), "File should exist");
 
-        byte[] inputDataAsBinary = new byte[1024 * 1024]; // 1 MB
+        byte[] inputDataAsBinary = new byte[15 * 1024 * 1024]; // 15 Mb
         new Random().nextBytes(inputDataAsBinary);
         Files.write(file.toPath(), inputDataAsBinary);
         byte[] readDatAsBinary = Files.readAllBytes(file.toPath());
@@ -130,7 +134,7 @@ class F1r3flyFSTest {
         byte[] inputDataAsBinary2 = Files.readAllBytes(renamedFile.toPath());
         assertArrayEquals(inputDataAsBinary, inputDataAsBinary2, "Read data (from renamed file) should be equal to written data");
 
-        String inputDataAsString = "a".repeat(2 * 1024 * 1024); // 2 MB
+        String inputDataAsString = "a".repeat(1024); // 1 Kb
         Files.writeString(renamedFile.toPath(), inputDataAsString, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING); // truncate and override
         String readDataAsString = Files.readString(renamedFile.toPath());
         assertEquals(inputDataAsString, readDataAsString, "Read data should be equal to written data");

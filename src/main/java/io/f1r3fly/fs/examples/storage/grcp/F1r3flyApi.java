@@ -36,6 +36,7 @@ public class F1r3flyApi {
     private static final Duration INIT_DELAY = Duration.ofMillis(100);
     private static final Duration MAX_DELAY = Duration.ofSeconds(5);
     private static final int RETRIES = 10;
+    private static final int MAX_MESSAGE_SIZE = Integer.MAX_VALUE; // ~2 GB
 
     private final byte[] signingKey;
     private final DeployServiceGrpc.DeployServiceFutureStub deployService;
@@ -52,8 +53,12 @@ public class F1r3flyApi {
         ManagedChannel channel = ManagedChannelBuilder.forAddress(nodeHost, grpcPort).usePlaintext().build();
 
         this.signingKey = signingKey;
-        this.deployService = DeployServiceGrpc.newFutureStub(channel);
-        this.proposeService = ProposeServiceGrpc.newFutureStub(channel);
+        this.deployService = DeployServiceGrpc.newFutureStub(channel)
+            .withMaxInboundMessageSize(MAX_MESSAGE_SIZE)
+            .withMaxOutboundMessageSize(MAX_MESSAGE_SIZE);
+        this.proposeService = ProposeServiceGrpc.newFutureStub(channel)
+            .withMaxInboundMessageSize(MAX_MESSAGE_SIZE)
+            .withMaxOutboundMessageSize(MAX_MESSAGE_SIZE);
     }
 
     // Cut down on verbosity of surfacing successes
