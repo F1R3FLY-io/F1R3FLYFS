@@ -18,7 +18,7 @@ public interface FSStorage {
 
     // COMMON OPERATIONS
 
-    // Size could be zeo if type is dir
+    // Size could be zero if type is dir
     OperationResult<TypeAndSize> getTypeAndSize(
         @NotNull String path,
         @NotNull String blockHash) throws NoDataByPath;
@@ -41,6 +41,10 @@ public interface FSStorage {
         @NotNull String blockHash) throws F1r3flyDeployError;
 
     OperationResult<String> readFile(
+        @NotNull String path,
+        @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile;
+
+    OperationResult<String> executeFile(
         @NotNull String path,
         @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile;
 

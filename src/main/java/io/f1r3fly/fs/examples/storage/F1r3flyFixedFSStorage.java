@@ -189,6 +189,31 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     }
 
     @Override
+    public OperationResult<String> executeFile(
+        @NotNull String path,
+        @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile {
+        synchronized (this) {
+
+            HashMap<String, String> state = fetchState(blockHash);
+
+            String blockHashWithPath = state.get(path);
+
+            if (blockHashWithPath == null) {
+                LOGGER.info("No data found by path {} in the state", path);
+                throw new NoDataByPath(path);
+            }
+
+            // result is a new file with the block hash of the executed code
+            OperationResult<String> executionResult = this.f1f3flyFSStorage.executeFile(path, blockHashWithPath);
+
+            state.put(executionResult.payload(), executionResult.blockHash());
+            String newLastBlockHash = updateState(state);
+
+            return new OperationResult<>(executionResult.payload(), newLastBlockHash);
+        }
+    }
+
+    @Override
     public OperationResult<Void> deleteDir(
         @NotNull String path,
         @NotNull String blockHash) throws PathIsNotADirectory, DirectoryNotFound, F1r3flyDeployError, DirectoryIsNotEmpty {
@@ -219,7 +244,7 @@ public class F1r3flyFixedFSStorage implements FSStorage {
         @NotNull String blockHash) throws PathIsNotADirectory, F1r3flyDeployError, DirectoryNotFound {
         synchronized (this) {
             HashMap<String, String> state = fetchState(blockHash);
-            String parentPath = path.substring(0, path.lastIndexOf('/'));
+            String parentPath = PathUtils.getParentPath(path);
 
             String blockWithParent = state.get(parentPath);
 

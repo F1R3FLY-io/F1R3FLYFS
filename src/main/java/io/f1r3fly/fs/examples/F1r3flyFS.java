@@ -94,6 +94,19 @@ public class F1r3flyFS extends FuseStubFS {
             if (cached.isEmpty()) {
                 LOGGER.debug("Cache is empty, removing path: {}", path);
                 writingCache.remove(path);
+
+                if (path.endsWith(".rho")) {
+                    LOGGER.debug("Executing a file: {}", path);
+
+                    try {
+                        FSStorage.OperationResult<String> executionResult = this.storage.executeFile(path, this.lastBlockHash);
+                        this.lastBlockHash = executionResult.blockHash();
+                        this.lastBlockHash = this.storage.addToParent(executionResult.payload(), this.lastBlockHash).blockHash();
+                    } catch (NoDataByPath | PathIsNotAFile | PathIsNotADirectory | RuntimeException | DirectoryNotFound | F1r3flyDeployError e) {
+                        LOGGER.error("Internal error: can't execute {}", path, e);
+                        throw new RuntimeException(e);
+                    }
+                }
             }
         }
     }

@@ -2,7 +2,11 @@ package io.f1r3fly.fs.examples.storage.errors;
 
 public class PathIsNotAFile extends F1r3flyFSError {
     public PathIsNotAFile(String path) {
-        super("Path is not a file: " + path);
+        this("Path is not a file: ", path);
+    }
+
+    public PathIsNotAFile(String message, String path) {
+        super(message + path);
     }
 
     public PathIsNotAFile(String path, Throwable cause) {

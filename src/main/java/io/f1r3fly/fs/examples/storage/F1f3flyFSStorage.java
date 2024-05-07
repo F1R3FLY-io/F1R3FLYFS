@@ -147,6 +147,36 @@ public class F1f3flyFSStorage implements FSStorage {
         return new OperationResult<>(chanelContent.get(VALUE), lastBlockHash); // block hash is the same because of no changes
     }
 
+    @Override
+    public OperationResult<String> executeFile(
+        @NotNull String path,
+        @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile {
+        if (!path.endsWith(".rho")) {
+            throw new PathIsNotAFile("The file is not Rho type", path);
+        }
+
+        synchronized (this) {
+            String fileContent = readFile(path, blockHash).payload();
+            String rholangCode = new String(Base64.getDecoder().decode(fileContent)); // fail if not base64 or not a string
+
+            boolean useBiggerRhloPrice = rholangCode.length() > 1000; // TODO: double check the number?
+
+            String blockWithExecutedRholang = this.f1R3FlyApi.deploy(rholangCode, useBiggerRhloPrice);
+
+            String blockHashFile = PathUtils.getFileName(path) + ".blockhash";
+            String fullPathWithBlockHashFile =
+                PathUtils.getParentPath(path)
+                    + PathUtils.getPathDelimiterBasedOnOS()
+                    + blockHashFile;
+
+            String encodedFileContent = Base64.getEncoder().encodeToString(blockWithExecutedRholang.getBytes());
+
+            String newLastBlockHash = createFile(fullPathWithBlockHashFile, encodedFileContent, blockHash).blockHash();
+
+            return new OperationResult<>(fullPathWithBlockHashFile, newLastBlockHash);
+        }
+
+    }
 
     @Override
     public OperationResult<Void> deleteFile(

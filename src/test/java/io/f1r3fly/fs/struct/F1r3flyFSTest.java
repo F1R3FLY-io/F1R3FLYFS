@@ -7,7 +7,9 @@ import ch.qos.logback.core.read.ListAppender;
 import fr.acinq.secp256k1.Hex;
 import io.f1r3fly.fs.FuseException;
 import io.f1r3fly.fs.examples.F1r3flyFS;
+import io.f1r3fly.fs.examples.storage.errors.NoDataByPath;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
+import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.utils.MountUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -20,6 +22,7 @@ import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+import rhoapi.RhoTypes;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,9 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.Objects;
-import java.util.Random;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -38,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class F1r3flyFSTest {
     private static final int GRPC_PORT = 40402;
     private static final String MAX_BLOCK_LIMIT = "2"; // FIXME: THIS DOESN'T WORK
-    private static final int MAX_MESSAGE_SIZE = 1024*1024*1024;  // ~1G
+    private static final int MAX_MESSAGE_SIZE = 1024 * 1024 * 1024;  // ~1G
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
     private static final String validatorPrivateKey = "f9854c5199bc86237206c75b25c6aeca024dccc0f55df3a553131111fd25dd85";
     private static final String clientPrivateKey = "a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954";
@@ -54,6 +55,7 @@ class F1r3flyFSTest {
     private static final ListAppender<ILoggingEvent> listAppender = new ListAppender<>();
 
     private static F1r3flyFS f1r3flyFS;
+    private static F1r3flyApi f1R3FlyApi;
 
     @BeforeEach
     void mount() throws InterruptedException {
@@ -81,7 +83,7 @@ class F1r3flyFSTest {
         // Fresh start could take ~10 seconds
         Thread.sleep(10 * 1000);
 
-        F1r3flyApi f1R3FlyApi = new F1r3flyApi(Hex.decode(clientPrivateKey), "localhost", f1r3fly.getMappedPort(GRPC_PORT));
+        f1R3FlyApi = new F1r3flyApi(Hex.decode(clientPrivateKey), "localhost", f1r3fly.getMappedPort(GRPC_PORT));
         f1r3flyFS = new F1r3flyFS(f1R3FlyApi);
 
 
@@ -110,6 +112,36 @@ class F1r3flyFSTest {
             f1r3fly.stop();
             Utils.cleanDataDirectory("data", Arrays.asList("genesis", "node.certificate.pem", "node.key.pem"));
         }
+    }
+
+    @Test
+    void shouldStoreRhoFileAndExecuteIt() throws IOException, NoDataByPath {
+        File file = new File(MOUNT_POINT_FILE, "test.rho");
+
+        String newRhoChanel = "public";
+        String chanelValue = "{\"a\": \"b\"}";
+        String rhoCode = """
+            @"%s"!(%s)
+            """.formatted(newRhoChanel, chanelValue);
+
+        assertFalse(file.exists(), "File should not exist");
+        assertTrue(file.createNewFile(), "Failed to create test file");
+        assertTrue(file.exists(), "File should exist");
+
+        Files.writeString(file.toPath(), rhoCode, StandardCharsets.UTF_8);
+
+        File fileCreatedAfterExecution = new File(MOUNT_POINT_FILE, file.getName() + ".blockhash");
+        assertTrue(fileCreatedAfterExecution.exists(), "File " + fileCreatedAfterExecution.getName() +" should exist");
+
+        assertContainChilds(MOUNT_POINT_FILE, file, fileCreatedAfterExecution);
+
+        String blockHashFromFile = Files.readString(fileCreatedAfterExecution.toPath());
+
+        List<RhoTypes.Par> result = f1R3FlyApi.getDataAtName(blockHashFromFile, newRhoChanel);
+        HashMap<String, String> parsedEMapFromLastExpr = RholangExpressionConstructor.parseEMapFromLastExpr(result);
+
+        assertTrue(parsedEMapFromLastExpr.containsKey("a"), "Result should contain key 'a'");
+        assertEquals("b", parsedEMapFromLastExpr.get("a"), "Result should contain key 'a' with value 'b'");
     }
 
     @Test
