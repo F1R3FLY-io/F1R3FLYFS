@@ -7,10 +7,12 @@ import ch.qos.logback.core.read.ListAppender;
 import fr.acinq.secp256k1.Hex;
 import io.f1r3fly.fs.FuseException;
 import io.f1r3fly.fs.examples.F1r3flyFS;
+import io.f1r3fly.fs.examples.datatransformer.AESCipher;
 import io.f1r3fly.fs.examples.storage.errors.NoDataByPath;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.utils.MountUtils;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -83,8 +85,11 @@ class F1r3flyFSTest {
         // Fresh start could take ~10 seconds
         Thread.sleep(10 * 1000);
 
+        new File("/tmp/cipher.key").delete(); // remove key file if exists
+
+        AESCipher aesCipher = new AESCipher("/tmp/cipher.key"); // file doesn't exist, so new key will be generated there
         f1R3FlyApi = new F1r3flyApi(Hex.decode(clientPrivateKey), "localhost", f1r3fly.getMappedPort(GRPC_PORT));
-        f1r3flyFS = new F1r3flyFS(f1R3FlyApi);
+        f1r3flyFS = new F1r3flyFS(f1R3FlyApi, aesCipher);
 
 
         try {
@@ -115,6 +120,63 @@ class F1r3flyFSTest {
     }
 
     @Test
+    void shouldEncryptOnSaveAndDecryptOnReadForEncrypedExtension() throws IOException, NoDataByPath {
+        File encrypted = new File(MOUNT_POINT_FILE, "test.txt.encrypted");
+        String fileContent = "Hello, world!";
+
+        assertTrue(encrypted.createNewFile(), "Failed to create test file");
+        assertTrue(encrypted.exists(), "File should exist");
+
+        assertContainChilds(MOUNT_POINT_FILE, encrypted);
+        Files.writeString(encrypted.toPath(), fileContent, StandardCharsets.UTF_8);
+
+        String readData = Files.readString(encrypted.toPath());
+        assertEquals(fileContent, readData, "Read data should be equal to written data");
+
+        String decodedFileData = getFileContentFromShardDirectly(encrypted);
+        // Actual data is encrypted. It should be different from the original data
+        assertNotEquals(fileContent, decodedFileData, "Decoded data should be different from the original data");
+
+        File notEncrypted = new File(MOUNT_POINT_FILE, "test.txt");
+        assertTrue(notEncrypted.createNewFile(), "Failed to create test file");
+        assertTrue(notEncrypted.exists(), "File should exist");
+
+        assertContainChilds(MOUNT_POINT_FILE, encrypted, notEncrypted);
+        Files.writeString(notEncrypted.toPath(), fileContent, StandardCharsets.UTF_8); // writing the same file content
+
+        String readData2 = Files.readString(notEncrypted.toPath());
+        assertEquals(fileContent, readData2, "Read data should be equal to written data");
+
+        String decodedFileData2 = getFileContentFromShardDirectly(notEncrypted);
+        assertEquals(fileContent, decodedFileData2, "Decoded data should be equal to the original data");
+    }
+
+    private static @NotNull String getFileContentFromShardDirectly(File file) throws NoDataByPath {
+        // reading data from shard directly:
+        // 1. Get an internal state. It's stored at a last block and inside "mountPath" chanel
+        List<RhoTypes.Par> pars = f1R3FlyApi.getDataAtName(f1r3flyFS.getLastBlockHash(), f1r3flyFS.getMountName());
+        assertFalse(pars.isEmpty(), "Internal state should contain at least one element");
+        HashMap<String, String> state = RholangExpressionConstructor.parseEMapFromLastExpr(pars);
+
+        // 2. Get a data from the file. File is a chanel at specific block
+        // Reducing the path. Fuse changes the path, so we need to change it too:
+        // - the REAL path   is /tmp/f1r3flyfs/test.txt
+        // - the FUSE's path is /test.txt
+        File fusePath = new File(file.getAbsolutePath().replace(MOUNT_POINT_FILE.getAbsolutePath(), "")); // /tmp/f1r3flyfs/test.txt -> /test.txt
+
+        String fileNameAtShard = f1r3flyFS.prependMountName(fusePath.getAbsolutePath());
+        String blockHashOfFile = state.get(fileNameAtShard);
+        assertNotNull(blockHashOfFile, "The file blockhash should be defined at a state");
+        List<RhoTypes.Par> fileData = f1R3FlyApi.getDataAtName(blockHashOfFile, fileNameAtShard);
+
+        // 3. Chanel value is a map with fields: type, value, size. 'value' contains base64 encoded data
+        HashMap<String, String> fileDataMap = RholangExpressionConstructor.parseEMapFromLastExpr(fileData);
+        assertTrue(fileDataMap.containsKey("value"), "File data should contain 'value' field");
+        String encodedFileData = fileDataMap.get("value");
+        return new String(Base64.getDecoder().decode(encodedFileData), StandardCharsets.UTF_8);
+    }
+
+    @Test
     void shouldStoreRhoFileAndExecuteIt() throws IOException, NoDataByPath {
         File file = new File(MOUNT_POINT_FILE, "test.rho");
 
@@ -137,6 +199,7 @@ class F1r3flyFSTest {
 
         String blockHashFromFile = Files.readString(fileCreatedAfterExecution.toPath());
 
+        assertFalse(blockHashFromFile.isEmpty(), "Block hash should not be empty");
         List<RhoTypes.Par> result = f1R3FlyApi.getDataAtName(blockHashFromFile, newRhoChanel);
         HashMap<String, String> parsedEMapFromLastExpr = RholangExpressionConstructor.parseEMapFromLastExpr(result);
 

@@ -1,6 +1,8 @@
 package io.f1r3fly.fs.examples;
 
 import io.f1r3fly.fs.*;
+import io.f1r3fly.fs.examples.datatransformer.AESCipher;
+import io.f1r3fly.fs.examples.datatransformer.Base64Coder;
 import io.f1r3fly.fs.examples.storage.F1f3flyFSStorage;
 import io.f1r3fly.fs.examples.storage.F1r3flyFixedFSStorage;
 import io.f1r3fly.fs.examples.storage.FSStorage;
@@ -29,12 +31,14 @@ public class F1r3flyFS extends FuseStubFS {
     private static final Logger LOGGER = LoggerFactory.getLogger(F1r3flyFS.class);
 
     private final F1r3flyApi f1R3FlyApi;
+    private final AESCipher aesCipher;
     private FSStorage storage;
     private String lastBlockHash;
 
-    // it should be a number that can be divisible by 3
-    // because we want to avoid a padding at the end of a base64 string
-    private final int MAX_CHUNK_SIZE = 300 * 1024 * 1024; // 6MB
+    // it should be a number that can be divisible by
+    // * 3 because of padding of base64
+    // * 16 because of AES block size
+    private final int MAX_CHUNK_SIZE = 3 * 16 * 1024 * 1024; // 48 MB
 
     private final String[] MOUNT_OPTIONS = {
         // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options#iosize
@@ -44,6 +48,14 @@ public class F1r3flyFS extends FuseStubFS {
     private final ConcurrentHashMap<String, BlockingQueue<Byte>> writingCache;
     private String lastReadFilePath;
     private byte[] lastReadFileData;
+
+    public F1r3flyFS(F1r3flyApi f1R3FlyApi, AESCipher aesCipher) {
+        super(); // no need to call Fuse constructor
+
+        this.f1R3FlyApi = f1R3FlyApi;
+        this.writingCache = new ConcurrentHashMap<>();
+        this.aesCipher = aesCipher;
+    }
 
     private void cacheAndAppendChunk(String path, byte[] data) throws F1r3flyDeployError, IOException {
 
@@ -88,8 +100,9 @@ public class F1r3flyFS extends FuseStubFS {
                 chunkToWrite[i] = buffer.get(i);
             }
 
-            String encodedChunk = Base64.getEncoder().encodeToString(chunkToWrite);
-            this.lastBlockHash = this.storage.appendFile(path, encodedChunk, this.lastBlockHash).blockHash();
+            byte[] encryptedChunk = path.endsWith(".encrypted") ? aesCipher.encrypt(chunkToWrite) : chunkToWrite;
+            String encodedChunk = Base64Coder.encodeToString(encryptedChunk);
+            this.lastBlockHash = this.storage.appendFile(path, encodedChunk, chunkToWrite.length, this.lastBlockHash).blockHash();
 
             if (cached.isEmpty()) {
                 LOGGER.debug("Cache is empty, removing path: {}", path);
@@ -109,14 +122,6 @@ public class F1r3flyFS extends FuseStubFS {
                 }
             }
         }
-    }
-
-
-    public F1r3flyFS(F1r3flyApi f1R3FlyApi) {
-        super(); // no need to call Fuse constructor
-
-        this.f1R3FlyApi = f1R3FlyApi;
-        this.writingCache = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -199,18 +204,20 @@ public class F1r3flyFS extends FuseStubFS {
 
             appendAllChunks(prependMountName(path));
 
-            byte[] decoded;
+            byte[] fileData;
             if (lastReadFilePath != null && lastReadFilePath.equals(prependMountName(path))) {
-                decoded = lastReadFileData;
+                fileData = lastReadFileData;
             } else {
                 String fileContent = this.storage.readFile(prependMountName(path), this.lastBlockHash).payload();
-                decoded = Base64.getDecoder().decode(fileContent);
+                byte[] decoded = Base64Coder.decodeFromString(fileContent);
+                fileData = path.endsWith(".encrypted") ? aesCipher.decrypt(decoded) : decoded;
+
                 lastReadFilePath = prependMountName(path);
-                lastReadFileData = decoded; // some caching
+                lastReadFileData = fileData; // some caching
             }
 
             // slice the buffer to the size
-            byte[] sliced = Arrays.copyOfRange(decoded, (int) offset, (int) (offset + size));
+            byte[] sliced = Arrays.copyOfRange(fileData, (int) offset, (int) (offset + size));
             buf.put(0, sliced, 0, sliced.length);
 
             return sliced.length;
@@ -269,7 +276,7 @@ public class F1r3flyFS extends FuseStubFS {
             checkMount();
             checkPath(path);
 
-            this.lastBlockHash = this.storage.createFile(prependMountName(path), "", this.lastBlockHash).blockHash();
+            this.lastBlockHash = this.storage.createFile(prependMountName(path), "", 0, this.lastBlockHash).blockHash();
             this.lastBlockHash = this.storage.addToParent(prependMountName(path), this.lastBlockHash).blockHash();
 
             return SuccessCodes.OK;
@@ -293,7 +300,7 @@ public class F1r3flyFS extends FuseStubFS {
             checkMount();
             checkPath(path);
 
-            if (size == 0) {
+            if (size == 0) { // support the truncate to zero only for now
                 long actualSize = this.storage.getTypeAndSize(prependMountName(path), this.lastBlockHash).payload().size();
 
                 if (actualSize == 0) {
@@ -302,7 +309,7 @@ public class F1r3flyFS extends FuseStubFS {
 
                 //TODO: truncate file using a size
                 this.lastBlockHash = this.storage.deleteFile(prependMountName(path), this.lastBlockHash).blockHash();
-                this.lastBlockHash = this.storage.createFile(prependMountName(path), "", this.lastBlockHash).blockHash();
+                this.lastBlockHash = this.storage.createFile(prependMountName(path), "", 0, this.lastBlockHash).blockHash();
 
                 return SuccessCodes.OK;
             } else {
@@ -545,7 +552,18 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
 
-    private String prependMountName(String path) {
+    // public because of this method is used in tests
+    public String getMountName() {
+        return mountName;
+    }
+
+    // public because of this method is used in tests
+    public String getLastBlockHash() {
+        return lastBlockHash;
+    }
+
+    // public because of this method is used in tests
+    public String prependMountName(String path) {
         // example: f1r3flyfs-123123123://mounted-path/path-to-file
         String fullPath = this.mountName + ":" + PathUtils.getPathDelimiterBasedOnOS() + this.mountPoint.toAbsolutePath() + path;
 

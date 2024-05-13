@@ -33,11 +33,13 @@ public interface FSStorage {
     OperationResult<Void> createFile(
         @NotNull String path,
         @NotNull String content,
+        @NotNull long size,
         @NotNull String blockHash) throws F1r3flyDeployError;
 
     OperationResult<Void> appendFile(
         @NotNull String path,
         @NotNull String content,
+        @NotNull long size,
         @NotNull String blockHash) throws F1r3flyDeployError;
 
     OperationResult<String> readFile(

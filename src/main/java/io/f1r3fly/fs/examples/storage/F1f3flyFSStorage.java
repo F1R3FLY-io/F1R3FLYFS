@@ -1,5 +1,6 @@
 package io.f1r3fly.fs.examples.storage;
 
+import io.f1r3fly.fs.examples.datatransformer.Base64Coder;
 import io.f1r3fly.fs.examples.storage.errors.*;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
@@ -22,6 +23,7 @@ public class F1f3flyFSStorage implements FSStorage {
     public static final String FILE_TYPE = "f";
 
     private static final String VALUE = "value";
+    private static final String SIZE = "size";
     private static final String LAST_UPDATED = "lastUpdated";
 
     public F1f3flyFSStorage(F1r3flyApi f1R3FlyApi) {
@@ -38,12 +40,12 @@ public class F1f3flyFSStorage implements FSStorage {
         HashMap<String, String> parsed = RholangExpressionConstructor.parseEMapFromLastExpr(response);
 
         String fileOrDirType = parsed.get(TYPE);
-        int size = -1;
+        long size = -1;
         if (fileOrDirType.equals(FILE_TYPE)) {
             try {
-                size = Base64.getDecoder().decode(parsed.get(VALUE)).length; // TODO: don't get data back for 'size' field
+                size = Long.parseLong(parsed.get(SIZE)); // string => long value
             } catch (IllegalArgumentException e) {
-                LOGGER.error("Failed to decode base64 'value' field for path: {}", path, e);
+                LOGGER.error("Failed to decode 'size' field for path: {}", path, e);
             }
         }
 
@@ -91,6 +93,7 @@ public class F1f3flyFSStorage implements FSStorage {
     public OperationResult<Void> createFile(
         @NotNull String path,
         @NotNull String content,
+        @NotNull long size,
         @NotNull String blockHash) throws F1r3flyDeployError {
         // TODO remove lastBlockHash, no need to pass it here
 
@@ -101,6 +104,7 @@ public class F1f3flyFSStorage implements FSStorage {
                     Map.of(
                         TYPE, FILE_TYPE, // add 'mode' field here later
                         LAST_UPDATED, currentTime(),
+                        SIZE, size,
                         VALUE, content)
                 );
 
@@ -115,6 +119,7 @@ public class F1f3flyFSStorage implements FSStorage {
     public OperationResult<Void> appendFile(
         @NotNull String path,
         @NotNull String content,
+        @NotNull long size,
         @NotNull String lastBlockHash) throws F1r3flyDeployError {
         // TODO remove lastBlockHash, no need to pass it here
 
@@ -123,7 +128,8 @@ public class F1f3flyFSStorage implements FSStorage {
                 RholangExpressionConstructor.appendValue(
                     path,
                     currentTime(),
-                    content
+                    content,
+                    size
                 );
 
             String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, true);
@@ -157,7 +163,7 @@ public class F1f3flyFSStorage implements FSStorage {
 
         synchronized (this) {
             String fileContent = readFile(path, blockHash).payload();
-            String rholangCode = new String(Base64.getDecoder().decode(fileContent)); // fail if not base64 or not a string
+            String rholangCode = new String(Base64Coder.decodeFromString(fileContent)); // fail if not base64 or not a string
 
             boolean useBiggerRhloPrice = rholangCode.length() > 1000; // TODO: double check the number?
 
@@ -169,9 +175,14 @@ public class F1f3flyFSStorage implements FSStorage {
                     + PathUtils.getPathDelimiterBasedOnOS()
                     + blockHashFile;
 
-            String encodedFileContent = Base64.getEncoder().encodeToString(blockWithExecutedRholang.getBytes());
+            String encodedFileContent = Base64Coder.encodeToString(blockWithExecutedRholang.getBytes());
 
-            String newLastBlockHash = createFile(fullPathWithBlockHashFile, encodedFileContent, blockHash).blockHash();
+            String newLastBlockHash =
+                createFile(
+                    fullPathWithBlockHashFile,
+                    encodedFileContent,
+                    (long) blockWithExecutedRholang.length(),
+                    blockHash).blockHash();
 
             return new OperationResult<>(fullPathWithBlockHashFile, newLastBlockHash);
         }

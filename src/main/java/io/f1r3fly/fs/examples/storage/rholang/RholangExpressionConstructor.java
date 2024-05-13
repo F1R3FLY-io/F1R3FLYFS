@@ -13,7 +13,7 @@ public class RholangExpressionConstructor {
     private static final String LIST_DELIMITER = ",";
 
     //** Creates a chanel with a value */
-    public static String sendValueIntoNewChanel(String channelName, Map<String, String> chanelValueAsMap) {
+    public static String sendValueIntoNewChanel(String channelName, Map<String, Object> chanelValueAsMap) {
         // output looks like '@"/tmp/file"!({"type": "f", "value": "rolangValueAsString"})'
 
 
@@ -51,7 +51,7 @@ public class RholangExpressionConstructor {
             .append("for(_ <- @\"")
             .append(chanel)
             .append("\"){")
-            .append(sendValueIntoNewChanel(chanel, chanelValueAsMap))
+            .append(sendValueIntoNewChanel(chanel, new HashMap<>(chanelValueAsMap))) // TODO: avoid copying
             .append("}")
             .toString();
     }
@@ -75,10 +75,10 @@ public class RholangExpressionConstructor {
     }
 
     //** Consume a value from a chanel and send to an appended value */
-    public static String appendValue(String chanel, String lastUpdated, String newChunk) {
+    public static String appendValue(String chanel, String lastUpdated, String newChunk, long size) {
         // output looks like:
         // for(@v <- @"path"){
-        //      @"path"!(v.set("lastUpdated","123").set("value", v.get("value) ++ "newChunk"))
+        //      @"path"!(v.set("lastUpdated","123").set("value", v.get("value) ++ "newChunk").set("size", v.get("size) + size))
         // }
 
         return new StringBuilder()
@@ -91,6 +91,8 @@ public class RholangExpressionConstructor {
             .append(string2RholngString(lastUpdated))
             .append(").set(\"value\",v.get(\"value\") ++ ")
             .append(string2RholngString(newChunk))
+            .append(").set(\"size\",v.get(\"size\") + ")
+            .append(size)
             .append("))")
             .append("}")
             .toString();
@@ -116,12 +118,18 @@ public class RholangExpressionConstructor {
             .toString();
     }
 
-    public static String map2String(Map<String, String> emap) {
+    public static String map2String(Map<String, Object> emap) {
         return new StringBuilder()
             .append("{")
             .append(
                 emap.entrySet().stream()
-                    .map(e -> string2RholngString(e.getKey()) + ": " + string2RholngString(e.getValue()))
+                    .map(e -> {
+                        String value =
+                            e.getValue() instanceof Long ?
+                                e.getValue().toString() : // number without quotes
+                                string2RholngString(e.getValue().toString()); // string with quotes
+                        return string2RholngString(e.getKey()) + ": " + value;
+                    })
                     .collect(Collectors.joining(LIST_DELIMITER))
             )
             .append("}")
@@ -142,7 +150,12 @@ public class RholangExpressionConstructor {
 
         for (rhoapi.RhoTypes.KeyValuePair kv : keyValues) {
             String key = kv.getKey().getExprs(0).getGString();
-            String value = kv.getValue().getExprs(0).getGString();
+
+            RhoTypes.Expr valueExpr = kv.getValue().getExprs(0);
+            // this expression could be a string or a number
+            String value = valueExpr.getGString().isBlank() ? // get string if it's not empty string otherwise get it as int
+                String.valueOf(valueExpr.getGInt()) : valueExpr.getGString();
+
             result.put(key, value);
         }
 

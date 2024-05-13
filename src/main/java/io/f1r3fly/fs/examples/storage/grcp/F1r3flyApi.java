@@ -49,6 +49,7 @@ public class F1r3flyApi {
     ) {
         super();
 
+        Security.addProvider(new Blake2bProvider());
 
         ManagedChannel channel = ManagedChannelBuilder.forAddress(nodeHost, grpcPort).usePlaintext().build();
 
@@ -78,7 +79,6 @@ public class F1r3flyApi {
 
     public String deploy(String rhoCode, boolean useBiggerRhloPrice) throws F1r3flyDeployError {
         try {
-            Security.addProvider(new Blake2bProvider());
 
             long phloLimit = useBiggerRhloPrice ? 5_000_000_000L : 100_000;
 
