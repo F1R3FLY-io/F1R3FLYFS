@@ -81,7 +81,10 @@ public class F1f3flyFSStorage implements FSStorage {
                 }
             }
 
-            String blockHashAfterRename = this.f1R3FlyApi.deploy(RholangExpressionConstructor.renameChanel(oldPath, newPath), true);
+            String blockHashAfterRename = this.f1R3FlyApi.deploy(
+                RholangExpressionConstructor.renameChanel(oldPath, newPath),
+                true,
+                F1r3flyApi.RHOLANG);
 
             // block hash is the same because of no changes
             return new OperationResult<>(null, blockHashAfterRename);
@@ -93,7 +96,7 @@ public class F1f3flyFSStorage implements FSStorage {
     public OperationResult<Void> createFile(
         @NotNull String path,
         @NotNull String content,
-        @NotNull long size,
+        long size,
         @NotNull String blockHash) throws F1r3flyDeployError {
         // TODO remove lastBlockHash, no need to pass it here
 
@@ -108,7 +111,7 @@ public class F1f3flyFSStorage implements FSStorage {
                         VALUE, content)
                 );
 
-            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, true);
+            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, true, F1r3flyApi.RHOLANG);
 
             return new OperationResult<>(null, newBlockHash);
         }
@@ -132,7 +135,7 @@ public class F1f3flyFSStorage implements FSStorage {
                     size
                 );
 
-            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, true);
+            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, true, F1r3flyApi.RHOLANG);
 
             return new OperationResult<>(null, newBlockHash);
         }
@@ -154,11 +157,11 @@ public class F1f3flyFSStorage implements FSStorage {
     }
 
     @Override
-    public OperationResult<String> executeFile(
+    public OperationResult<String> deployFile(
         @NotNull String path,
         @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile {
-        if (!path.endsWith(".rho")) {
-            throw new PathIsNotAFile("The file is not Rho type", path);
+        if (!PathUtils.isDeployableFile(path)) {
+            throw new PathIsNotAFile("The file is not Rho or Metta type", path);
         }
 
         synchronized (this) {
@@ -167,7 +170,10 @@ public class F1f3flyFSStorage implements FSStorage {
 
             boolean useBiggerRhloPrice = rholangCode.length() > 1000; // TODO: double check the number?
 
-            String blockWithExecutedRholang = this.f1R3FlyApi.deploy(rholangCode, useBiggerRhloPrice);
+            String blockWithExecutedRholang = this.f1R3FlyApi.deploy(
+                rholangCode,
+                useBiggerRhloPrice,
+                path.endsWith(".metta") ? F1r3flyApi.METTA_LANGUAGE : F1r3flyApi.RHOLANG);
 
             String blockHashFile = PathUtils.getFileName(path) + ".blockhash";
             String fullPathWithBlockHashFile =
@@ -181,7 +187,7 @@ public class F1f3flyFSStorage implements FSStorage {
                 createFile(
                     fullPathWithBlockHashFile,
                     encodedFileContent,
-                    (long) blockWithExecutedRholang.length(),
+                    blockWithExecutedRholang.length(),
                     blockHash).blockHash();
 
             return new OperationResult<>(fullPathWithBlockHashFile, newLastBlockHash);
@@ -197,7 +203,10 @@ public class F1f3flyFSStorage implements FSStorage {
             getFile(path, lastBlockHash); // check if file getType
 
             String newBlockHash =
-                this.f1R3FlyApi.deploy(RholangExpressionConstructor.readAndForget(path, currentTime()), false); // forges a data
+                this.f1R3FlyApi.deploy(
+                    RholangExpressionConstructor.readAndForget(path, currentTime()),
+                    false,
+                    F1r3flyApi.RHOLANG); // forges a data
 
             return new OperationResult<>(null, newBlockHash);
         }
@@ -220,7 +229,7 @@ public class F1f3flyFSStorage implements FSStorage {
                         VALUE, RholangExpressionConstructor.EmptyList)
                 );
 
-            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, false);
+            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, false, F1r3flyApi.RHOLANG);
 
             return new OperationResult<>(null, newBlockHash);
         }
@@ -255,7 +264,10 @@ public class F1f3flyFSStorage implements FSStorage {
             }
 
             String newBlockHash =
-                this.f1R3FlyApi.deploy(RholangExpressionConstructor.readAndForget(path, currentTime()), false); // forgets a data
+                this.f1R3FlyApi.deploy(
+                    RholangExpressionConstructor.readAndForget(path, currentTime()),
+                    false,
+                    F1r3flyApi.RHOLANG); // forgets a data
 
             return new OperationResult<>(null, newBlockHash);
         }
@@ -288,7 +300,7 @@ public class F1f3flyFSStorage implements FSStorage {
                     )
                 );
 
-            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, false);
+            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, false, F1r3flyApi.RHOLANG);
 
             return new OperationResult<>(null, newBlockHash);
         }
@@ -319,7 +331,7 @@ public class F1f3flyFSStorage implements FSStorage {
                     )
                 );
 
-            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, false);
+            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, false, F1r3flyApi.RHOLANG);
 
             return new OperationResult<>(null, newBlockHash);
         }

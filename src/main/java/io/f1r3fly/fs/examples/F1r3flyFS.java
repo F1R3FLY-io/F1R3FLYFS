@@ -100,7 +100,7 @@ public class F1r3flyFS extends FuseStubFS {
                 chunkToWrite[i] = buffer.get(i);
             }
 
-            byte[] encryptedChunk = path.endsWith(".encrypted") ? aesCipher.encrypt(chunkToWrite) : chunkToWrite;
+            byte[] encryptedChunk = PathUtils.isEncryptedExtension(path) ? aesCipher.encrypt(chunkToWrite) : chunkToWrite;
             String encodedChunk = Base64Coder.encodeToString(encryptedChunk);
             this.lastBlockHash = this.storage.appendFile(path, encodedChunk, chunkToWrite.length, this.lastBlockHash).blockHash();
 
@@ -108,19 +108,23 @@ public class F1r3flyFS extends FuseStubFS {
                 LOGGER.debug("Cache is empty, removing path: {}", path);
                 writingCache.remove(path);
 
-                if (path.endsWith(".rho")) {
-                    LOGGER.debug("Executing a file: {}", path);
-
-                    try {
-                        FSStorage.OperationResult<String> executionResult = this.storage.executeFile(path, this.lastBlockHash);
-                        this.lastBlockHash = executionResult.blockHash();
-                        this.lastBlockHash = this.storage.addToParent(executionResult.payload(), this.lastBlockHash).blockHash();
-                    } catch (NoDataByPath | PathIsNotAFile | PathIsNotADirectory | RuntimeException | DirectoryNotFound | F1r3flyDeployError e) {
-                        LOGGER.error("Internal error: can't execute {}", path, e);
-                        throw new RuntimeException(e);
-                    }
+                if (PathUtils.isDeployableFile(path)) {
+                    deployingFile(path);
                 }
             }
+        }
+    }
+
+    private void deployingFile(String path) {
+        LOGGER.debug("Deploying a file: {}", path);
+
+        try {
+            FSStorage.OperationResult<String> executionResult = this.storage.deployFile(path, this.lastBlockHash);
+            this.lastBlockHash = executionResult.blockHash();
+            this.lastBlockHash = this.storage.addToParent(executionResult.payload(), this.lastBlockHash).blockHash();
+        } catch (NoDataByPath | PathIsNotAFile | PathIsNotADirectory | RuntimeException | DirectoryNotFound | F1r3flyDeployError e) {
+            LOGGER.error("Internal error: can't deploy {}", path, e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -210,7 +214,7 @@ public class F1r3flyFS extends FuseStubFS {
             } else {
                 String fileContent = this.storage.readFile(prependMountName(path), this.lastBlockHash).payload();
                 byte[] decoded = Base64Coder.decodeFromString(fileContent);
-                fileData = path.endsWith(".encrypted") ? aesCipher.decrypt(decoded) : decoded;
+                fileData = PathUtils.isEncryptedExtension(path) ? aesCipher.decrypt(decoded) : decoded;
 
                 lastReadFilePath = prependMountName(path);
                 lastReadFileData = fileData; // some caching
@@ -394,7 +398,31 @@ public class F1r3flyFS extends FuseStubFS {
 
             this.lastBlockHash = this.storage.addToParent(prependMountName(newpath), this.lastBlockHash).blockHash(); // fails if parent not found
             this.lastBlockHash = this.storage.removeFromParent(prependMountName(oldpath), this.lastBlockHash).blockHash(); // fails if parent not found
-            this.lastBlockHash = this.storage.rename(prependMountName(oldpath), prependMountName(newpath), this.lastBlockHash).blockHash();
+
+            if (PathUtils.isEncryptedExtension(oldpath) && !PathUtils.isEncryptedExtension(newpath)) {
+                // was encrypted, now not encrypted
+                String encoded = this.storage.readFile(prependMountName(oldpath), this.lastBlockHash).payload();
+                byte[] encrypted = Base64Coder.decodeFromString(encoded);
+                byte[] decrypted = aesCipher.decrypt(encrypted);
+                String encodedAgain = Base64Coder.encodeToString(decrypted);
+                this.lastBlockHash = this.storage.createFile(prependMountName(newpath), encodedAgain, decrypted.length, this.lastBlockHash).blockHash();
+                this.lastBlockHash = this.storage.deleteFile(prependMountName(oldpath), this.lastBlockHash).blockHash();
+            } else if (PathUtils.isEncryptedExtension(newpath) && !PathUtils.isEncryptedExtension(oldpath)) {
+                // was not encrypted, now encrypted
+                String encoded = this.storage.readFile(prependMountName(oldpath), this.lastBlockHash).payload();
+                byte[] decoded = Base64Coder.decodeFromString(encoded);
+                byte[] encrypted = aesCipher.encrypt(decoded);
+                String encodedAgain = Base64Coder.encodeToString(encrypted);
+                this.lastBlockHash = this.storage.createFile(prependMountName(newpath), encodedAgain, decoded.length, this.lastBlockHash).blockHash();
+                this.lastBlockHash = this.storage.deleteFile(prependMountName(oldpath), this.lastBlockHash).blockHash();
+            } else {
+                // just rename
+                this.lastBlockHash = this.storage.rename(prependMountName(oldpath), prependMountName(newpath), this.lastBlockHash).blockHash();
+            }
+
+            if (PathUtils.isDeployableFile(newpath)) {
+                deployingFile(prependMountName(newpath));
+            }
 
             return SuccessCodes.OK;
 
@@ -413,6 +441,9 @@ public class F1r3flyFS extends FuseStubFS {
         } catch (AlreadyExists e) {
             LOGGER.warn("Already exists", e);
             return -ErrorCodes.EEXIST(); // already exists
+        } catch (PathIsNotAFile e) {
+            LOGGER.warn("Path is not a file", e);
+            return -ErrorCodes.EISDIR(); // is a directory?
         }
     }
 

@@ -79,7 +79,7 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     public OperationResult<Void> createFile(
         @NotNull String path,
         @NotNull String content,
-        @NotNull long size,
+        long size,
         @NotNull String blockHash) throws F1r3flyDeployError {
         synchronized (this) {
             HashMap<String, String> state = fetchState(blockHash);
@@ -191,7 +191,7 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     }
 
     @Override
-    public OperationResult<String> executeFile(
+    public OperationResult<String> deployFile(
         @NotNull String path,
         @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile {
         synchronized (this) {
@@ -206,7 +206,7 @@ public class F1r3flyFixedFSStorage implements FSStorage {
             }
 
             // result is a new file with the block hash of the executed code
-            OperationResult<String> executionResult = this.f1f3flyFSStorage.executeFile(path, blockHashWithPath);
+            OperationResult<String> executionResult = this.f1f3flyFSStorage.deployFile(path, blockHashWithPath);
 
             state.put(executionResult.payload(), executionResult.blockHash());
             String newLastBlockHash = updateState(state);
@@ -309,7 +309,8 @@ public class F1r3flyFixedFSStorage implements FSStorage {
                     this.stateChanelName,
                     Map.of()
                 ),
-                false);
+                false,
+                F1r3flyApi.RHOLANG);
 
         } catch (F1r3flyDeployError e) {
             LOGGER.warn("Failed to update state", e);
@@ -320,13 +321,16 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     private String updateState(HashMap<String, String> state) {
         state.put("lastUpdated", String.valueOf(System.currentTimeMillis())); // prevent "NoNewDeploys" //FIXME: remove this hack
 
+        LOGGER.debug("Updating state with {}", state);
+
         try {
             return this.f1R3FlyApi.deploy(
                 RholangExpressionConstructor.replaceValue(
                     this.stateChanelName,
                     state
                 ),
-                false);
+                false,
+                F1r3flyApi.RHOLANG);
 
         } catch (F1r3flyDeployError e) {
             LOGGER.warn("Failed to update state", e);

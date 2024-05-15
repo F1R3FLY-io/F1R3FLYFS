@@ -31,6 +31,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 public class F1r3flyApi {
+    public static final String RHOLANG = "rholang";
+    public static final String METTA_LANGUAGE = "metta";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(F1r3flyApi.class);
 
     private static final Duration INIT_DELAY = Duration.ofMillis(100);
@@ -77,7 +80,7 @@ public class F1r3flyApi {
         return messages.stream().collect(Collectors.joining("\n"));
     }
 
-    public String deploy(String rhoCode, boolean useBiggerRhloPrice) throws F1r3flyDeployError {
+    public String deploy(String rhoCode, boolean useBiggerRhloPrice, String language) throws F1r3flyDeployError {
         try {
 
             long phloLimit = useBiggerRhloPrice ? 5_000_000_000L : 100_000;
@@ -89,6 +92,7 @@ public class F1r3flyApi {
                 .setPhloPrice(1)
                 .setPhloLimit(phloLimit)
                 .setShardId("root")
+                .setLanguage(language)
                 .build();
 
             // Sign deployment

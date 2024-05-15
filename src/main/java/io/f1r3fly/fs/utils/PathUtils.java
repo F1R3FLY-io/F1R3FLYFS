@@ -14,4 +14,11 @@ public class PathUtils {
         return path.substring(path.lastIndexOf(getPathDelimiterBasedOnOS()) + 1);
     }
 
+    public static boolean isDeployableFile(String path) {
+        return path.endsWith(".rho") || path.endsWith(".metta");
+    }
+
+    public static boolean isEncryptedExtension(String path) {
+        return path.endsWith(".encrypted");
+    }
 }

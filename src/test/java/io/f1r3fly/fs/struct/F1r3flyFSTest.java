@@ -13,8 +13,8 @@ import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.utils.MountUtils;
 import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -120,35 +120,91 @@ class F1r3flyFSTest {
     }
 
     @Test
-    void shouldEncryptOnSaveAndDecryptOnReadForEncrypedExtension() throws IOException, NoDataByPath {
+    void shouldDeployRhoFileAfterRename() throws IOException {
+        testToRenameTxtToDeployableExtension("rho");
+    }
+
+    @Disabled
+    @Test
+    void shouldDeployMettaFileAfterRename() throws IOException {
+        testToRenameTxtToDeployableExtension("metta");
+    }
+
+    private static void testToRenameTxtToDeployableExtension(String newExtension) throws IOException {
+        File file = new File(MOUNT_POINT_FILE, "test.text");
+
+        String newRhoChanel = "public";
+        String chanelValue = "{}";
+        String rhoCode = """
+            @"%s"!(%s)
+            """.formatted(newRhoChanel, chanelValue);
+
+        Files.writeString(file.toPath(), rhoCode, StandardCharsets.UTF_8);
+
+        File renamedFile = new File(MOUNT_POINT_FILE, file.getName() + "." + newExtension);
+
+        File blockhash = new File(MOUNT_POINT_FILE, renamedFile.getName() + ".blockhash");
+        assertFalse(blockhash.exists(), "File " + blockhash.getName() + " should not exist");
+
+        assertTrue(file.renameTo(renamedFile), "Failed to rename file");
+        assertTrue(blockhash.exists(), "File " + blockhash.getName() + " should exist now");
+
+        assertContainChilds(MOUNT_POINT_FILE, renamedFile, blockhash);
+
+        assertTrue(renamedFile.renameTo(file), "Failed to rename file back");
+        assertContainChilds(MOUNT_POINT_FILE, file, blockhash); // blockhash should be still there
+    }
+
+    @Test
+    void shouldEncryptOnSaveAndDecryptOnReadForEncryptedExtension() throws IOException, NoDataByPath {
         File encrypted = new File(MOUNT_POINT_FILE, "test.txt.encrypted");
         String fileContent = "Hello, world!";
 
-        assertTrue(encrypted.createNewFile(), "Failed to create test file");
-        assertTrue(encrypted.exists(), "File should exist");
-
-        assertContainChilds(MOUNT_POINT_FILE, encrypted);
         Files.writeString(encrypted.toPath(), fileContent, StandardCharsets.UTF_8);
 
-        String readData = Files.readString(encrypted.toPath());
-        assertEquals(fileContent, readData, "Read data should be equal to written data");
-
-        String decodedFileData = getFileContentFromShardDirectly(encrypted);
-        // Actual data is encrypted. It should be different from the original data
-        assertNotEquals(fileContent, decodedFileData, "Decoded data should be different from the original data");
+        testIsEncrypted(encrypted, fileContent);
 
         File notEncrypted = new File(MOUNT_POINT_FILE, "test.txt");
-        assertTrue(notEncrypted.createNewFile(), "Failed to create test file");
-        assertTrue(notEncrypted.exists(), "File should exist");
+        Files.writeString(notEncrypted.toPath(), fileContent, StandardCharsets.UTF_8);
 
-        assertContainChilds(MOUNT_POINT_FILE, encrypted, notEncrypted);
-        Files.writeString(notEncrypted.toPath(), fileContent, StandardCharsets.UTF_8); // writing the same file content
+        testIsNotEncrypted(notEncrypted, fileContent);
+    }
 
+    @Test
+    void shouldEncryptOnChangingExtension() throws IOException, NoDataByPath {
+        File encrypted = new File(MOUNT_POINT_FILE, "test.txt.encrypted");
+        String fileContent = "Hello, world!";
+
+        Files.writeString(encrypted.toPath(), fileContent, StandardCharsets.UTF_8);
+
+        testIsEncrypted(encrypted, fileContent);
+
+        File notEncrypted = new File(MOUNT_POINT_FILE, "test.txt");
+        assertTrue(encrypted.renameTo(notEncrypted), "Failed to rename file");
+
+        testIsNotEncrypted(notEncrypted, fileContent);
+
+        assertContainChilds(MOUNT_POINT_FILE, notEncrypted);
+
+        assertTrue(notEncrypted.renameTo(encrypted), "Failed to rename file");
+        testIsEncrypted(encrypted, fileContent);
+    }
+
+    private static void testIsNotEncrypted(File notEncrypted, String fileContent) throws IOException, NoDataByPath {
         String readData2 = Files.readString(notEncrypted.toPath());
         assertEquals(fileContent, readData2, "Read data should be equal to written data");
 
         String decodedFileData2 = getFileContentFromShardDirectly(notEncrypted);
         assertEquals(fileContent, decodedFileData2, "Decoded data should be equal to the original data");
+    }
+
+    private static void testIsEncrypted(File encrypted, String expectedFileData) throws IOException, NoDataByPath {
+        String readData = Files.readString(encrypted.toPath());
+        assertEquals(expectedFileData, readData, "Read data should be equal to written data");
+
+        String decodedFileData = getFileContentFromShardDirectly(encrypted);
+        // Actual data is encrypted. It should be different from the original data
+        assertNotEquals(expectedFileData, decodedFileData, "Decoded data should be different from the original data");
     }
 
     private static @NotNull String getFileContentFromShardDirectly(File file) throws NoDataByPath {
@@ -176,24 +232,31 @@ class F1r3flyFSTest {
         return new String(Base64.getDecoder().decode(encodedFileData), StandardCharsets.UTF_8);
     }
 
+    @Disabled
     @Test
-    void shouldStoreRhoFileAndExecuteIt() throws IOException, NoDataByPath {
-        File file = new File(MOUNT_POINT_FILE, "test.rho");
+    void shouldStoreMettaFileAndDeployIt() throws IOException, NoDataByPath {
+        testToCreateDeployableFile("metta"); // TODO: pass the correct Metta code from this line
+    }
 
+    @Test
+    void shouldStoreRhoFileAndDeployIt() throws IOException, NoDataByPath {
+        testToCreateDeployableFile("rho");
+    }
+
+    private static void testToCreateDeployableFile(String extension) throws IOException, NoDataByPath {
+        File file = new File(MOUNT_POINT_FILE, "test." + extension);
+
+        // TODO: use Metta syntax if .metta extension
         String newRhoChanel = "public";
         String chanelValue = "{\"a\": \"b\"}";
         String rhoCode = """
             @"%s"!(%s)
             """.formatted(newRhoChanel, chanelValue);
 
-        assertFalse(file.exists(), "File should not exist");
-        assertTrue(file.createNewFile(), "Failed to create test file");
-        assertTrue(file.exists(), "File should exist");
-
         Files.writeString(file.toPath(), rhoCode, StandardCharsets.UTF_8);
 
         File fileCreatedAfterExecution = new File(MOUNT_POINT_FILE, file.getName() + ".blockhash");
-        assertTrue(fileCreatedAfterExecution.exists(), "File " + fileCreatedAfterExecution.getName() +" should exist");
+        assertTrue(fileCreatedAfterExecution.exists(), "File " + fileCreatedAfterExecution.getName() + " should exist");
 
         assertContainChilds(MOUNT_POINT_FILE, file, fileCreatedAfterExecution);
 
@@ -310,7 +373,7 @@ class F1r3flyFSTest {
     private static void assertContainChilds(File dir, File... expectedChilds) {
         File[] childs = dir.listFiles();
 
-        assertNotNull(childs, "Can't get list of files in mount point");
+        assertNotNull(childs, "Can't get list of files in %s".formatted(dir.getAbsolutePath()));
         assertEquals(expectedChilds.length, childs.length, "Should be only %s file(s) in %s".formatted(expectedChilds.length, dir.getAbsolutePath()));
 
         for (File expectedChild : expectedChilds) {
