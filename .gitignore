@@ -43,3 +43,5 @@ gradle-app.setting
 # F1r3fly data
 **/rnode.log
 **/*.mdb
+
+.direnv
