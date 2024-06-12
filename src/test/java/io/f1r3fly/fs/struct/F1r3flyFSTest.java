@@ -68,8 +68,9 @@ class F1r3flyFSTest {
 
         f1r3fly = new GenericContainer<>(F1R3FLY_IMAGE)
             .withFileSystemBind("data/", "/var/lib/rnode/", BindMode.READ_WRITE)
+            .withFileSystemBind("../f1r3fly/rspace++/target/docker/debug/", "/var/lib/rnode/rspace++/target/docker/debug", BindMode.READ_WRITE)
             .withExposedPorts(GRPC_PORT)
-            .withCommand("run -s --no-upnp --allow-private-addresses"
+            .withCommand("run -Djna.library.path=/var/lib/rnode/rspace++/target/docker/debug -s --no-upnp --allow-private-addresses"
                 + " --api-max-blocks-limit " + MAX_BLOCK_LIMIT
                 + " --api-grpc-max-recv-message-size " + MAX_MESSAGE_SIZE
                 + " --synchrony-constraint-threshold=0.0 --validator-private-key " + validatorPrivateKey)
