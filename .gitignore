@@ -45,3 +45,5 @@ gradle-app.setting
 **/*.mdb
 
 .direnv
+
+bin/default/
