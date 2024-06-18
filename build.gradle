@@ -1,5 +1,6 @@
 plugins {
     id 'java-library'
+    id 'application'
     id 'com.github.johnrengelman.shadow' version '7.0.0'
     id 'net.researchgate.release' version '2.8.1'
     id 'io.github.gradle-nexus.publish-plugin' version '1.1.0'
@@ -15,6 +16,10 @@ def junitVersion    = '5.10.1'
 
 repositories {
     jcenter()
+}
+
+application {
+    mainClass = 'io.f1r3fly.fs.examples.F1r3flyFSMain'
 }
 
 protobuf {
@@ -76,12 +81,6 @@ jar {
     }
 }
 
-task run(type: JavaExec) {
-    group = "Execution"
-    description = "Run the main class with JavaExecTask"
-    classpath = sourceSets.main.runtimeClasspath
-    mainClass = "io.f1r3fly.fs.examples.F1r3flyFSMain"
-}
 
 tasks.withType(Javadoc).configureEach {
     options.addStringOption('Xdoclint:none', '-quiet')
