@@ -112,6 +112,12 @@ public class F1r3flyFS extends FuseStubFS {
                     deployingFile(path);
                 }
             }
+
+            // raise the read cache on "write" operation
+            if (lastReadFileData != null && lastReadFilePath != null && lastReadFilePath.equals(path)) {
+                lastReadFileData = null;
+                lastReadFilePath = null;
+            }
         }
     }
 
@@ -234,6 +240,9 @@ public class F1r3flyFS extends FuseStubFS {
                 byte[] decoded = Base64Coder.decodeFromString(fileContent);
                 fileData = PathUtils.isEncryptedExtension(path) ? aesCipher.decrypt(decoded) : decoded;
 
+                lastReadFilePath = prependMountName(path);
+                lastReadFileData = fileData; // some caching
+
                 if (cachedData.length > 0) {
                     // merge cached and read data
                     byte[] merged = new byte[fileData.length + cachedData.length];
@@ -242,8 +251,6 @@ public class F1r3flyFS extends FuseStubFS {
                     fileData = merged;
                 }
 
-                lastReadFilePath = prependMountName(path);
-                lastReadFileData = fileData; // some caching
             }
 
             // slice the buffer to the size
