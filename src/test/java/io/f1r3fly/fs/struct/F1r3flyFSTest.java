@@ -279,11 +279,14 @@ class F1r3flyFSTest {
         assertTrue(file.createNewFile(), "Failed to create test file");
         assertTrue(file.exists(), "File should exist");
 
-        byte[] inputDataAsBinary = new byte[15 * 1024 * 1024]; // 15 Mb
+        byte[] inputDataAsBinary = new byte[15*1024*1024]; // 15 MB
         new Random().nextBytes(inputDataAsBinary);
         Files.write(file.toPath(), inputDataAsBinary);
-        byte[] readDatAsBinary = Files.readAllBytes(file.toPath());
-        assertArrayEquals(inputDataAsBinary, readDatAsBinary, "Read data should be equal to written data");
+        log.info("Written data length: {}", inputDataAsBinary.length);
+
+        byte[] readDataAsBinary = Files.readAllBytes(file.toPath());
+        log.info("Read data length: {}", readDataAsBinary.length);
+        assertArrayEquals(inputDataAsBinary, readDataAsBinary, "Read data should be equal to written data");
 
         File renamedFile = new File(file.getParent(), "renamed.txt");
         assertTrue(file.renameTo(renamedFile), "Failed to rename file");

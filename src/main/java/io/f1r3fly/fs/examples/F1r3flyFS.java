@@ -18,11 +18,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
 
@@ -45,7 +44,7 @@ public class F1r3flyFS extends FuseStubFS {
         "-o", "noappledouble"
     };
 
-    private final ConcurrentHashMap<String, BlockingQueue<Byte>> writingCache;
+    private final ConcurrentHashMap<String, ByteBuffer> writingCache;
     private String lastReadFilePath;
     private byte[] lastReadFileData;
 
@@ -57,21 +56,18 @@ public class F1r3flyFS extends FuseStubFS {
         this.aesCipher = aesCipher;
     }
 
-    private void cacheAndAppendChunk(String path, byte[] data) throws F1r3flyDeployError, IOException {
-
-        BlockingQueue<Byte> cached = writingCache.get(path);
-
+    private synchronized void cacheAndAppendChunk(String path, byte[] data, long offset) throws F1r3flyDeployError, IOException {
+        ByteBuffer cached = writingCache.get(path);
         if (cached == null) {
-            cached = new LinkedBlockingQueue<>();
+            cached = ByteBuffer.allocate(MAX_CHUNK_SIZE);
+            writingCache.put(path, cached);
         }
 
-        for (byte b : data) {
-            cached.add(b);
-        }
+        // Add data to cache at the correct offset
+        cached.position((int) offset);
+        cached.put(data);
 
-        this.writingCache.put(path, cached);
-
-        if (cached.size() >= MAX_CHUNK_SIZE) {
+        if (cached.position() >= MAX_CHUNK_SIZE) {
             appendChunkNow(path);
         }
 
@@ -86,34 +82,31 @@ public class F1r3flyFS extends FuseStubFS {
 
     }
 
-    private void appendChunkNow(String path) throws F1r3flyDeployError {
+    private synchronized void appendChunkNow(String path) throws F1r3flyDeployError {
         if (writingCache.containsKey(path)) {
-            BlockingQueue<Byte> cached = writingCache.get(path);
+            ByteBuffer cached = writingCache.get(path);
+            cached.flip(); // Prepare the buffer to be read
 
-            int chunkSize = Math.min(MAX_CHUNK_SIZE, cached.size());
-            ArrayList<Byte> buffer = new ArrayList<>();
-
-            cached.drainTo(buffer, chunkSize);
-            // convert to byte array
-            byte[] chunkToWrite = new byte[buffer.size()];
-            for (int i = 0; i < buffer.size(); i++) {
-                chunkToWrite[i] = buffer.get(i);
-            }
+            int chunkSize = Math.min(MAX_CHUNK_SIZE, cached.remaining());
+            byte[] chunkToWrite = new byte[chunkSize];
+            cached.get(chunkToWrite, 0, chunkSize);
 
             byte[] encryptedChunk = PathUtils.isEncryptedExtension(path) ? aesCipher.encrypt(chunkToWrite) : chunkToWrite;
             String encodedChunk = Base64Coder.encodeToString(encryptedChunk);
             this.lastBlockHash = this.storage.appendFile(path, encodedChunk, chunkToWrite.length, this.lastBlockHash).blockHash();
 
-            if (cached.isEmpty()) {
+            if (!cached.hasRemaining()) {
                 LOGGER.debug("Cache is empty, removing path: {}", path);
                 writingCache.remove(path);
 
                 if (PathUtils.isDeployableFile(path)) {
                     deployingFile(path);
                 }
+            } else {
+                cached.compact(); // Compact the buffer for further writes
             }
 
-            // raise the read cache on "write" operation
+            // Clear the read cache on "write" operation
             if (lastReadFileData != null && lastReadFilePath != null && lastReadFilePath.equals(path)) {
                 lastReadFileData = null;
                 lastReadFilePath = null;
@@ -164,8 +157,8 @@ public class F1r3flyFS extends FuseStubFS {
 
             if (typeAndSize.type().equals(F1f3flyFSStorage.FILE_TYPE)) {
 
-                Queue<Byte> cached = writingCache.get(prependMountName(path));
-                int size = (int) (cached == null ? typeAndSize.size() : typeAndSize.size() + cached.size());
+                ByteBuffer cached = writingCache.get(prependMountName(path));
+                int size = (int) (cached == null ? typeAndSize.size() : typeAndSize.size() + cached.position());
 
                 stat.st_mode.set(FileStat.S_IFREG | 0777);
                 stat.st_uid.set(getContext().uid.get());
@@ -206,46 +199,41 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
     @Override
-    public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
+    public synchronized int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
         LOGGER.debug("Called read: {}, size {}, offset {}", prependMountName(path), size, offset);
         try {
             checkMount();
             checkPath(path);
 
+            byte[] fileData;
 
-            // read all data from Node
+            // Read all data from Node if it's a new read or if the path has changed
             if (lastReadFilePath == null || !lastReadFilePath.equals(prependMountName(path))) {
+                LOGGER.debug("Read all data from Node");
                 String fileContent = this.storage.readFile(prependMountName(path), this.lastBlockHash).payload();
                 byte[] decoded = Base64Coder.decodeFromString(fileContent);
                 lastReadFileData = PathUtils.isEncryptedExtension(path) ? aesCipher.decrypt(decoded) : decoded;
                 lastReadFilePath = prependMountName(path);
             }
 
-            // read all data from Cache
-            Queue<Byte> writeCache = writingCache.get(prependMountName(path));
-            byte[] writeCacheData;
-            if (writeCache != null) {
-                writeCacheData = new byte[writeCache.size()];
-                int i = 0;
-                for (Byte b : writeCache) {
-                    writeCacheData[i++] = b;
-                }
-            } else {
-                writeCacheData = new byte[0];
-            }
+            // Combine file data with cache data if cache is not empty
+            ByteBuffer writeCache = writingCache.get(prependMountName(path));
+            if (writeCache != null && writeCache.position() > 0) {
+                byte[] writeCacheData = new byte[writeCache.position()];
+                writeCache.flip();
+                writeCache.get(writeCacheData);
 
-            // combine
-            byte[] fileData;
-            if (writeCacheData.length > 0) {
-                fileData = new byte[lastReadFileData.length + writeCacheData.length];
-                System.arraycopy(lastReadFileData, 0, fileData, 0, lastReadFileData.length);
-                System.arraycopy(writeCacheData, 0, fileData, lastReadFileData.length, writeCacheData.length);
+                ByteBuffer bb = ByteBuffer.allocate(lastReadFileData.length + writeCacheData.length);
+                bb.put(lastReadFileData);
+                bb.put(writeCacheData);
+                fileData = bb.array();
             } else {
                 fileData = lastReadFileData;
             }
 
-            // slice the buffer to the size
-            byte[] sliced = Arrays.copyOfRange(fileData, (int) offset, (int) (offset + size));
+            // Slice the buffer to the size
+            int end = (int) Math.min(fileData.length, offset + size);
+            byte[] sliced = Arrays.copyOfRange(fileData, (int) offset, end);
             buf.put(0, sliced, 0, sliced.length);
 
             return sliced.length;
@@ -261,8 +249,10 @@ public class F1r3flyFS extends FuseStubFS {
         }
     }
 
+
+
     @Override
-    public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
+    public synchronized int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
         LOGGER.debug("Called write file: {} with parameters size {} offset {}", prependMountName(path), size, offset);
         try {
             checkMount();
@@ -279,7 +269,8 @@ public class F1r3flyFS extends FuseStubFS {
             byte[] read = new byte[(int) size];
             buf.get(0, read, 0, (int) size);
 
-            cacheAndAppendChunk(prependMountName(path), read);
+            // Write the data directly to cache
+            cacheAndAppendChunk(prependMountName(path), read, offset);
 
             return (int) size; // return number of bytes written
 //        } catch (DirectoryNotFound | NoDataByPath e) {
