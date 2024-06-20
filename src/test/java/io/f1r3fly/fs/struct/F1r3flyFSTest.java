@@ -101,6 +101,7 @@ class F1r3flyFSTest {
 
             try { // try to unmount
                 MountUtils.umount(MOUNT_POINT);
+                MOUNT_POINT.toFile().delete();
                 f1r3flyFS.umount();
             } catch (Throwable e2) {
                 // ignore

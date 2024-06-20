@@ -212,45 +212,36 @@ public class F1r3flyFS extends FuseStubFS {
             checkMount();
             checkPath(path);
 
-//            appendAllChunks(prependMountName(path));
 
-            Queue<Byte> writeCache = writingCache.get(prependMountName(path));
-
-            byte[] cachedData;
-            if (writeCache != null) {
-                cachedData = new byte[writeCache.size()];
-                int i = 0;
-                for (Byte b : writeCache) {
-                    cachedData[i++] = b;
-                }
-
-            } else {
-                cachedData = new byte[0];
-            }
-
-            byte[] fileData;
-            if (lastReadFilePath != null && lastReadFilePath.equals(prependMountName(path))) {
-                // cached and read data
-                fileData = new byte[lastReadFileData.length + cachedData.length];
-                System.arraycopy(lastReadFileData, 0, fileData, 0, lastReadFileData.length);
-                System.arraycopy(cachedData, 0, fileData, lastReadFileData.length, cachedData.length);
-
-            } else {
+            // read all data from Node
+            if (lastReadFilePath == null || !lastReadFilePath.equals(prependMountName(path))) {
                 String fileContent = this.storage.readFile(prependMountName(path), this.lastBlockHash).payload();
                 byte[] decoded = Base64Coder.decodeFromString(fileContent);
-                fileData = PathUtils.isEncryptedExtension(path) ? aesCipher.decrypt(decoded) : decoded;
-
+                lastReadFileData = PathUtils.isEncryptedExtension(path) ? aesCipher.decrypt(decoded) : decoded;
                 lastReadFilePath = prependMountName(path);
-                lastReadFileData = fileData; // some caching
+            }
 
-                if (cachedData.length > 0) {
-                    // merge cached and read data
-                    byte[] merged = new byte[fileData.length + cachedData.length];
-                    System.arraycopy(fileData, 0, merged, 0, fileData.length);
-                    System.arraycopy(cachedData, 0, merged, fileData.length, cachedData.length);
-                    fileData = merged;
+            // read all data from Cache
+            Queue<Byte> writeCache = writingCache.get(prependMountName(path));
+            byte[] writeCacheData;
+            if (writeCache != null) {
+                writeCacheData = new byte[writeCache.size()];
+                int i = 0;
+                for (Byte b : writeCache) {
+                    writeCacheData[i++] = b;
                 }
+            } else {
+                writeCacheData = new byte[0];
+            }
 
+            // combine
+            byte[] fileData;
+            if (writeCacheData.length > 0) {
+                fileData = new byte[lastReadFileData.length + writeCacheData.length];
+                System.arraycopy(lastReadFileData, 0, fileData, 0, lastReadFileData.length);
+                System.arraycopy(writeCacheData, 0, fileData, lastReadFileData.length, writeCacheData.length);
+            } else {
+                fileData = lastReadFileData;
             }
 
             // slice the buffer to the size
@@ -543,7 +534,7 @@ public class F1r3flyFS extends FuseStubFS {
     public void mount(Path mountPoint, boolean blocking, boolean debug, String[] fuseOpts) {
         LOGGER.debug("Called mounting filesystem with mountPoint: {}", mountPoint.toString());
 
-        if (this.mountPoint != null) {
+        if (this.mounted.get()) {
             throw new FuseException("Already mounted");
         }
 
