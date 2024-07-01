@@ -213,7 +213,7 @@ class F1r3flyFSTest {
         // 1. Get an internal state. It's stored at a last block and inside "mountPath" chanel
         List<RhoTypes.Par> pars = f1R3FlyApi.getDataAtName(f1r3flyFS.getLastBlockHash(), f1r3flyFS.getMountName());
         assertFalse(pars.isEmpty(), "Internal state should contain at least one element");
-        HashMap<String, String> state = RholangExpressionConstructor.parseEMapFromLastExpr(pars);
+        HashMap<String, String> state = RholangExpressionConstructor.parseMap(pars);
 
         // 2. Get a data from the file. File is a chanel at specific block
         // Reducing the path. Fuse changes the path, so we need to change it too:
@@ -227,10 +227,9 @@ class F1r3flyFSTest {
         List<RhoTypes.Par> fileData = f1R3FlyApi.getDataAtName(blockHashOfFile, fileNameAtShard);
 
         // 3. Chanel value is a map with fields: type, value, size. 'value' contains base64 encoded data
-        HashMap<String, String> fileDataMap = RholangExpressionConstructor.parseEMapFromLastExpr(fileData);
-        assertTrue(fileDataMap.containsKey("value"), "File data should contain 'value' field");
-        String encodedFileData = fileDataMap.get("value");
-        return new String(Base64.getDecoder().decode(encodedFileData), StandardCharsets.UTF_8);
+        RholangExpressionConstructor.ChannelData fileDataMap = RholangExpressionConstructor.parseChannelData(fileData);
+        assertNotNull(fileDataMap.fileContent(), "File data should contain fileContent field");
+        return new String(fileDataMap.fileContent());
     }
 
     @Disabled
@@ -265,7 +264,7 @@ class F1r3flyFSTest {
 
         assertFalse(blockHashFromFile.isEmpty(), "Block hash should not be empty");
         List<RhoTypes.Par> result = f1R3FlyApi.getDataAtName(blockHashFromFile, newRhoChanel);
-        HashMap<String, String> parsedEMapFromLastExpr = RholangExpressionConstructor.parseEMapFromLastExpr(result);
+        HashMap<String, String> parsedEMapFromLastExpr = RholangExpressionConstructor.parseMap(result);
 
         assertTrue(parsedEMapFromLastExpr.containsKey("a"), "Result should contain key 'a'");
         assertEquals("b", parsedEMapFromLastExpr.get("a"), "Result should contain key 'a' with value 'b'");
@@ -296,7 +295,7 @@ class F1r3flyFSTest {
         byte[] inputDataAsBinary2 = Files.readAllBytes(renamedFile.toPath());
         assertArrayEquals(inputDataAsBinary, inputDataAsBinary2, "Read data (from renamed file) should be equal to written data");
 
-        String inputDataAsString = "a".repeat(1024); // 1 Kb
+        String inputDataAsString = "a".repeat(1024);
         Files.writeString(renamedFile.toPath(), inputDataAsString, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING); // truncate and override
         String readDataAsString = Files.readString(renamedFile.toPath());
         assertEquals(inputDataAsString, readDataAsString, "Read data should be equal to written data");

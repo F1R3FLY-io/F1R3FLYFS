@@ -2,12 +2,12 @@ package io.f1r3fly.fs.examples;
 
 import io.f1r3fly.fs.*;
 import io.f1r3fly.fs.examples.datatransformer.AESCipher;
-import io.f1r3fly.fs.examples.datatransformer.Base64Coder;
 import io.f1r3fly.fs.examples.storage.F1f3flyFSStorage;
 import io.f1r3fly.fs.examples.storage.F1r3flyFixedFSStorage;
 import io.f1r3fly.fs.examples.storage.FSStorage;
 import io.f1r3fly.fs.examples.storage.errors.*;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
+import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseFileInfo;
 import io.f1r3fly.fs.utils.PathUtils;
@@ -92,8 +92,7 @@ public class F1r3flyFS extends FuseStubFS {
             cached.get(chunkToWrite, 0, chunkSize);
 
             byte[] encryptedChunk = PathUtils.isEncryptedExtension(path) ? aesCipher.encrypt(chunkToWrite) : chunkToWrite;
-            String encodedChunk = Base64Coder.encodeToString(encryptedChunk);
-            this.lastBlockHash = this.storage.appendFile(path, encodedChunk, chunkToWrite.length, this.lastBlockHash).blockHash();
+            this.lastBlockHash = this.storage.appendFile(path, encryptedChunk, chunkToWrite.length, this.lastBlockHash).blockHash();
 
             if (!cached.hasRemaining()) {
                 LOGGER.debug("Cache is empty, removing path: {}", path);
@@ -150,15 +149,16 @@ public class F1r3flyFS extends FuseStubFS {
             checkMount();
             checkPath(path);
 
-            FSStorage.TypeAndSize typeAndSize = this.storage.getTypeAndSize(prependMountName(path), this.lastBlockHash).payload();
+            RholangExpressionConstructor.ChannelData dirOrFile =
+                this.storage.getTypeAndSize(prependMountName(path), this.lastBlockHash).payload();
 
             LOGGER.info("Path {} is '{}' type and size is {}",
-                prependMountName(path), typeAndSize.type(), typeAndSize.size());
+                prependMountName(path), dirOrFile.type(), dirOrFile.size());
 
-            if (typeAndSize.type().equals(F1f3flyFSStorage.FILE_TYPE)) {
+            if (dirOrFile.isFile()) {
 
                 ByteBuffer cached = writingCache.get(prependMountName(path));
-                int size = (int) (cached == null ? typeAndSize.size() : typeAndSize.size() + cached.position());
+                int size = (int) (cached == null ? dirOrFile.size() : dirOrFile.size() + cached.position());
 
                 stat.st_mode.set(FileStat.S_IFREG | 0777);
                 stat.st_uid.set(getContext().uid.get());
@@ -166,7 +166,7 @@ public class F1r3flyFS extends FuseStubFS {
                 stat.st_size.set(size);
 
                 return SuccessCodes.OK;
-            } else if (typeAndSize.type().equals(F1f3flyFSStorage.DIR_TYPE)) {
+            } else if (dirOrFile.isDir()) {
                 stat.st_mode.set(FileStat.S_IFDIR | 0444);
                 stat.st_uid.set(getContext().uid.get());
                 stat.st_gid.set(getContext().gid.get());
@@ -210,9 +210,8 @@ public class F1r3flyFS extends FuseStubFS {
             // Read all data from Node if it's a new read or if the path has changed
             if (lastReadFilePath == null || !lastReadFilePath.equals(prependMountName(path))) {
                 LOGGER.debug("Read all data from Node");
-                String fileContent = this.storage.readFile(prependMountName(path), this.lastBlockHash).payload();
-                byte[] decoded = Base64Coder.decodeFromString(fileContent);
-                lastReadFileData = PathUtils.isEncryptedExtension(path) ? aesCipher.decrypt(decoded) : decoded;
+                byte[] fileContent = this.storage.readFile(prependMountName(path), this.lastBlockHash).payload();
+                lastReadFileData = PathUtils.isEncryptedExtension(path) ? aesCipher.decrypt(fileContent) : fileContent;
                 lastReadFilePath = prependMountName(path);
             }
 
@@ -295,7 +294,7 @@ public class F1r3flyFS extends FuseStubFS {
             checkMount();
             checkPath(path);
 
-            this.lastBlockHash = this.storage.createFile(prependMountName(path), "", 0, this.lastBlockHash).blockHash();
+            this.lastBlockHash = this.storage.createFile(prependMountName(path), new byte[0], 0, this.lastBlockHash).blockHash();
             this.lastBlockHash = this.storage.addToParent(prependMountName(path), this.lastBlockHash).blockHash();
 
             return SuccessCodes.OK;
@@ -328,7 +327,7 @@ public class F1r3flyFS extends FuseStubFS {
 
                 //TODO: truncate file using a size
                 this.lastBlockHash = this.storage.deleteFile(prependMountName(path), this.lastBlockHash).blockHash();
-                this.lastBlockHash = this.storage.createFile(prependMountName(path), "", 0, this.lastBlockHash).blockHash();
+                this.lastBlockHash = this.storage.createFile(prependMountName(path), new byte[0], 0, this.lastBlockHash).blockHash();
 
                 return SuccessCodes.OK;
             } else {
@@ -416,19 +415,15 @@ public class F1r3flyFS extends FuseStubFS {
 
             if (PathUtils.isEncryptedExtension(oldpath) && !PathUtils.isEncryptedExtension(newpath)) {
                 // was encrypted, now not encrypted
-                String encoded = this.storage.readFile(prependMountName(oldpath), this.lastBlockHash).payload();
-                byte[] encrypted = Base64Coder.decodeFromString(encoded);
+                byte[] encrypted = this.storage.readFile(prependMountName(oldpath), this.lastBlockHash).payload();
                 byte[] decrypted = aesCipher.decrypt(encrypted);
-                String encodedAgain = Base64Coder.encodeToString(decrypted);
-                this.lastBlockHash = this.storage.createFile(prependMountName(newpath), encodedAgain, decrypted.length, this.lastBlockHash).blockHash();
+                this.lastBlockHash = this.storage.createFile(prependMountName(newpath), decrypted, decrypted.length, this.lastBlockHash).blockHash();
                 this.lastBlockHash = this.storage.deleteFile(prependMountName(oldpath), this.lastBlockHash).blockHash();
             } else if (PathUtils.isEncryptedExtension(newpath) && !PathUtils.isEncryptedExtension(oldpath)) {
                 // was not encrypted, now encrypted
-                String encoded = this.storage.readFile(prependMountName(oldpath), this.lastBlockHash).payload();
-                byte[] decoded = Base64Coder.decodeFromString(encoded);
-                byte[] encrypted = aesCipher.encrypt(decoded);
-                String encodedAgain = Base64Coder.encodeToString(encrypted);
-                this.lastBlockHash = this.storage.createFile(prependMountName(newpath), encodedAgain, decoded.length, this.lastBlockHash).blockHash();
+                byte[] notEncrypted = this.storage.readFile(prependMountName(oldpath), this.lastBlockHash).payload();
+                byte[] encrypted = aesCipher.encrypt(notEncrypted);
+                this.lastBlockHash = this.storage.createFile(prependMountName(newpath), encrypted, notEncrypted.length, this.lastBlockHash).blockHash();
                 this.lastBlockHash = this.storage.deleteFile(prependMountName(oldpath), this.lastBlockHash).blockHash();
             } else {
                 // just rename
@@ -459,6 +454,9 @@ public class F1r3flyFS extends FuseStubFS {
         } catch (PathIsNotAFile e) {
             LOGGER.warn("Path is not a file", e);
             return -ErrorCodes.EISDIR(); // is a directory?
+        } catch (Exception e) {
+            LOGGER.error("Failed to rename", e);
+            return -ErrorCodes.EIO(); // general error
         }
     }
 

@@ -33,7 +33,7 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     }
 
     @Override
-    public OperationResult<TypeAndSize> getTypeAndSize(
+    public OperationResult<RholangExpressionConstructor.ChannelData> getTypeAndSize(
         @NotNull String path,
         @NotNull String blockHash) throws NoDataByPath {
         Map<String, String> state = fetchState(blockHash);
@@ -78,7 +78,7 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     @Override
     public OperationResult<Void> createFile(
         @NotNull String path,
-        @NotNull String content,
+        @NotNull byte[] content,
         long size,
         @NotNull String blockHash) throws F1r3flyDeployError {
         synchronized (this) {
@@ -99,8 +99,8 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     @Override
     public OperationResult<Void> appendFile(
         @NotNull String path,
-        @NotNull String content,
-        @NotNull long size,
+        @NotNull byte [] content,
+        long size,
         @NotNull String blockHash) throws F1r3flyDeployError {
         synchronized (this) {
             HashMap<String, String> state = fetchState(blockHash);
@@ -118,7 +118,7 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     }
 
     @Override
-    public OperationResult<String> readFile(
+    public OperationResult<byte[]> readFile(
         @NotNull String path,
         @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile {
         Map<String, String> state = fetchState(blockHash);
@@ -295,7 +295,7 @@ public class F1r3flyFixedFSStorage implements FSStorage {
         try {
             List<RhoTypes.Par> response = this.f1R3FlyApi.getDataAtName(lastBlockHash, this.stateChanelName);
 
-            return RholangExpressionConstructor.parseEMapFromLastExpr(response);
+            return RholangExpressionConstructor.parseMap(response);
         } catch (NoDataByPath e) {
             LOGGER.warn("Failed to fetch state from block {}", lastBlockHash, e);
             return new HashMap<>(); // empty state? lost previous state?
@@ -305,7 +305,7 @@ public class F1r3flyFixedFSStorage implements FSStorage {
     public String initState() {
         try {
             return this.f1R3FlyApi.deploy(
-                RholangExpressionConstructor.sendValueIntoNewChanel(
+                RholangExpressionConstructor.sendMapIntoNewChanel(
                     this.stateChanelName,
                     Map.of()
                 ),
@@ -325,7 +325,7 @@ public class F1r3flyFixedFSStorage implements FSStorage {
 
         try {
             return this.f1R3FlyApi.deploy(
-                RholangExpressionConstructor.replaceValue(
+                RholangExpressionConstructor.replaceChannelValue(
                     this.stateChanelName,
                     state
                 ),
