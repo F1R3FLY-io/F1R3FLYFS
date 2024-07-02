@@ -1,17 +1,12 @@
 package io.f1r3fly.fs.examples.storage;
 
 import io.f1r3fly.fs.examples.storage.errors.*;
+import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Set;
 
 public interface FSStorage {
-
-    /**
-     * type as a string and a size. Size could be 0 if type is dir
-     */
-    record TypeAndSize(String type, long size) {
-    }
 
     record OperationResult<Payload>(Payload payload, @NotNull String blockHash) {
     }
@@ -19,7 +14,7 @@ public interface FSStorage {
     // COMMON OPERATIONS
 
     // Size could be zero if type is dir
-    OperationResult<TypeAndSize> getTypeAndSize(
+    OperationResult<RholangExpressionConstructor.ChannelData> getTypeAndSize(
         @NotNull String path,
         @NotNull String blockHash) throws NoDataByPath;
 
@@ -32,17 +27,17 @@ public interface FSStorage {
 
     OperationResult<Void> createFile(
         @NotNull String path,
-        @NotNull String content,
+        @NotNull byte[] content,
         long size,
         @NotNull String blockHash) throws F1r3flyDeployError;
 
     OperationResult<Void> appendFile(
         @NotNull String path,
-        @NotNull String content,
+        @NotNull byte[] content,
         long size,
         @NotNull String blockHash) throws F1r3flyDeployError;
 
-    OperationResult<String> readFile(
+    OperationResult<byte[]> readFile(
         @NotNull String path,
         @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile;
 

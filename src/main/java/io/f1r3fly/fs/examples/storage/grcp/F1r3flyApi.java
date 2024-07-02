@@ -83,7 +83,10 @@ public class F1r3flyApi {
     public String deploy(String rhoCode, boolean useBiggerRhloPrice, String language) throws F1r3flyDeployError {
         try {
 
-            long phloLimit = useBiggerRhloPrice ? 5_000_000_000L : 100_000;
+            int maxRholangInLogs = 2000;
+            LOGGER.debug("Rholang code {}", rhoCode.length() > maxRholangInLogs ? rhoCode.substring(0, maxRholangInLogs) : rhoCode);
+
+            long phloLimit = useBiggerRhloPrice ? 5_000_000_000L : 50_000L;
 
             // Make deployment
             CasperMessage.DeployDataProto deployment = CasperMessage.DeployDataProto.newBuilder()
@@ -97,13 +100,12 @@ public class F1r3flyApi {
 
             // Sign deployment
             CasperMessage.DeployDataProto signed = signDeploy(deployment);
-            LOGGER.debug("Signed {}", signed);
 
             // Deploy
             Uni<String> deployVolumeContract =
                 Uni.createFrom().future(deployService.doDeploy(signed))
                     .flatMap(deployResponse -> {
-                        LOGGER.debug("Deploy Response {}", deployResponse);
+//                        LOGGER.trace("Deploy Response {}", deployResponse);
                         if (deployResponse.hasError()) {
                             return this.<String>fail(rhoCode, deployResponse.getError());
                         } else {
@@ -114,7 +116,7 @@ public class F1r3flyApi {
                         String deployId = deployResult.substring(deployResult.indexOf("DeployId is: ") + 13, deployResult.length());
                         return Uni.createFrom().future(proposeService.propose(ProposeServiceCommon.ProposeQuery.newBuilder().setIsAsync(false).build()))
                             .flatMap(proposeResponse -> {
-                                LOGGER.debug("Propose Response {}", proposeResponse);
+//                                LOGGER.debug("Propose Response {}", proposeResponse);
                                 if (proposeResponse.hasError()) {
                                     return this.<String>fail(rhoCode, proposeResponse.getError());
                                 } else {
