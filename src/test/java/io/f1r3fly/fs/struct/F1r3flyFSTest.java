@@ -1,6 +1,40 @@
 package io.f1r3fly.fs.struct;
 
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Objects;
+import java.util.Random;
+
+import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.AfterEach;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+import org.testcontainers.containers.BindMode;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.output.Slf4jLogConsumer;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
+
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -12,30 +46,7 @@ import io.f1r3fly.fs.examples.storage.errors.NoDataByPath;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.utils.MountUtils;
-import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.slf4j.LoggerFactory;
-import org.testcontainers.containers.BindMode;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.output.Slf4jLogConsumer;
-import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 import rhoapi.RhoTypes;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.time.Duration;
-import java.util.*;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 @Testcontainers
 class F1r3flyFSTest {
@@ -68,9 +79,8 @@ class F1r3flyFSTest {
 
         f1r3fly = new GenericContainer<>(F1R3FLY_IMAGE)
             .withFileSystemBind("data/", "/var/lib/rnode/", BindMode.READ_WRITE)
-            .withFileSystemBind("../f1r3fly/rspace++/target/docker/debug/", "/var/lib/rnode/rspace++/target/docker/debug", BindMode.READ_WRITE)
             .withExposedPorts(GRPC_PORT)
-            .withCommand("run -Djna.library.path=/var/lib/rnode/rspace++/target/docker/debug -s --no-upnp --allow-private-addresses"
+            .withCommand("run -Djna.library.path=/opt/docker -s --no-upnp --allow-private-addresses"
                 + " --api-max-blocks-limit " + MAX_BLOCK_LIMIT
                 + " --api-grpc-max-recv-message-size " + MAX_MESSAGE_SIZE
                 + " --synchrony-constraint-threshold=0.0 --validator-private-key " + validatorPrivateKey)
