@@ -2,7 +2,7 @@ package io.f1r3fly.fs.examples;
 
 import io.f1r3fly.fs.*;
 import io.f1r3fly.fs.examples.datatransformer.AESCipher;
-import io.f1r3fly.fs.examples.storage.F1f3flyFSStorage;
+import io.f1r3fly.fs.examples.storage.DiskCache;
 import io.f1r3fly.fs.examples.storage.F1r3flyFixedFSStorage;
 import io.f1r3fly.fs.examples.storage.FSStorage;
 import io.f1r3fly.fs.examples.storage.errors.*;
@@ -17,11 +17,8 @@ import jnr.ffi.types.size_t;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
 
@@ -31,93 +28,71 @@ public class F1r3flyFS extends FuseStubFS {
 
     private final F1r3flyApi f1R3FlyApi;
     private final AESCipher aesCipher;
+    private final DiskCache cache;
     private FSStorage storage;
     private String lastBlockHash;
 
+
     // it should be a number that can be divisible by
-    // * 3 because of padding of base64
     // * 16 because of AES block size
-    private final int MAX_CHUNK_SIZE = 3 * 16 * 1024 * 1024; // 48 MB
+    private final int MAX_CHUNK_SIZE = 3 * 16 * 1024 * 1024; //
 
     private final String[] MOUNT_OPTIONS = {
         // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options#iosize
         "-o", "noappledouble"
     };
 
-    private final ConcurrentHashMap<String, ByteBuffer> writingCache;
-    private String lastReadFilePath;
-    private byte[] lastReadFileData;
 
     public F1r3flyFS(F1r3flyApi f1R3FlyApi, AESCipher aesCipher) {
         super(); // no need to call Fuse constructor
 
         this.f1R3FlyApi = f1R3FlyApi;
-        this.writingCache = new ConcurrentHashMap<>();
         this.aesCipher = aesCipher;
+        this.cache = new DiskCache();
     }
 
-    private synchronized void cacheAndAppendChunk(String path, byte[] data, long offset) throws F1r3flyDeployError, IOException {
-        ByteBuffer cached = writingCache.get(path);
-        if (cached == null) {
-            cached = ByteBuffer.allocate(MAX_CHUNK_SIZE);
-            writingCache.put(path, cached);
+    private void deployChunkFromCacheToNode(String path, long offset) throws F1r3flyDeployError, NoDataByPath, CacheIOException, PathIsNotAFile {
+        Boolean wasModified = this.cache.wasModified(path);
+
+        if (wasModified == null || !wasModified) {
+            LOGGER.debug("No need to deploy a chunk from cache to node: {} with offset {}", path, offset);
+            this.cache.remove(path); // just drop the cache; data was not changed
+            return;
         }
 
-        // Add data to cache at the correct offset
-        cached.position((int) offset);
-        cached.put(data);
+        long cachedSize = this.cache.getSize(path);
 
-        if (cached.position() >= MAX_CHUNK_SIZE) {
-            appendChunkNow(path);
-        }
+        if (offset < cachedSize) {
 
-    }
+            long remaining = cachedSize - offset;
+            long chunkSize = Math.min(MAX_CHUNK_SIZE, remaining);
 
-    private void appendAllChunks(String path) throws F1r3flyDeployError {
-        if (writingCache.containsKey(path)) {
-            appendChunkNow(path);
+            LOGGER.debug("Deploying a chunk from cache to node: {} (size {}) with offset {}", path, cachedSize, offset);
 
-            appendAllChunks(path);
-        }
-
-    }
-
-    private synchronized void appendChunkNow(String path) throws F1r3flyDeployError {
-        if (writingCache.containsKey(path)) {
-            ByteBuffer cached = writingCache.get(path);
-            cached.flip(); // Prepare the buffer to be read
-
-            int chunkSize = Math.min(MAX_CHUNK_SIZE, cached.remaining());
-            byte[] chunkToWrite = new byte[chunkSize];
-            cached.get(chunkToWrite, 0, chunkSize);
-
+            byte[] chunkToWrite = this.cache.read(path, offset, chunkSize);
             byte[] encryptedChunk = PathUtils.isEncryptedExtension(path) ? aesCipher.encrypt(chunkToWrite) : chunkToWrite;
             this.lastBlockHash = this.storage.appendFile(path, encryptedChunk, chunkToWrite.length, this.lastBlockHash).blockHash();
 
-            if (!cached.hasRemaining()) {
-                LOGGER.debug("Cache is empty, removing path: {}", path);
-                writingCache.remove(path);
+            deployChunkFromCacheToNode(path, offset + chunkSize); // continue
+        } else {
+            // end
 
-                if (PathUtils.isDeployableFile(path)) {
-                    deployingFile(path);
-                }
-            } else {
-                cached.compact(); // Compact the buffer for further writes
+            if (PathUtils.isDeployableFile(path)) {
+                deployingRholang(path);
             }
 
-            // Clear the read cache on "write" operation
-            if (lastReadFileData != null && lastReadFilePath != null && lastReadFilePath.equals(path)) {
-                lastReadFileData = null;
-                lastReadFilePath = null;
-            }
+            LOGGER.debug("Ended deploying a chunk from cache to node: {} with offset {}", path, offset);
+
+            this.cache.remove(path);
         }
+
     }
 
-    private void deployingFile(String path) {
+    private void deployingRholang(String path) {
         LOGGER.debug("Deploying a file: {}", path);
 
         try {
-            FSStorage.OperationResult<String> executionResult = this.storage.deployFile(path, this.lastBlockHash);
+            FSStorage.OperationResult<String> executionResult = this.storage.deployFile(path, this.lastBlockHash); //dont read it form node; its present at a cache
             this.lastBlockHash = executionResult.blockHash();
             this.lastBlockHash = this.storage.addToParent(executionResult.payload(), this.lastBlockHash).blockHash();
         } catch (NoDataByPath | PathIsNotAFile | PathIsNotADirectory | RuntimeException | DirectoryNotFound | F1r3flyDeployError e) {
@@ -129,17 +104,7 @@ public class F1r3flyFS extends FuseStubFS {
     @Override
     public int release(String path, FuseFileInfo fi) {
         LOGGER.debug("Called release: {}", prependMountName(path));
-        try {
-            checkMount();
-            checkPath(path);
-
-            appendAllChunks(prependMountName(path));
-
-            return SuccessCodes.OK;
-        } catch (F1r3flyDeployError e) {
-            LOGGER.error("Failed to deploy", e);
-            return -ErrorCodes.EIO(); // general error
-        }
+        return SuccessCodes.OK;
     }
 
     @Override
@@ -149,6 +114,17 @@ public class F1r3flyFS extends FuseStubFS {
             checkMount();
             checkPath(path);
 
+            long cachedSize = this.cache.getSize(prependMountName(path));
+
+            if (cachedSize > 0) { // cached file, no need to fetch data from the node
+                stat.st_mode.set(FileStat.S_IFREG | 0777);
+                stat.st_uid.set(getContext().uid.get());
+                stat.st_gid.set(getContext().gid.get());
+                stat.st_size.set(cachedSize);
+
+                return SuccessCodes.OK;
+            }
+
             RholangExpressionConstructor.ChannelData dirOrFile =
                 this.storage.getTypeAndSize(prependMountName(path), this.lastBlockHash).payload();
 
@@ -157,8 +133,7 @@ public class F1r3flyFS extends FuseStubFS {
 
             if (dirOrFile.isFile()) {
 
-                ByteBuffer cached = writingCache.get(prependMountName(path));
-                int size = (int) (cached == null ? dirOrFile.size() : dirOrFile.size() + cached.position());
+                long size = dirOrFile.size();
 
                 stat.st_mode.set(FileStat.S_IFREG | 0777);
                 stat.st_uid.set(getContext().uid.get());
@@ -189,13 +164,57 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
     @Override
+    public int open(String path, FuseFileInfo fi) {
+        LOGGER.debug("Called open: {}", prependMountName(path));
+
+        try {
+            checkMount();
+            checkPath(path);
+
+            if (PathUtils.isEncryptedExtension(path)) {
+                byte[] encrypted = this.storage.readFile(prependMountName(path), this.lastBlockHash).payload();
+                byte[] decrypted = aesCipher.decrypt(encrypted);
+                this.cache.write(prependMountName(path), decrypted, 0, false);
+            } else {
+                byte[] data = this.storage.readFile(prependMountName(path), this.lastBlockHash).payload();
+                this.cache.write(prependMountName(path), data, 0, false);
+            }
+
+            return SuccessCodes.OK;
+        } catch (NoDataByPath e) {
+            LOGGER.warn("Failed to read file", e);
+            return -ErrorCodes.ENOENT(); // not found
+        } catch (PathIsNotAFile e) {
+            LOGGER.warn("Path is not a file", e);
+            return -ErrorCodes.EISDIR(); // is a directory?
+        } catch (F1r3flyDeployError e) {
+            LOGGER.error("Failed to deploy", e);
+            return -ErrorCodes.EIO(); // general error
+        } catch (CacheIOException e) {
+            LOGGER.error("Failed to read a file", e);
+            return -ErrorCodes.EIO(); // general error
+        }
+    }
+
+    @Override
     public int flush(String path, FuseFileInfo fi) {
         LOGGER.debug("Called flush: {}", prependMountName(path));
-        if (lastReadFilePath != null && lastReadFilePath.equals(prependMountName(path))) {
-            lastReadFilePath = null;
-            lastReadFileData = null;
+        try {
+            deployChunkFromCacheToNode(prependMountName(path), 0);
+            return SuccessCodes.OK;
+        } catch (NoDataByPath e) {
+            LOGGER.warn("Failed to read file", e);
+            return -ErrorCodes.ENOENT(); // not found
+        } catch (PathIsNotAFile e) {
+            LOGGER.warn("Path is not a file", e);
+            return -ErrorCodes.EISDIR(); // is a directory?
+        } catch (F1r3flyDeployError e) {
+            LOGGER.error("Failed to deploy", e);
+            return -ErrorCodes.EIO(); // general error
+        } catch (CacheIOException e) {
+            LOGGER.error("Failed to read a file", e);
+            return -ErrorCodes.EIO(); // general error
         }
-        return SuccessCodes.OK;
     }
 
     @Override
@@ -205,37 +224,10 @@ public class F1r3flyFS extends FuseStubFS {
             checkMount();
             checkPath(path);
 
-            byte[] fileData;
+            byte[] fileData = this.cache.read(prependMountName(path), offset, size);
+            buf.put(0, fileData, 0, fileData.length);
 
-            // Read all data from Node if it's a new read or if the path has changed
-            if (lastReadFilePath == null || !lastReadFilePath.equals(prependMountName(path))) {
-                LOGGER.debug("Read all data from Node");
-                byte[] fileContent = this.storage.readFile(prependMountName(path), this.lastBlockHash).payload();
-                lastReadFileData = PathUtils.isEncryptedExtension(path) ? aesCipher.decrypt(fileContent) : fileContent;
-                lastReadFilePath = prependMountName(path);
-            }
-
-            // Combine file data with cache data if cache is not empty
-            ByteBuffer writeCache = writingCache.get(prependMountName(path));
-            if (writeCache != null && writeCache.position() > 0) {
-                byte[] writeCacheData = new byte[writeCache.position()];
-                writeCache.flip();
-                writeCache.get(writeCacheData);
-
-                ByteBuffer bb = ByteBuffer.allocate(lastReadFileData.length + writeCacheData.length);
-                bb.put(lastReadFileData);
-                bb.put(writeCacheData);
-                fileData = bb.array();
-            } else {
-                fileData = lastReadFileData;
-            }
-
-            // Slice the buffer to the size
-            int end = (int) Math.min(fileData.length, offset + size);
-            byte[] sliced = Arrays.copyOfRange(fileData, (int) offset, end);
-            buf.put(0, sliced, 0, sliced.length);
-
-            return sliced.length;
+            return fileData.length;
         } catch (NoDataByPath e) {
             LOGGER.warn("Failed to read file", e);
             return -ErrorCodes.ENOENT(); // not found
@@ -244,6 +236,9 @@ public class F1r3flyFS extends FuseStubFS {
             return -ErrorCodes.EISDIR(); // is a directory?
         } catch (F1r3flyDeployError e) {
             LOGGER.error("Failed to deploy", e);
+            return -ErrorCodes.EIO(); // general error
+        } catch (CacheIOException e) {
+            LOGGER.error("Failed to read a file", e);
             return -ErrorCodes.EIO(); // general error
         }
     }
@@ -257,31 +252,13 @@ public class F1r3flyFS extends FuseStubFS {
             checkMount();
             checkPath(path);
 
-            // it's too slow to check a parent on each chunk write
-//            Set<String> siblings = this.storage.readDir(prependMountName(PathUtils.getParentPath(path)), this.lastBlockHash).payload(); // check if path is a directory
-//            String filename = PathUtils.getFileName(path);
-//            if (!siblings.contains(filename)) {
-//                // no need to add to parent if already added
-//                this.lastBlockHash = this.storage.addToParent(prependMountName(path), this.lastBlockHash).blockHash();
-//            }
-
             byte[] read = new byte[(int) size];
             buf.get(0, read, 0, (int) size);
 
-            // Write the data directly to cache
-            cacheAndAppendChunk(prependMountName(path), read, offset);
+            this.cache.write(prependMountName(path), read, offset, true);
 
             return (int) size; // return number of bytes written
-//        } catch (DirectoryNotFound | NoDataByPath e) {
-//            LOGGER.warn("Directory not found", e);
-//            return -ErrorCodes.ENOENT(); // not found
-        } catch (F1r3flyDeployError e) {
-            LOGGER.error("Failed to deploy", e);
-            return -ErrorCodes.EIO(); // general error
-//        } catch (PathIsNotADirectory e) {
-//            LOGGER.warn("Path is not a directory", e);
-//            return -ErrorCodes.EIO(); // is a directory?
-        } catch (IOException e) {
+        } catch (CacheIOException e) {
             LOGGER.error("Failed to cache a file", e);
             return -ErrorCodes.EIO(); // general error
         }
@@ -297,6 +274,8 @@ public class F1r3flyFS extends FuseStubFS {
             this.lastBlockHash = this.storage.createFile(prependMountName(path), new byte[0], 0, this.lastBlockHash).blockHash();
             this.lastBlockHash = this.storage.addToParent(prependMountName(path), this.lastBlockHash).blockHash();
 
+            this.cache.write(prependMountName(path), new byte[0], 0, true);
+
             return SuccessCodes.OK;
 
         } catch (DirectoryNotFound e) {
@@ -308,6 +287,9 @@ public class F1r3flyFS extends FuseStubFS {
         } catch (PathIsNotADirectory e) {
             LOGGER.warn("Path is not a directory", e);
             return -ErrorCodes.EIO(); // is a directory?
+        } catch (CacheIOException e) {
+            LOGGER.error("Failed to cache a file", e);
+            return -ErrorCodes.EIO(); // general error
         }
     }
 
@@ -326,6 +308,7 @@ public class F1r3flyFS extends FuseStubFS {
                 }
 
                 //TODO: truncate file using a size
+                this.cache.remove(prependMountName(path));
                 this.lastBlockHash = this.storage.deleteFile(prependMountName(path), this.lastBlockHash).blockHash();
                 this.lastBlockHash = this.storage.createFile(prependMountName(path), new byte[0], 0, this.lastBlockHash).blockHash();
 
@@ -407,9 +390,6 @@ public class F1r3flyFS extends FuseStubFS {
             checkPath(oldpath);
             checkPath(newpath);
 
-            appendAllChunks(prependMountName(oldpath));
-            appendAllChunks(prependMountName(newpath));
-
             this.lastBlockHash = this.storage.addToParent(prependMountName(newpath), this.lastBlockHash).blockHash(); // fails if parent not found
             this.lastBlockHash = this.storage.removeFromParent(prependMountName(oldpath), this.lastBlockHash).blockHash(); // fails if parent not found
 
@@ -431,7 +411,7 @@ public class F1r3flyFS extends FuseStubFS {
             }
 
             if (PathUtils.isDeployableFile(newpath)) {
-                deployingFile(prependMountName(newpath));
+                deployingRholang(prependMountName(newpath));
             }
 
             return SuccessCodes.OK;
@@ -454,7 +434,7 @@ public class F1r3flyFS extends FuseStubFS {
         } catch (PathIsNotAFile e) {
             LOGGER.warn("Path is not a file", e);
             return -ErrorCodes.EISDIR(); // is a directory?
-        } catch (Exception e) {
+        } catch (Throwable e) {
             LOGGER.error("Failed to rename", e);
             return -ErrorCodes.EIO(); // general error
         }
@@ -468,6 +448,7 @@ public class F1r3flyFS extends FuseStubFS {
             checkMount();
             checkPath(path);
 
+            this.cache.remove(prependMountName(path));
             this.lastBlockHash = this.storage.deleteFile(prependMountName(path), this.lastBlockHash).blockHash();
             this.lastBlockHash = this.storage.removeFromParent(prependMountName(path), this.lastBlockHash).blockHash();
 

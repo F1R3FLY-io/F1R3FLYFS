@@ -159,7 +159,7 @@ public class RholangExpressionConstructor {
     public static String appendValue(String chanel, long lastUpdated, byte[] newChunk, long size) {
         // output looks like:
         // for(@v <- @"path"){
-        //      @"path"!(v.set("lastUpdated",123).set("fileContent", v.get("fileContent) ++ []).set("size", v.get("size) + size))
+        //      @"path"!(v.set("lastUpdated",123).set("size", v.get("size) + size).set("fileContent", v.get("fileContent) ++ []))
         // }
 
         return new StringBuilder()
@@ -173,19 +173,18 @@ public class RholangExpressionConstructor {
             .append("\",")
             .append(lastUpdated)
             .append(").set(\"")
-            .append(FILE_CONTENT)
-            .append("\",v.get(\"")
-            .append(FILE_CONTENT)
-            .append("\") ++ \"")
-            .append(Base16Coder.bytesToHex(newChunk))
-            .append("\".hexToBytes()).set(\"")
             .append(SIZE)
             .append("\",v.get(\"")
             .append(SIZE)
             .append("\") + ")
             .append(size)
-            .append("))")
-            .append("}")
+            .append(").set(\"")
+            .append(FILE_CONTENT)
+            .append("\",v.get(\"")
+            .append(FILE_CONTENT)
+            .append("\") ++ \"")
+            .append(Base16Coder.bytesToHex(newChunk))
+            .append("\".hexToBytes()))}")
             .toString();
     }
 

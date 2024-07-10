@@ -278,7 +278,7 @@ class F1r3flyFSTest {
         assertTrue(file.createNewFile(), "Failed to create test file");
         assertTrue(file.exists(), "File should exist");
 
-        byte[] inputDataAsBinary = new byte[15*1024*1024]; // 15 MB
+        byte[] inputDataAsBinary = new byte[100*1024*1024]; // 100 MB
         new Random().nextBytes(inputDataAsBinary);
         Files.write(file.toPath(), inputDataAsBinary);
         log.info("Written data length: {}", inputDataAsBinary.length);
@@ -382,7 +382,7 @@ class F1r3flyFSTest {
         for (File expectedChild : expectedChilds) {
             assertTrue(
                 Arrays.stream(childs).anyMatch(file -> file.getName().equals(expectedChild.getName())),
-                "Expected file %s not found in %s".formatted(expectedChild, dir.getAbsolutePath())
+                "Expected file %s not found in list of childs (%s)".formatted(expectedChild, Arrays.toString(childs))
             );
         }
     }

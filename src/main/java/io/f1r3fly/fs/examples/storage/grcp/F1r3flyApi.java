@@ -181,7 +181,7 @@ public class F1r3flyApi {
         casper.v1.DeployServiceV1.RhoDataResponse response = null;
         try {
             response = deployService.getDataAtName(request).get();
-            LOGGER.debug("Get data at block {} by name {}. Response {}", blockHash, expr, response);
+            LOGGER.debug("Get data at block {} by name {}. Is error response = {}", blockHash, expr, response.hasError());
         } catch (InterruptedException | ExecutionException e) {
             LOGGER.warn("Failed to get data at block {} by name {}", blockHash, expr, e);
             throw new NoDataByPath(expr, blockHash, e);
