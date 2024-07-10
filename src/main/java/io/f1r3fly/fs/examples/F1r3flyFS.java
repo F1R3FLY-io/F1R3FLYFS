@@ -35,7 +35,7 @@ public class F1r3flyFS extends FuseStubFS {
 
     // it should be a number that can be divisible by
     // * 16 because of AES block size
-    private final int MAX_CHUNK_SIZE = 3 * 16 * 1024 * 1024; //
+    private final int MAX_CHUNK_SIZE = 16 * 1024 * 700; // ~ 11MB
 
     private final String[] MOUNT_OPTIONS = {
         // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options#iosize
@@ -67,7 +67,7 @@ public class F1r3flyFS extends FuseStubFS {
             long remaining = cachedSize - offset;
             long chunkSize = Math.min(MAX_CHUNK_SIZE, remaining);
 
-            LOGGER.debug("Deploying a chunk from cache to node: {} (size {}) with offset {}", path, cachedSize, offset);
+            LOGGER.debug("Deploying a chunk from cache to node: {} (size {}) with offset {}", path, chunkSize, offset);
 
             byte[] chunkToWrite = this.cache.read(path, offset, chunkSize);
             byte[] encryptedChunk = PathUtils.isEncryptedExtension(path) ? aesCipher.encrypt(chunkToWrite) : chunkToWrite;
@@ -197,7 +197,7 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
     @Override
-    public int flush(String path, FuseFileInfo fi) {
+    public synchronized int flush(String path, FuseFileInfo fi) {
         LOGGER.debug("Called flush: {}", prependMountName(path));
         try {
             deployChunkFromCacheToNode(prependMountName(path), 0);
@@ -212,7 +212,10 @@ public class F1r3flyFS extends FuseStubFS {
             LOGGER.error("Failed to deploy", e);
             return -ErrorCodes.EIO(); // general error
         } catch (CacheIOException e) {
-            LOGGER.error("Failed to read a file", e);
+            LOGGER.error("Cache error", e);
+            return -ErrorCodes.EIO(); // general error
+        } catch (Throwable e) {
+            LOGGER.error("Failed to flush", e);
             return -ErrorCodes.EIO(); // general error
         }
     }

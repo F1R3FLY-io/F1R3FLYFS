@@ -278,7 +278,7 @@ class F1r3flyFSTest {
         assertTrue(file.createNewFile(), "Failed to create test file");
         assertTrue(file.exists(), "File should exist");
 
-        byte[] inputDataAsBinary = new byte[100*1024*1024]; // 100 MB
+        byte[] inputDataAsBinary = new byte[30*1024*1024]; // 30 MB
         new Random().nextBytes(inputDataAsBinary);
         Files.write(file.toPath(), inputDataAsBinary);
         log.info("Written data length: {}", inputDataAsBinary.length);

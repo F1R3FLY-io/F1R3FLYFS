@@ -93,6 +93,11 @@ public class DiskCache {
             // Add data to cache at the correct offset
             cached.raf.seek(offset);
             cached.raf.write(data);
+
+            if (cached.wasModified != wasModified) {
+                links.put(path, new CacheEntry(cached.raf, cached.file, wasModified));
+            }
+
         } catch (IOException e) {
             throw new CacheIOException(path, e);
         }
