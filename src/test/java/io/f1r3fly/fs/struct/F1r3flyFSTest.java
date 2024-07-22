@@ -73,13 +73,16 @@ class F1r3flyFSTest {
                 + " --api-max-blocks-limit " + MAX_BLOCK_LIMIT
                 + " --api-grpc-max-recv-message-size " + MAX_MESSAGE_SIZE
                 + " --synchrony-constraint-threshold=0.0 --validator-private-key " + validatorPrivateKey)
+            .withEnv("JAVA_TOOL_OPTIONS", "-Xmx4g")
             .waitingFor(Wait.forListeningPorts(GRPC_PORT))
             .withStartupTimeout(STARTUP_TIMEOUT);
 
+        // JAVA  SET ARGS FOR JAVA HEAP
 
         f1r3fly.start(); // Manually start the container
 
-        f1r3fly.followOutput(logConsumer);
+        //saves java heap memory.
+        //f1r3fly.followOutput(logConsumer);
 
         // Waits on the node initialization
         // Fresh start could take ~10 seconds
@@ -278,12 +281,12 @@ class F1r3flyFSTest {
         assertTrue(file.createNewFile(), "Failed to create test file");
         assertTrue(file.exists(), "File should exist");
 
-        byte[] inputDataAsBinary = new byte[30*1024*1024]; // 30 MB
+        byte[] inputDataAsBinary = new byte[150*1024*1024]; // 30 MB
         new Random().nextBytes(inputDataAsBinary);
-        Files.write(file.toPath(), inputDataAsBinary);
+        Files.write(file.toPath(), inputDataAsBinary); //when we wanna deploy 100MB
         log.info("Written data length: {}", inputDataAsBinary.length);
 
-        byte[] readDataAsBinary = Files.readAllBytes(file.toPath());
+        byte[] readDataAsBinary = Files.readAllBytes(file.toPath()); //crach
         log.info("Read data length: {}", readDataAsBinary.length);
         assertArrayEquals(inputDataAsBinary, readDataAsBinary, "Read data should be equal to written data");
 

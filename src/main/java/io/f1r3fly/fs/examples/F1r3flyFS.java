@@ -39,7 +39,8 @@ public class F1r3flyFS extends FuseStubFS {
 
     private final String[] MOUNT_OPTIONS = {
         // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options#iosize
-        "-o", "noappledouble"
+        "-o", "noappledouble",
+        "-o", "daemon_timeout=3600" // 1 hour timeout (fir socket is unavailable)
     };
 
 

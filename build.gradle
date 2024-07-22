@@ -89,6 +89,7 @@ tasks.withType(Javadoc).configureEach {
 
 test {
     useJUnitPlatform()
+    maxHeapSize = '4096m'
 }
 
 dependencies {
