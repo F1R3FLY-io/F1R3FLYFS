@@ -35,7 +35,7 @@ public class F1r3flyFS extends FuseStubFS {
 
     // it should be a number that can be divisible by
     // * 16 because of AES block size
-    private final int MAX_CHUNK_SIZE = 16 * 1024 * 700; // ~ 11MB
+    private final int MAX_CHUNK_SIZE = 160 * 1024 * 1024; // 160 MB
 
     private final String[] MOUNT_OPTIONS = {
         // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options#iosize
@@ -99,13 +99,10 @@ public class F1r3flyFS extends FuseStubFS {
         } catch (NoDataByPath | PathIsNotAFile | PathIsNotADirectory | RuntimeException | DirectoryNotFound | F1r3flyDeployError e) {
             LOGGER.error("Internal error: can't deploy {}", path, e);
             throw new RuntimeException(e);
+        } catch (Throwable e) {
+            LOGGER.error("Unexpected error: failed to deploy {}", path, e);
+            throw new RuntimeException(e);
         }
-    }
-
-    @Override
-    public int release(String path, FuseFileInfo fi) {
-        LOGGER.debug("Called release: {}", prependMountName(path));
-        return SuccessCodes.OK;
     }
 
     @Override
@@ -194,6 +191,9 @@ public class F1r3flyFS extends FuseStubFS {
         } catch (CacheIOException e) {
             LOGGER.error("Failed to read a file", e);
             return -ErrorCodes.EIO(); // general error
+        } catch (Throwable e) {
+            LOGGER.error("Failed to open file", e);
+            return -ErrorCodes.EIO(); // general error
         }
     }
 
@@ -244,6 +244,9 @@ public class F1r3flyFS extends FuseStubFS {
         } catch (CacheIOException e) {
             LOGGER.error("Failed to read a file", e);
             return -ErrorCodes.EIO(); // general error
+        } catch (Throwable e) {
+            LOGGER.error("Failed to read file", e);
+            return -ErrorCodes.EIO(); // general error
         }
     }
 
@@ -264,6 +267,9 @@ public class F1r3flyFS extends FuseStubFS {
             return (int) size; // return number of bytes written
         } catch (CacheIOException e) {
             LOGGER.error("Failed to cache a file", e);
+            return -ErrorCodes.EIO(); // general error
+        } catch (Throwable e) {
+            LOGGER.error("Failed to write file", e);
             return -ErrorCodes.EIO(); // general error
         }
     }
@@ -293,6 +299,9 @@ public class F1r3flyFS extends FuseStubFS {
             return -ErrorCodes.EIO(); // is a directory?
         } catch (CacheIOException e) {
             LOGGER.error("Failed to cache a file", e);
+            return -ErrorCodes.EIO(); // general error
+        } catch (Throwable e) {
+            LOGGER.error("Failed to create file", e);
             return -ErrorCodes.EIO(); // general error
         }
     }
@@ -330,6 +339,9 @@ public class F1r3flyFS extends FuseStubFS {
         } catch (PathIsNotAFile e) {
             LOGGER.info("Path is not a file", e);
             return -ErrorCodes.EISDIR(); // is a directory?
+        } catch (Throwable e) {
+            LOGGER.error("Failed to truncate", e);
+            return -ErrorCodes.EIO(); // general error
         }
     }
 
@@ -354,6 +366,9 @@ public class F1r3flyFS extends FuseStubFS {
         } catch (PathIsNotADirectory e) {
             LOGGER.warn("Path is not a directory", e);
             return -ErrorCodes.EIO(); // is a directory?
+        } catch (Throwable e) {
+            LOGGER.error("Failed to mkdir", e);
+            return -ErrorCodes.EIO(); // general error
         }
     }
 
@@ -383,6 +398,9 @@ public class F1r3flyFS extends FuseStubFS {
         } catch (PathIsNotADirectory e) {
             LOGGER.warn("Path is not a directory", e);
             return -ErrorCodes.EIO(); // is a directory?
+        } catch (Throwable e) {
+            LOGGER.error("Failed to read directory", e);
+            return -ErrorCodes.EIO(); // general error
         }
     }
 
@@ -501,6 +519,9 @@ public class F1r3flyFS extends FuseStubFS {
         } catch (DirectoryIsNotEmpty e) {
             LOGGER.warn("Directory is not empty", e);
             return -ErrorCodes.ENOTEMPTY(); // directory is not empty
+        } catch (Throwable e) {
+            LOGGER.error("Failed to rmdir", e);
+            return -ErrorCodes.EIO(); // general error
         }
     }
 

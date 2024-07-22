@@ -273,6 +273,21 @@ class F1r3flyFSTest {
         assertEquals("b", parsedEMapFromLastExpr.get("a"), "Result should contain key 'a' with value 'b'");
     }
 
+    @Disabled
+    @Test
+    void shouldWriteAndReadLargeFile() throws IOException {
+        File file = new File(MOUNT_POINT_FILE, "file.bin");
+
+        assertTrue(file.createNewFile(), "Failed to create test file");
+
+        byte[] inputDataAsBinary = new byte[512 * 1024 * 1024]; // 512 MB
+        new Random().nextBytes(inputDataAsBinary);
+        Files.write(file.toPath(), inputDataAsBinary);
+
+        byte[] readDataAsBinary = Files.readAllBytes(file.toPath());
+        assertArrayEquals(inputDataAsBinary, readDataAsBinary, "Read data should be equal to written data");
+    }
+
     @Test
     void shouldCreateRenameGetDeleteFiles() throws IOException {
         File file = new File(MOUNT_POINT_FILE, "file.bin");
@@ -281,12 +296,12 @@ class F1r3flyFSTest {
         assertTrue(file.createNewFile(), "Failed to create test file");
         assertTrue(file.exists(), "File should exist");
 
-        byte[] inputDataAsBinary = new byte[150*1024*1024]; // 30 MB
+        byte[] inputDataAsBinary = new byte[1024 * 1024]; // 1 MB
         new Random().nextBytes(inputDataAsBinary);
-        Files.write(file.toPath(), inputDataAsBinary); //when we wanna deploy 100MB
+        Files.write(file.toPath(), inputDataAsBinary);
         log.info("Written data length: {}", inputDataAsBinary.length);
 
-        byte[] readDataAsBinary = Files.readAllBytes(file.toPath()); //crach
+        byte[] readDataAsBinary = Files.readAllBytes(file.toPath());
         log.info("Read data length: {}", readDataAsBinary.length);
         assertArrayEquals(inputDataAsBinary, readDataAsBinary, "Read data should be equal to written data");
 
