@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Testcontainers
 class F1r3flyFSTest {
     private static final int GRPC_PORT = 40402;
-    private static final String MAX_BLOCK_LIMIT = "2"; // FIXME: THIS DOESN'T WORK
+    private static final String MAX_BLOCK_LIMIT = "1000";
     private static final int MAX_MESSAGE_SIZE = 1024 * 1024 * 1024;  // ~1G
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
     private static final String validatorPrivateKey = "f9854c5199bc86237206c75b25c6aeca024dccc0f55df3a553131111fd25dd85";
@@ -213,23 +213,16 @@ class F1r3flyFSTest {
 
     private static @NotNull String getFileContentFromShardDirectly(File file) throws NoDataByPath {
         // reading data from shard directly:
-        // 1. Get an internal state. It's stored at a last block and inside "mountPath" chanel
-        List<RhoTypes.Par> pars = f1R3FlyApi.getDataAtName(f1r3flyFS.getLastBlockHash(), f1r3flyFS.getMountName());
-        assertFalse(pars.isEmpty(), "Internal state should contain at least one element");
-        HashMap<String, String> state = RholangExpressionConstructor.parseMap(pars);
-
-        // 2. Get a data from the file. File is a chanel at specific block
+        // 1. Get a data from the file. File is a chanel at specific block
         // Reducing the path. Fuse changes the path, so we need to change it too:
         // - the REAL path   is /tmp/f1r3flyfs/test.txt
         // - the FUSE's path is /test.txt
         File fusePath = new File(file.getAbsolutePath().replace(MOUNT_POINT_FILE.getAbsolutePath(), "")); // /tmp/f1r3flyfs/test.txt -> /test.txt
 
         String fileNameAtShard = f1r3flyFS.prependMountName(fusePath.getAbsolutePath());
-        String blockHashOfFile = state.get(fileNameAtShard);
-        assertNotNull(blockHashOfFile, "The file blockhash should be defined at a state");
-        List<RhoTypes.Par> fileData = f1R3FlyApi.getDataAtName(blockHashOfFile, fileNameAtShard);
+        List<RhoTypes.Par> fileData = f1R3FlyApi.findDataByName(fileNameAtShard);
 
-        // 3. Chanel value is a map with fields: type, value, size. 'value' contains base64 encoded data
+        // 2. Chanel value is a map with fields: type, value, size. 'value' contains base64 encoded data
         RholangExpressionConstructor.ChannelData fileDataMap = RholangExpressionConstructor.parseChannelData(fileData);
         assertNotNull(fileDataMap.fileContent(), "File data should contain fileContent field");
         return new String(fileDataMap.fileContent());
@@ -266,7 +259,7 @@ class F1r3flyFSTest {
         String blockHashFromFile = Files.readString(fileCreatedAfterExecution.toPath());
 
         assertFalse(blockHashFromFile.isEmpty(), "Block hash should not be empty");
-        List<RhoTypes.Par> result = f1R3FlyApi.getDataAtName(blockHashFromFile, newRhoChanel);
+        List<RhoTypes.Par> result = f1R3FlyApi.getDataAtBlockByName(blockHashFromFile, newRhoChanel);
         HashMap<String, String> parsedEMapFromLastExpr = RholangExpressionConstructor.parseMap(result);
 
         assertTrue(parsedEMapFromLastExpr.containsKey("a"), "Result should contain key 'a'");

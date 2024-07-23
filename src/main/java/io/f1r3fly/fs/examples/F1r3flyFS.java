@@ -3,7 +3,7 @@ package io.f1r3fly.fs.examples;
 import io.f1r3fly.fs.*;
 import io.f1r3fly.fs.examples.datatransformer.AESCipher;
 import io.f1r3fly.fs.examples.storage.DiskCache;
-import io.f1r3fly.fs.examples.storage.F1r3flyFixedFSStorage;
+import io.f1r3fly.fs.examples.storage.F1f3flyFSStorage;
 import io.f1r3fly.fs.examples.storage.FSStorage;
 import io.f1r3fly.fs.examples.storage.errors.*;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
@@ -536,12 +536,10 @@ public class F1r3flyFS extends FuseStubFS {
         synchronized (this) {
 
             generateMountName();
-            this.storage = new F1r3flyFixedFSStorage(this.f1R3FlyApi, this.mountName);
+            this.storage = new F1f3flyFSStorage(this.f1R3FlyApi);
 
             // root path
             try {
-                this.lastBlockHash = ((F1r3flyFixedFSStorage) this.storage).initState(); // needed for F1r3flyFixedFSStorage only
-
                 this.lastBlockHash = this.storage.createDir(this.mountName + ":" + PathUtils.getPathDelimiterBasedOnOS() + mountPoint.toAbsolutePath(), this.lastBlockHash)
                     .blockHash();
 

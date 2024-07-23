@@ -4,6 +4,7 @@ import casper.CasperMessage;
 import casper.DeployServiceCommon;
 import casper.ProposeServiceCommon;
 import casper.v1.DeployServiceGrpc;
+import casper.v1.DeployServiceV1;
 import casper.v1.ProposeServiceGrpc;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.ProtocolStringList;
@@ -164,7 +165,49 @@ public class F1r3flyApi {
         }
     }
 
-    public List<RhoTypes.Par> getDataAtName(String blockHash, String expr) throws NoDataByPath {
+    public List<RhoTypes.Par> findDataByName(String expr) throws NoDataByPath {
+        LOGGER.info("Find data by name {}", expr);
+
+        RhoTypes.Par par = RhoTypes.Par.newBuilder().addExprs(
+            RhoTypes.Expr.newBuilder()
+                .setGString(expr)
+                .build()
+        ).build();
+
+        int MAX_DEPTH = 1000;
+
+        DeployServiceCommon.DataAtNameQuery request = DeployServiceCommon.DataAtNameQuery.newBuilder()
+            .setName(par)
+            .setDepth(MAX_DEPTH)
+            .build();
+
+        DeployServiceV1.ListeningNameDataResponse response = null;
+        try {
+            response = deployService.listenForDataAtName(request).get();
+            LOGGER.debug("Find data by name {}. Is error response = {}", expr, response.hasError());
+        } catch (InterruptedException | ExecutionException e) {
+            LOGGER.warn("Failed to find data by name {}", expr, e);
+            throw new NoDataByPath(expr, "", e);
+        }
+
+        if (response.hasError()) {
+            LOGGER.debug("Get data by name {}. Error response {}", expr, response.getError());
+            throw new NoDataByPath(expr, new FuseException(gatherErrors(response.getError())));
+        } else if (response.getPayload().getLength() == 0) {
+            LOGGER.debug("Get data at by name {}. No data found (an empty list of block returned)", expr);
+            throw new NoDataByPath(expr);
+        } else {
+            DeployServiceV1.ListeningNameDataPayload responsePayload = response.getPayload();
+
+            // get data from last block
+            return responsePayload
+                .getBlockInfoList()
+                .get(0)
+                .getPostBlockDataList();
+        }
+    }
+
+    public List<RhoTypes.Par> getDataAtBlockByName(String blockHash, String expr) throws NoDataByPath {
         LOGGER.info("Get data at block {} by name {}", blockHash, expr);
 
         RhoTypes.Par par = RhoTypes.Par.newBuilder().addExprs(

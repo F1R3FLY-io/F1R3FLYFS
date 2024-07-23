@@ -27,7 +27,7 @@ public class F1f3flyFSStorage implements FSStorage {
         @NotNull String path,
         @NotNull String lastBlockHash) throws NoDataByPath {
         // gets data from `@"path/to/something"` channel
-        List<RhoTypes.Par> response = this.f1R3FlyApi.getDataAtName(lastBlockHash, path);
+        List<RhoTypes.Par> response = this.f1R3FlyApi.findDataByName(path);
 
         try {
             RholangExpressionConstructor.ChannelData parsed = RholangExpressionConstructor.parseChannelData(response);
@@ -304,7 +304,7 @@ public class F1f3flyFSStorage implements FSStorage {
         @NotNull String lastBlockHash) throws PathIsNotADirectory, DirectoryNotFound {
 
         try {
-            List<RhoTypes.Par> response = this.f1R3FlyApi.getDataAtName(lastBlockHash, path);
+            List<RhoTypes.Par> response = this.f1R3FlyApi.findDataByName(path);
 
             RholangExpressionConstructor.ChannelData data = RholangExpressionConstructor.parseChannelData(response);
 
@@ -326,7 +326,7 @@ public class F1f3flyFSStorage implements FSStorage {
         @NotNull String path,
         @NotNull String lastBlockHash) throws PathIsNotAFile, NoDataByPath {
         try {
-            List<RhoTypes.Par> response = this.f1R3FlyApi.getDataAtName(lastBlockHash, path);
+            List<RhoTypes.Par> response = this.f1R3FlyApi.findDataByName(path);
 
             RholangExpressionConstructor.ChannelData data = RholangExpressionConstructor.parseChannelData(response);
 
