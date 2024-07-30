@@ -4,7 +4,6 @@ import io.f1r3fly.fs.*;
 import io.f1r3fly.fs.examples.datatransformer.AESCipher;
 import io.f1r3fly.fs.examples.storage.DiskCache;
 import io.f1r3fly.fs.examples.storage.F1f3flyFSStorage;
-import io.f1r3fly.fs.examples.storage.FSStorage;
 import io.f1r3fly.fs.examples.storage.errors.*;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
@@ -29,8 +28,7 @@ public class F1r3flyFS extends FuseStubFS {
     private final F1r3flyApi f1R3FlyApi;
     private final AESCipher aesCipher;
     private final DiskCache cache;
-    private FSStorage storage;
-    private String lastBlockHash;
+    private F1f3flyFSStorage storage;
 
 
     // it should be a number that can be divisible by
@@ -72,7 +70,7 @@ public class F1r3flyFS extends FuseStubFS {
 
             byte[] chunkToWrite = this.cache.read(path, offset, chunkSize);
             byte[] encryptedChunk = PathUtils.isEncryptedExtension(path) ? aesCipher.encrypt(chunkToWrite) : chunkToWrite;
-            this.lastBlockHash = this.storage.appendFile(path, encryptedChunk, chunkToWrite.length, this.lastBlockHash).blockHash();
+            this.storage.appendFile(path, encryptedChunk, chunkToWrite.length);
 
             deployChunkFromCacheToNode(path, offset + chunkSize); // continue
         } else {
@@ -93,9 +91,8 @@ public class F1r3flyFS extends FuseStubFS {
         LOGGER.debug("Deploying a file: {}", path);
 
         try {
-            FSStorage.OperationResult<String> executionResult = this.storage.deployFile(path, this.lastBlockHash); //dont read it form node; its present at a cache
-            this.lastBlockHash = executionResult.blockHash();
-            this.lastBlockHash = this.storage.addToParent(executionResult.payload(), this.lastBlockHash).blockHash();
+            String newFile = this.storage.deployFile(path); //dont read it form node; its present at a cache
+            this.storage.addToParent(newFile);
         } catch (NoDataByPath | PathIsNotAFile | PathIsNotADirectory | RuntimeException | DirectoryNotFound | F1r3flyDeployError e) {
             LOGGER.error("Internal error: can't deploy {}", path, e);
             throw new RuntimeException(e);
@@ -124,7 +121,7 @@ public class F1r3flyFS extends FuseStubFS {
             }
 
             RholangExpressionConstructor.ChannelData dirOrFile =
-                this.storage.getTypeAndSize(prependMountName(path), this.lastBlockHash).payload();
+                this.storage.getTypeAndSize(prependMountName(path));
 
             LOGGER.info("Path {} is '{}' type and size is {}",
                 prependMountName(path), dirOrFile.type(), dirOrFile.size());
@@ -170,11 +167,11 @@ public class F1r3flyFS extends FuseStubFS {
             checkPath(path);
 
             if (PathUtils.isEncryptedExtension(path)) {
-                byte[] encrypted = this.storage.readFile(prependMountName(path), this.lastBlockHash).payload();
+                byte[] encrypted = this.storage.readFile(prependMountName(path));
                 byte[] decrypted = aesCipher.decrypt(encrypted);
                 this.cache.write(prependMountName(path), decrypted, 0, false);
             } else {
-                byte[] data = this.storage.readFile(prependMountName(path), this.lastBlockHash).payload();
+                byte[] data = this.storage.readFile(prependMountName(path));
                 this.cache.write(prependMountName(path), data, 0, false);
             }
 
@@ -185,9 +182,6 @@ public class F1r3flyFS extends FuseStubFS {
         } catch (PathIsNotAFile e) {
             LOGGER.warn("Path is not a file", e);
             return -ErrorCodes.EISDIR(); // is a directory?
-        } catch (F1r3flyDeployError e) {
-            LOGGER.error("Failed to deploy", e);
-            return -ErrorCodes.EIO(); // general error
         } catch (CacheIOException e) {
             LOGGER.error("Failed to read a file", e);
             return -ErrorCodes.EIO(); // general error
@@ -281,8 +275,8 @@ public class F1r3flyFS extends FuseStubFS {
             checkMount();
             checkPath(path);
 
-            this.lastBlockHash = this.storage.createFile(prependMountName(path), new byte[0], 0, this.lastBlockHash).blockHash();
-            this.lastBlockHash = this.storage.addToParent(prependMountName(path), this.lastBlockHash).blockHash();
+            this.storage.createFile(prependMountName(path), new byte[0], 0);
+            this.storage.addToParent(prependMountName(path));
 
             this.cache.write(prependMountName(path), new byte[0], 0, true);
 
@@ -314,7 +308,7 @@ public class F1r3flyFS extends FuseStubFS {
             checkPath(path);
 
             if (size == 0) { // support the truncate to zero only for now
-                long actualSize = this.storage.getTypeAndSize(prependMountName(path), this.lastBlockHash).payload().size();
+                long actualSize = this.storage.getTypeAndSize(prependMountName(path)).size();
 
                 if (actualSize == 0) {
                     return SuccessCodes.OK;
@@ -322,8 +316,8 @@ public class F1r3flyFS extends FuseStubFS {
 
                 //TODO: truncate file using a size
                 this.cache.remove(prependMountName(path));
-                this.lastBlockHash = this.storage.deleteFile(prependMountName(path), this.lastBlockHash).blockHash();
-                this.lastBlockHash = this.storage.createFile(prependMountName(path), new byte[0], 0, this.lastBlockHash).blockHash();
+                this.storage.deleteFile(prependMountName(path));
+                this.storage.createFile(prependMountName(path), new byte[0], 0);
 
                 return SuccessCodes.OK;
             } else {
@@ -352,12 +346,12 @@ public class F1r3flyFS extends FuseStubFS {
             checkMount();
             checkPath(path);
 
-            this.lastBlockHash = this.storage.addToParent(prependMountName(path), this.lastBlockHash).blockHash(); // fails if parent not found
-            this.lastBlockHash = this.storage.createDir(prependMountName(path), this.lastBlockHash).blockHash();
+            this.storage.addToParent(prependMountName(path)); // fails if parent not found
+            this.storage.createDir(prependMountName(path));
 
             return SuccessCodes.OK;
 
-        } catch (DirectoryNotFound | NoDataByPath e) {
+        } catch (DirectoryNotFound e) {
             LOGGER.warn("Directory not found", e);
             return -ErrorCodes.ENOENT(); // not found
         } catch (F1r3flyDeployError e) {
@@ -376,7 +370,7 @@ public class F1r3flyFS extends FuseStubFS {
     public int readdir(String path, Pointer buf, FuseFillDir filter, long offset, FuseFileInfo fi) {
         LOGGER.debug("Called readdir: {}", prependMountName(path));
         try {
-            Set<String> childs = this.storage.readDir(prependMountName(path), this.lastBlockHash).payload();
+            Set<String> childs = this.storage.readDir(prependMountName(path));
 
             filter.apply(buf, ".", null, 0);
             filter.apply(buf, "..", null, 0);
@@ -412,24 +406,24 @@ public class F1r3flyFS extends FuseStubFS {
             checkPath(oldpath);
             checkPath(newpath);
 
-            this.lastBlockHash = this.storage.addToParent(prependMountName(newpath), this.lastBlockHash).blockHash(); // fails if parent not found
-            this.lastBlockHash = this.storage.removeFromParent(prependMountName(oldpath), this.lastBlockHash).blockHash(); // fails if parent not found
+            this.storage.addToParent(prependMountName(newpath)); // fails if parent not found
+            this.storage.removeFromParent(prependMountName(oldpath)); // fails if parent not found
 
             if (PathUtils.isEncryptedExtension(oldpath) && !PathUtils.isEncryptedExtension(newpath)) {
                 // was encrypted, now not encrypted
-                byte[] encrypted = this.storage.readFile(prependMountName(oldpath), this.lastBlockHash).payload();
+                byte[] encrypted = this.storage.readFile(prependMountName(oldpath));
                 byte[] decrypted = aesCipher.decrypt(encrypted);
-                this.lastBlockHash = this.storage.createFile(prependMountName(newpath), decrypted, decrypted.length, this.lastBlockHash).blockHash();
-                this.lastBlockHash = this.storage.deleteFile(prependMountName(oldpath), this.lastBlockHash).blockHash();
+                this.storage.createFile(prependMountName(newpath), decrypted, decrypted.length);
+                this.storage.deleteFile(prependMountName(oldpath));
             } else if (PathUtils.isEncryptedExtension(newpath) && !PathUtils.isEncryptedExtension(oldpath)) {
                 // was not encrypted, now encrypted
-                byte[] notEncrypted = this.storage.readFile(prependMountName(oldpath), this.lastBlockHash).payload();
+                byte[] notEncrypted = this.storage.readFile(prependMountName(oldpath));
                 byte[] encrypted = aesCipher.encrypt(notEncrypted);
-                this.lastBlockHash = this.storage.createFile(prependMountName(newpath), encrypted, notEncrypted.length, this.lastBlockHash).blockHash();
-                this.lastBlockHash = this.storage.deleteFile(prependMountName(oldpath), this.lastBlockHash).blockHash();
+                this.storage.createFile(prependMountName(newpath), encrypted, notEncrypted.length);
+                this.storage.deleteFile(prependMountName(oldpath));
             } else {
                 // just rename
-                this.lastBlockHash = this.storage.rename(prependMountName(oldpath), prependMountName(newpath), this.lastBlockHash).blockHash();
+                this.storage.rename(prependMountName(oldpath), prependMountName(newpath));
             }
 
             if (PathUtils.isDeployableFile(newpath)) {
@@ -471,8 +465,8 @@ public class F1r3flyFS extends FuseStubFS {
             checkPath(path);
 
             this.cache.remove(prependMountName(path));
-            this.lastBlockHash = this.storage.deleteFile(prependMountName(path), this.lastBlockHash).blockHash();
-            this.lastBlockHash = this.storage.removeFromParent(prependMountName(path), this.lastBlockHash).blockHash();
+            this.storage.deleteFile(prependMountName(path));
+            this.storage.removeFromParent(prependMountName(path));
 
             return SuccessCodes.OK;
 
@@ -502,8 +496,8 @@ public class F1r3flyFS extends FuseStubFS {
             checkMount();
             checkPath(path);
 
-            this.lastBlockHash = this.storage.deleteDir(prependMountName(path), this.lastBlockHash).blockHash();
-            this.lastBlockHash = this.storage.removeFromParent(prependMountName(path), this.lastBlockHash).blockHash();
+            this.storage.deleteDir(prependMountName(path));
+            this.storage.removeFromParent(prependMountName(path));
 
             return SuccessCodes.OK;
 
@@ -540,12 +534,8 @@ public class F1r3flyFS extends FuseStubFS {
 
             // root path
             try {
-                this.lastBlockHash = this.storage.createDir(this.mountName + ":" + PathUtils.getPathDelimiterBasedOnOS() + mountPoint.toAbsolutePath(), this.lastBlockHash)
-                    .blockHash();
+                this.storage.createDir(this.mountName + ":" + PathUtils.getPathDelimiterBasedOnOS() + mountPoint.toAbsolutePath());
 
-            } catch (NoDataByPath e) {
-                LOGGER.warn("Directory not found", e);
-                throw new FuseException("Directory not found", e);
             } catch (F1r3flyDeployError e) {
                 LOGGER.error("Failed to deploy", e);
                 throw new FuseException("Failed to deploy", e);
@@ -582,7 +572,6 @@ public class F1r3flyFS extends FuseStubFS {
             }
 
             this.storage = null;
-            this.lastBlockHash = null;
             this.mountName = null;
         }
     }
@@ -594,20 +583,9 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
     private void checkMount() throws FuseException {
-        if (this.mountPoint == null || this.lastBlockHash == null) {
+        if (this.mountPoint == null) {
             throw new FuseException("Not mounted");
         }
-    }
-
-
-    // public because of this method is used in tests
-    public String getMountName() {
-        return mountName;
-    }
-
-    // public because of this method is used in tests
-    public String getLastBlockHash() {
-        return lastBlockHash;
     }
 
     // public because of this method is used in tests

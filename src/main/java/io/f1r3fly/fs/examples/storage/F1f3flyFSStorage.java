@@ -11,48 +11,39 @@ import rhoapi.RhoTypes;
 
 import java.util.*;
 
-public class F1f3flyFSStorage implements FSStorage {
+public class F1f3flyFSStorage {
 
     private final F1r3flyApi f1R3FlyApi;
-
-    private final Logger LOGGER = LoggerFactory.getLogger(this.getClass().getName());
-
 
     public F1f3flyFSStorage(F1r3flyApi f1R3FlyApi) {
         this.f1R3FlyApi = f1R3FlyApi;
     }
 
-    @Override
-    public OperationResult<RholangExpressionConstructor.ChannelData> getTypeAndSize(
-        @NotNull String path,
-        @NotNull String lastBlockHash) throws NoDataByPath {
+    public RholangExpressionConstructor.ChannelData getTypeAndSize(
+        @NotNull String path) throws NoDataByPath {
         // gets data from `@"path/to/something"` channel
         List<RhoTypes.Par> response = this.f1R3FlyApi.findDataByName(path);
 
         try {
             RholangExpressionConstructor.ChannelData parsed = RholangExpressionConstructor.parseChannelData(response);
 
-            // block hash is the same because of no changes
-            return new OperationResult<>(parsed, lastBlockHash);
+            return parsed;
         } catch (IllegalArgumentException e) {
-            throw new NoDataByPath(path, lastBlockHash, e);
+            throw new NoDataByPath(path, e);
         }
     }
 
-    @Override
-    public OperationResult<Void> rename(
+    public void rename(
         @NotNull String oldPath,
-        @NotNull String newPath,
-        @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, DirectoryNotFound, PathIsNotADirectory, DirectoryIsNotEmpty, AlreadyExists {
+        @NotNull String newPath) throws NoDataByPath, F1r3flyDeployError, DirectoryNotFound, PathIsNotADirectory, DirectoryIsNotEmpty, AlreadyExists {
 
         synchronized (this) {
             // check if exists (fails if not found by old path)
-            RholangExpressionConstructor.ChannelData fileOrDir = getTypeAndSize(oldPath, blockHash)
-                .payload();
+            RholangExpressionConstructor.ChannelData fileOrDir = getTypeAndSize(oldPath);
 
             try {
                 // check if exists (fails if found by new path)
-                getTypeAndSize(newPath, blockHash);
+                getTypeAndSize(newPath);
                 throw new AlreadyExists(newPath);
             } catch (NoDataByPath e) {
                 // ok
@@ -62,24 +53,18 @@ public class F1f3flyFSStorage implements FSStorage {
                 throw new DirectoryIsNotEmpty(oldPath);
             }
 
-            String blockHashAfterRename = this.f1R3FlyApi.deploy(
+            this.f1R3FlyApi.deploy(
                 RholangExpressionConstructor.renameChanel(oldPath, newPath),
                 true,
                 F1r3flyApi.RHOLANG);
-
-            // block hash is the same because of no changes
-            return new OperationResult<>(null, blockHashAfterRename);
         }
 
     }
 
-    @Override
-    public OperationResult<Void> createFile(
+    public String createFile(
         @NotNull String path,
-        @NotNull byte [] content,
-        long size,
-        @NotNull String blockHash) throws F1r3flyDeployError {
-        // TODO remove lastBlockHash, no need to pass it here
+        @NotNull byte[] content,
+        long size) throws F1r3flyDeployError {
 
         synchronized (this) {
             String rholangExpression =
@@ -90,20 +75,15 @@ public class F1f3flyFSStorage implements FSStorage {
                     currentTime()
                 );
 
-            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, false, F1r3flyApi.RHOLANG);
-
-            return new OperationResult<>(null, newBlockHash);
+            return this.f1R3FlyApi.deploy(rholangExpression, false, F1r3flyApi.RHOLANG);
         }
     }
 
 
-    @Override
-    public OperationResult<Void> appendFile(
+    public void appendFile(
         @NotNull String path,
-        @NotNull byte [] content,
-        long size,
-        @NotNull String lastBlockHash) throws F1r3flyDeployError {
-        // TODO remove lastBlockHash, no need to pass it here
+        @NotNull byte[] content,
+        long size) throws F1r3flyDeployError {
 
         synchronized (this) {
             String rholangExpression =
@@ -114,9 +94,7 @@ public class F1f3flyFSStorage implements FSStorage {
                     size
                 );
 
-            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, true, F1r3flyApi.RHOLANG);
-
-            return new OperationResult<>(null, newBlockHash);
+            this.f1R3FlyApi.deploy(rholangExpression, true, F1r3flyApi.RHOLANG);
         }
     }
 
@@ -124,27 +102,23 @@ public class F1f3flyFSStorage implements FSStorage {
         return System.currentTimeMillis();
     }
 
-    @Override
-    public OperationResult<byte[]> readFile(
-        @NotNull String path,
-        @NotNull String lastBlockHash) throws NoDataByPath, PathIsNotAFile {
+    public byte[] readFile(
+        @NotNull String path) throws NoDataByPath, PathIsNotAFile {
 
         // reads data from `@"path/to/something"` channel
-        RholangExpressionConstructor.ChannelData chanelContent = getFile(path, lastBlockHash);
+        RholangExpressionConstructor.ChannelData chanelContent = getFile(path);
 
-        return new OperationResult<>(chanelContent.fileContent(), lastBlockHash); // block hash is the same because of no changes
+        return chanelContent.fileContent();
     }
 
-    @Override
-    public OperationResult<String> deployFile(
-        @NotNull String path,
-        @NotNull String blockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile {
+    public String deployFile(
+        @NotNull String path) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile {
         if (!PathUtils.isDeployableFile(path)) {
             throw new PathIsNotAFile("The file is not Rho or Metta type", path);
         }
 
         synchronized (this) {
-            byte[] fileContent = readFile(path, blockHash).payload();
+            byte[] fileContent = readFile(path);
             String rholangCode = new String(fileContent);
 
             boolean useBiggerRhloPrice = rholangCode.length() > 1000; // TODO: double check the number?
@@ -162,40 +136,30 @@ public class F1f3flyFSStorage implements FSStorage {
 
             byte[] encodedFileContent = blockWithExecutedRholang.getBytes();
 
-            String newLastBlockHash =
-                createFile(
-                    fullPathWithBlockHashFile,
-                    encodedFileContent,
-                    blockWithExecutedRholang.length(),
-                    blockHash).blockHash();
+            createFile(
+                fullPathWithBlockHashFile,
+                encodedFileContent,
+                blockWithExecutedRholang.length());
 
-            return new OperationResult<>(fullPathWithBlockHashFile, newLastBlockHash);
+            return fullPathWithBlockHashFile;
         }
 
     }
 
-    @Override
-    public OperationResult<Void> deleteFile(
-        @NotNull String path,
-        @NotNull String lastBlockHash) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile {
+    public void deleteFile(
+        @NotNull String path) throws NoDataByPath, F1r3flyDeployError, PathIsNotAFile {
         synchronized (this) {
-            getFile(path, lastBlockHash); // check if file getType
+            getFile(path); // check if file getType
 
-            String newBlockHash =
-                this.f1R3FlyApi.deploy(
-                    RholangExpressionConstructor.readAndForget(path, currentTime()),
-                    false,
-                    F1r3flyApi.RHOLANG); // forges a data
-
-            return new OperationResult<>(null, newBlockHash);
+            this.f1R3FlyApi.deploy(
+                RholangExpressionConstructor.readAndForget(path, currentTime()),
+                false,
+                F1r3flyApi.RHOLANG); // forges a data
         }
     }
 
-    @Override
-    public OperationResult<Void> createDir(
-        @NotNull String path,
-        @NotNull String blockHash) throws F1r3flyDeployError {
-        // TODO blockhash is not used here, remove
+    public void createDir(
+        @NotNull String path) throws F1r3flyDeployError {
 
         synchronized (this) {
             // Rholang looks like `@"path/to/something"!({"type": "d", "children": "[]", "lastUpdated": 1234567890})`
@@ -206,55 +170,47 @@ public class F1f3flyFSStorage implements FSStorage {
                     currentTime()
                 );
 
-            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, false, F1r3flyApi.RHOLANG);
-
-            return new OperationResult<>(null, newBlockHash);
+            this.f1R3FlyApi.deploy(rholangExpression, false, F1r3flyApi.RHOLANG);
         }
     }
 
-    @Override
-    public OperationResult<Set<String>> readDir(
-        @NotNull String path,
-        @NotNull String lastBlockHash) throws DirectoryNotFound, NoDataByPath, PathIsNotADirectory {
+    public Set<String> readDir(
+        @NotNull String path) throws DirectoryNotFound, NoDataByPath, PathIsNotADirectory {
         // reads data from `@"path/to/something"` channel
-        RholangExpressionConstructor.ChannelData channelContent = getDir(path, lastBlockHash);
+        RholangExpressionConstructor.ChannelData channelContent = getDir(path);
 
 
-        return new OperationResult<>(channelContent.children(), lastBlockHash); // block hash is the same because of no changes
+        return channelContent.children(); // block hash is the same because of no changes
     }
 
-    @Override
-    public OperationResult<Void> deleteDir(
-        @NotNull String path,
-        @NotNull String lastBlockHash) throws PathIsNotADirectory, DirectoryNotFound, F1r3flyDeployError, DirectoryIsNotEmpty {
+    public void deleteDir(
+        @NotNull String path) throws PathIsNotADirectory, DirectoryNotFound, F1r3flyDeployError, DirectoryIsNotEmpty {
         synchronized (this) {
-            RholangExpressionConstructor.ChannelData dir = getDir(path, lastBlockHash);
+            RholangExpressionConstructor.ChannelData dir = getDir(path);
 
             if (!dir.children().isEmpty()) {
                 throw new DirectoryIsNotEmpty(path);
             }
 
-            String newBlockHash =
-                this.f1R3FlyApi.deploy(
-                    RholangExpressionConstructor.readAndForget(path, currentTime()),
-                    false,
-                    F1r3flyApi.RHOLANG); // forgets a data
 
-            return new OperationResult<>(null, newBlockHash);
+            this.f1R3FlyApi.deploy(
+                RholangExpressionConstructor.readAndForget(path, currentTime()),
+                false,
+                F1r3flyApi.RHOLANG); // forgets a data
+
         }
     }
 
 
-    public OperationResult<Void> addToParent(
-        @NotNull String path,
-        @NotNull String lastBlockHash) throws PathIsNotADirectory, F1r3flyDeployError, DirectoryNotFound {
+    public void addToParent(
+        @NotNull String path) throws PathIsNotADirectory, F1r3flyDeployError, DirectoryNotFound {
 
         synchronized (this) {
 
             String parentPath = PathUtils.getParentPath(path);
             String newChild = PathUtils.getFileName(path);
 
-            RholangExpressionConstructor.ChannelData dir = getDir(parentPath, lastBlockHash);
+            RholangExpressionConstructor.ChannelData dir = getDir(parentPath);
 
             dir.children().add(newChild);
 
@@ -265,21 +221,18 @@ public class F1f3flyFSStorage implements FSStorage {
                     currentTime()
                 );
 
-            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, false, F1r3flyApi.RHOLANG);
-
-            return new OperationResult<>(null, newBlockHash);
+            this.f1R3FlyApi.deploy(rholangExpression, false, F1r3flyApi.RHOLANG);
         }
     }
 
-    public OperationResult<Void> removeFromParent(
-        @NotNull String path,
-        @NotNull String lastBlockHash) throws PathIsNotADirectory, DirectoryNotFound, F1r3flyDeployError {
+    public void removeFromParent(
+        @NotNull String path) throws PathIsNotADirectory, DirectoryNotFound, F1r3flyDeployError {
         synchronized (this) {
             String parentPath = PathUtils.getParentPath(path);
             String newChild = PathUtils.getFileName(path);
 
 
-            RholangExpressionConstructor.ChannelData dir = getDir(parentPath, lastBlockHash);
+            RholangExpressionConstructor.ChannelData dir = getDir(parentPath);
 
             dir.children().remove(newChild);
 
@@ -290,9 +243,7 @@ public class F1f3flyFSStorage implements FSStorage {
                     currentTime()
                 );
 
-            String newBlockHash = this.f1R3FlyApi.deploy(rholangExpression, false, F1r3flyApi.RHOLANG);
-
-            return new OperationResult<>(null, newBlockHash);
+            this.f1R3FlyApi.deploy(rholangExpression, false, F1r3flyApi.RHOLANG);
         }
     }
 
@@ -300,8 +251,7 @@ public class F1f3flyFSStorage implements FSStorage {
 
     private
     @NotNull RholangExpressionConstructor.ChannelData getDir(
-        @NotNull String path,
-        @NotNull String lastBlockHash) throws PathIsNotADirectory, DirectoryNotFound {
+        @NotNull String path) throws PathIsNotADirectory, DirectoryNotFound {
 
         try {
             List<RhoTypes.Par> response = this.f1R3FlyApi.findDataByName(path);
@@ -323,8 +273,7 @@ public class F1f3flyFSStorage implements FSStorage {
 
     private
     @NotNull RholangExpressionConstructor.ChannelData getFile(
-        @NotNull String path,
-        @NotNull String lastBlockHash) throws PathIsNotAFile, NoDataByPath {
+        @NotNull String path) throws PathIsNotAFile, NoDataByPath {
         try {
             List<RhoTypes.Par> response = this.f1R3FlyApi.findDataByName(path);
 
