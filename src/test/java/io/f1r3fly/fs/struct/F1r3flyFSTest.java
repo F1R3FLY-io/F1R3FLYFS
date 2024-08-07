@@ -5,10 +5,10 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import fr.acinq.secp256k1.Hex;
-import io.f1r3fly.fs.FuseException;
 import io.f1r3fly.fs.examples.F1r3flyFS;
 import io.f1r3fly.fs.examples.datatransformer.AESCipher;
 import io.f1r3fly.fs.examples.storage.errors.NoDataByPath;
+import io.f1r3fly.fs.examples.storage.errors.PathIsNotADirectory;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.utils.MountUtils;
@@ -77,86 +77,60 @@ class F1r3flyFSTest {
             .waitingFor(Wait.forListeningPorts(GRPC_PORT))
             .withStartupTimeout(STARTUP_TIMEOUT);
 
-        // JAVA  SET ARGS FOR JAVA HEAP
-
         f1r3fly.start(); // Manually start the container
 
-        //saves java heap memory.
-        //f1r3fly.followOutput(logConsumer);
+        //commented b/c save the java heap memory
+        // f1r3fly.followOutput(logConsumer);
 
         // Waits on the node initialization
         // Fresh start could take ~10 seconds
-        Thread.sleep(10 * 1000);
+//        Thread.sleep(10 * 1000);
 
         new File("/tmp/cipher.key").delete(); // remove key file if exists
 
-        AESCipher aesCipher = new AESCipher("/tmp/cipher.key"); // file doesn't exist, so new key will be generated there
+        AESCipher.init("/tmp/cipher.key"); // file doesn't exist, so new key will be generated there
         f1R3FlyApi = new F1r3flyApi(Hex.decode(clientPrivateKey), "localhost", f1r3fly.getMappedPort(GRPC_PORT));
-        f1r3flyFS = new F1r3flyFS(f1R3FlyApi, aesCipher);
+        f1r3flyFS = new F1r3flyFS(f1R3FlyApi);
 
 
-        try {
-            f1r3flyFS.mount(MOUNT_POINT);
-        } catch (FuseException e) {
-            // could fail if the mount point is already mounted from previous run
+        forceUmountAndCleanup(); // cleanup before mount
 
+        f1r3flyFS.mount(MOUNT_POINT);
+
+    }
+
+    private static void forceUmountAndCleanup() {
+        try { // try to unmount
+            MountUtils.umount(MOUNT_POINT);
+            MOUNT_POINT.toFile().delete();
+            f1r3flyFS.umount();
+        } catch (Throwable e) {
             e.printStackTrace();
-
-            try { // try to unmount
-                MountUtils.umount(MOUNT_POINT);
-                MOUNT_POINT.toFile().delete();
-                f1r3flyFS.umount();
-            } catch (Throwable e2) {
-                // ignore
-            }
-
-            f1r3flyFS.mount(MOUNT_POINT);
         }
     }
 
     @AfterEach
     void tearDown() {
         if (f1r3flyFS != null) {
-            f1r3flyFS.umount();
-            f1r3fly.stop();
-            Utils.cleanDataDirectory("data", Arrays.asList("genesis", "node.certificate.pem", "node.key.pem"));
+            forceUmountAndCleanup();
         }
+        if (f1r3fly != null) {
+            f1r3fly.stop();
+        }
+        Utils.cleanDataDirectory("data", Arrays.asList("genesis", "node.certificate.pem", "node.key.pem"));
     }
 
+    // TESTS:
+
     @Test
-    void shouldDeployRhoFileAfterRename() throws IOException {
+    void shouldDeployRhoFileAfterRename() throws IOException, NoDataByPath {
         testToRenameTxtToDeployableExtension("rho");
     }
 
     @Disabled
     @Test
-    void shouldDeployMettaFileAfterRename() throws IOException {
+    void shouldDeployMettaFileAfterRename() throws IOException, NoDataByPath {
         testToRenameTxtToDeployableExtension("metta");
-    }
-
-    private static void testToRenameTxtToDeployableExtension(String newExtension) throws IOException {
-        File file = new File(MOUNT_POINT_FILE, "test.text");
-
-        String newRhoChanel = "public";
-        String chanelValue = "{}";
-        String rhoCode = """
-            @"%s"!(%s)
-            """.formatted(newRhoChanel, chanelValue);
-
-        Files.writeString(file.toPath(), rhoCode, StandardCharsets.UTF_8);
-
-        File renamedFile = new File(MOUNT_POINT_FILE, file.getName() + "." + newExtension);
-
-        File blockhash = new File(MOUNT_POINT_FILE, renamedFile.getName() + ".blockhash");
-        assertFalse(blockhash.exists(), "File " + blockhash.getName() + " should not exist");
-
-        assertTrue(file.renameTo(renamedFile), "Failed to rename file");
-        assertTrue(blockhash.exists(), "File " + blockhash.getName() + " should exist now");
-
-        assertContainChilds(MOUNT_POINT_FILE, renamedFile, blockhash);
-
-        assertTrue(renamedFile.renameTo(file), "Failed to rename file back");
-        assertContainChilds(MOUNT_POINT_FILE, file, blockhash); // blockhash should be still there
     }
 
     @Test
@@ -194,40 +168,6 @@ class F1r3flyFSTest {
         testIsEncrypted(encrypted, fileContent);
     }
 
-    private static void testIsNotEncrypted(File notEncrypted, String fileContent) throws IOException, NoDataByPath {
-        String readData2 = Files.readString(notEncrypted.toPath());
-        assertEquals(fileContent, readData2, "Read data should be equal to written data");
-
-        String decodedFileData2 = getFileContentFromShardDirectly(notEncrypted);
-        assertEquals(fileContent, decodedFileData2, "Decoded data should be equal to the original data");
-    }
-
-    private static void testIsEncrypted(File encrypted, String expectedFileData) throws IOException, NoDataByPath {
-        String readData = Files.readString(encrypted.toPath());
-        assertEquals(expectedFileData, readData, "Read data should be equal to written data");
-
-        String decodedFileData = getFileContentFromShardDirectly(encrypted);
-        // Actual data is encrypted. It should be different from the original data
-        assertNotEquals(expectedFileData, decodedFileData, "Decoded data should be different from the original data");
-    }
-
-    private static @NotNull String getFileContentFromShardDirectly(File file) throws NoDataByPath {
-        // reading data from shard directly:
-        // 1. Get a data from the file. File is a chanel at specific block
-        // Reducing the path. Fuse changes the path, so we need to change it too:
-        // - the REAL path   is /tmp/f1r3flyfs/test.txt
-        // - the FUSE's path is /test.txt
-        File fusePath = new File(file.getAbsolutePath().replace(MOUNT_POINT_FILE.getAbsolutePath(), "")); // /tmp/f1r3flyfs/test.txt -> /test.txt
-
-        String fileNameAtShard = f1r3flyFS.prependMountName(fusePath.getAbsolutePath());
-        List<RhoTypes.Par> fileData = f1R3FlyApi.findDataByName(fileNameAtShard);
-
-        // 2. Chanel value is a map with fields: type, value, size. 'value' contains base64 encoded data
-        RholangExpressionConstructor.ChannelData fileDataMap = RholangExpressionConstructor.parseChannelData(fileData);
-        assertNotNull(fileDataMap.fileContent(), "File data should contain fileContent field");
-        return new String(fileDataMap.fileContent());
-    }
-
     @Disabled
     @Test
     void shouldStoreMettaFileAndDeployIt() throws IOException, NoDataByPath {
@@ -239,36 +179,9 @@ class F1r3flyFSTest {
         testToCreateDeployableFile("rho");
     }
 
-    private static void testToCreateDeployableFile(String extension) throws IOException, NoDataByPath {
-        File file = new File(MOUNT_POINT_FILE, "test." + extension);
-
-        // TODO: use Metta syntax if .metta extension
-        String newRhoChanel = "public";
-        String chanelValue = "{\"a\": \"b\"}";
-        String rhoCode = """
-            @"%s"!(%s)
-            """.formatted(newRhoChanel, chanelValue);
-
-        Files.writeString(file.toPath(), rhoCode, StandardCharsets.UTF_8);
-
-        File fileCreatedAfterExecution = new File(MOUNT_POINT_FILE, file.getName() + ".blockhash");
-        assertTrue(fileCreatedAfterExecution.exists(), "File " + fileCreatedAfterExecution.getName() + " should exist");
-
-        assertContainChilds(MOUNT_POINT_FILE, file, fileCreatedAfterExecution);
-
-        String blockHashFromFile = Files.readString(fileCreatedAfterExecution.toPath());
-
-        assertFalse(blockHashFromFile.isEmpty(), "Block hash should not be empty");
-        List<RhoTypes.Par> result = f1R3FlyApi.getDataAtBlockByName(blockHashFromFile, newRhoChanel);
-        HashMap<String, String> parsedEMapFromLastExpr = RholangExpressionConstructor.parseMap(result);
-
-        assertTrue(parsedEMapFromLastExpr.containsKey("a"), "Result should contain key 'a'");
-        assertEquals("b", parsedEMapFromLastExpr.get("a"), "Result should contain key 'a' with value 'b'");
-    }
-
     @Disabled
     @Test
-    void shouldWriteAndReadLargeFile() throws IOException {
+    void shouldWriteAndReadLargeFile() throws IOException, NoDataByPath, PathIsNotADirectory {
         File file = new File(MOUNT_POINT_FILE, "file.bin");
 
         assertTrue(file.createNewFile(), "Failed to create test file");
@@ -277,39 +190,42 @@ class F1r3flyFSTest {
         new Random().nextBytes(inputDataAsBinary);
         Files.write(file.toPath(), inputDataAsBinary);
 
-        byte[] readDataAsBinary = Files.readAllBytes(file.toPath());
-        assertArrayEquals(inputDataAsBinary, readDataAsBinary, "Read data should be equal to written data");
+        assertWrittenData(file, inputDataAsBinary, "Read data should be equal to written data");
+
+        remount();
+
+        assertWrittenData(file, inputDataAsBinary, "Read data should be equal to written data after remount");
     }
 
     @Test
     void shouldCreateRenameGetDeleteFiles() throws IOException {
+        long start = System.currentTimeMillis();
+
         File file = new File(MOUNT_POINT_FILE, "file.bin");
 
         assertFalse(file.exists(), "File should not exist");
         assertTrue(file.createNewFile(), "Failed to create test file");
         assertTrue(file.exists(), "File should exist");
 
+        assertContainChilds(MOUNT_POINT_FILE, file);
+
         byte[] inputDataAsBinary = new byte[1024 * 1024]; // 1 MB
         new Random().nextBytes(inputDataAsBinary);
         Files.write(file.toPath(), inputDataAsBinary);
         log.info("Written data length: {}", inputDataAsBinary.length);
 
-        byte[] readDataAsBinary = Files.readAllBytes(file.toPath());
-        log.info("Read data length: {}", readDataAsBinary.length);
-        assertArrayEquals(inputDataAsBinary, readDataAsBinary, "Read data should be equal to written data");
+        assertWrittenData(file, inputDataAsBinary, "Read data should be equal to written data");
 
         File renamedFile = new File(file.getParent(), "renamed.txt");
         assertTrue(file.renameTo(renamedFile), "Failed to rename file");
 
         assertContainChilds(MOUNT_POINT_FILE, renamedFile);
 
-        byte[] inputDataAsBinary2 = Files.readAllBytes(renamedFile.toPath());
-        assertArrayEquals(inputDataAsBinary, inputDataAsBinary2, "Read data (from renamed file) should be equal to written data");
+        assertWrittenData(renamedFile, inputDataAsBinary, "Read data (from renamed file) should be equal to written data");
 
         String inputDataAsString = "a".repeat(1024);
         Files.writeString(renamedFile.toPath(), inputDataAsString, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING); // truncate and override
-        String readDataAsString = Files.readString(renamedFile.toPath());
-        assertEquals(inputDataAsString, readDataAsString, "Read data should be equal to written data");
+        assertWrittenData(renamedFile, inputDataAsString.getBytes(), "Read data (from renamed file) should be equal to written data");
 
         assertContainChilds(MOUNT_POINT_FILE, renamedFile); // it has to be the same folder after truncate and overide
 
@@ -322,6 +238,16 @@ class F1r3flyFSTest {
         assertContainChilds(MOUNT_POINT_FILE, renamedFile, dir);
         assertContainChilds(dir, nestedFile);
 
+        remount(); // umount and mount back
+
+        // check if deployed data is correct:
+
+        assertContainChilds(MOUNT_POINT_FILE, renamedFile, dir);
+        assertContainChilds(dir, nestedFile);
+
+        String readDataAfterRemount = Files.readString(renamedFile.toPath());
+        assertEquals(inputDataAsString, readDataAfterRemount, "Read data should be equal to written data");
+
         assertTrue(renamedFile.delete(), "Failed to delete file");
         assertTrue(nestedFile.delete(), "Failed to delete file");
         assertTrue(dir.delete(), "Failed to delete file");
@@ -331,11 +257,17 @@ class F1r3flyFSTest {
         assertFalse(renamedFile.exists(), "File should not exist");
         assertFalse(dir.exists(), "Directory should not exist");
         assertFalse(nestedFile.exists(), "File should not exist");
+
+        long end = System.currentTimeMillis();
+        // in seconds
+        System.out.println("Time taken: " + (end - start) / 1000);
     }
 
     @Test
     void shouldCreateRenameListDeleteDirectories() {
         File dir1 = new File(MOUNT_POINT_FILE, "testDir");
+
+        long start = System.currentTimeMillis();
 
         assertFalse(dir1.exists(), "Directory should not exist");
         assertTrue(dir1.mkdir(), "Failed to create test directory");
@@ -362,8 +294,11 @@ class F1r3flyFSTest {
         assertTrue(renamedDir.delete(), "Failed to delete directory");
 
         assertDirIsEmpty(MOUNT_POINT_FILE);
-    }
 
+        long end = System.currentTimeMillis();
+        // in seconds
+        System.out.println("Time taken: " + (end - start) / 1000);
+    }
 
     @Test
     void shouldHandleOperationsWithNotExistingFileAndDirectory() {
@@ -384,6 +319,98 @@ class F1r3flyFSTest {
         assertDirIsEmpty(MOUNT_POINT_FILE);
     }
 
+    // Utility methods:
+
+    private static void waitOnBackgroundDeployments() {
+        if (f1r3flyFS == null)
+            throw new IllegalStateException("f1r3flyFS is not initialized");
+
+        f1r3flyFS.waitOnBackgroundThread();
+    }
+
+    private static void remount() {
+        String mountName = f1r3flyFS.getMountName();
+        f1r3flyFS.umount();
+        forceUmountAndCleanup();
+        try {
+            f1r3flyFS.remount(mountName, MOUNT_POINT); // should pass: fetch the filesystem back
+        } catch (PathIsNotADirectory | NoDataByPath e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static @NotNull byte[] getFileContentFromShardDirectly(File file) {
+        RholangExpressionConstructor.ChannelData dirOrFile = getChanelData(file);
+
+        assertTrue(dirOrFile.isFile(), "Chanel data should be a file");
+        assertNotNull(dirOrFile.fileContent(), "Chanel data should contain fileContent field");
+
+        return dirOrFile.fileContent();
+    }
+
+    private static @NotNull Set<String> getFolderChildrenFromShardDirectly(File file) {
+        RholangExpressionConstructor.ChannelData dirOrFile = getChanelData(file);
+
+        assertTrue(dirOrFile.isDir(), "Chanel data should be a directory");
+
+        return dirOrFile.children();
+    }
+
+    private static RholangExpressionConstructor.@NotNull ChannelData getChanelData(File file) {
+        // reading data from shard directly:
+        // 1. Get a data from the file. File is a chanel at specific block
+        // Reducing the path. Fuse changes the path, so we need to change it too:
+        // - the REAL path   is /tmp/f1r3flyfs/test.txt
+        // - the FUSE's path is /test.txt
+        File fusePath = new File(file.getAbsolutePath().replace(MOUNT_POINT_FILE.getAbsolutePath(), "")); // /tmp/f1r3flyfs/test.txt -> /test.txt
+
+        String fileNameAtShard = f1r3flyFS.prependMountName(fusePath.getPath());
+
+        // wait on background deployments
+        waitOnBackgroundDeployments();
+
+        List<RhoTypes.Par> fileData = null;
+        try {
+            fileData = f1R3FlyApi.findDataByName(fileNameAtShard);
+        } catch (NoDataByPath e) {
+            throw new RuntimeException(e);
+        }
+
+        assertFalse(fileData.isEmpty(), "Chanel data %s should be not empty".formatted(fileNameAtShard));
+
+        // 2. Parse Chanel value as a map
+        return RholangExpressionConstructor.parseChannelData(fileData);
+    }
+
+    private static void testToCreateDeployableFile(String extension) throws IOException, NoDataByPath {
+        File file = new File(MOUNT_POINT_FILE, "test." + extension);
+
+        // TODO: use Metta syntax if .metta extension
+        String newRhoChanel = "public";
+        int chanelValue = new Random().nextInt();
+        String rhoCode = """
+            @"%s"!(%s)
+            """.formatted(newRhoChanel, chanelValue);
+
+        Files.writeString(file.toPath(), rhoCode, StandardCharsets.UTF_8);
+
+        waitOnBackgroundDeployments();
+        List<RhoTypes.Par> pars = f1R3FlyApi.findDataByName("public");
+        RhoTypes.Par first = pars.get(0);
+        assertEquals(first.getExprsList().get(0).getGInt(), chanelValue, "Deployed data should be equal to written data");
+    }
+
+    private static void assertWrittenData(File file, byte[] inputDataAsBinary, String message) throws IOException {
+        byte[] readDataAsBinary = Files.readAllBytes(file.toPath());
+        assertArrayEquals(inputDataAsBinary, readDataAsBinary, message);
+        assertFileContentFromShard(inputDataAsBinary, file);
+    }
+
+    private static void assertFileContentFromShard(byte[] expectedData, File file) {
+        byte[] readData = getFileContentFromShardDirectly(file);
+        assertArrayEquals(expectedData, readData, "Read data should be equal to written data");
+    }
+
     private static void assertContainChilds(File dir, File... expectedChilds) {
         File[] childs = dir.listFiles();
 
@@ -396,10 +423,63 @@ class F1r3flyFSTest {
                 "Expected file %s not found in list of childs (%s)".formatted(expectedChild, Arrays.toString(childs))
             );
         }
+
+        // and check the deployed data:
+
+        Set<String> children = getFolderChildrenFromShardDirectly(dir);
+        assertEquals(expectedChilds.length, children.size(), "Should be only %s file(s) in %s".formatted(expectedChilds.length, dir.getAbsolutePath()));
+
+        for (File expectedChild : expectedChilds) {
+            assertTrue(
+                children.contains(expectedChild.getName()),
+                "Expected file %s not found in list of childs (%s)".formatted(expectedChild, children)
+            );
+        }
     }
 
     private static void assertDirIsEmpty(File dir) {
-        assertEquals(0, Objects.requireNonNull(dir.listFiles()).length, "Dir %s should be empty".formatted(dir));
+        File[] files = Objects.requireNonNull(dir.listFiles());
+        assertEquals(0, files.length, "Dir %s should be empty, but %s got".formatted(dir, Arrays.toString(files)));
+
+        Set<String> folderChildrenFromShardDirectly = getFolderChildrenFromShardDirectly(dir);
+        assertEquals(0, folderChildrenFromShardDirectly.size(), "Dir %s should be empty, but %s got".formatted(dir, folderChildrenFromShardDirectly));
+    }
+
+    private static void testIsNotEncrypted(File notEncrypted, String fileContent) throws IOException {
+        String readData2 = Files.readString(notEncrypted.toPath());
+        assertEquals(fileContent, readData2, "Read data should be equal to written data");
+
+        String decodedFileData2 = new String(getFileContentFromShardDirectly(notEncrypted));
+        assertEquals(fileContent, decodedFileData2, "Decoded data should be equal to the original data");
+    }
+
+    private static void testIsEncrypted(File encrypted, String expectedFileData) throws IOException, NoDataByPath {
+        String readData = Files.readString(encrypted.toPath());
+        assertEquals(expectedFileData, readData, "Read data should be equal to written data");
+
+        String decodedFileData = new String(getFileContentFromShardDirectly(encrypted));
+        // Actual data is encrypted. It should be different from the original data
+        assertNotEquals(expectedFileData, decodedFileData, "Decoded data should be different from the original data");
+    }
+
+    private static void testToRenameTxtToDeployableExtension(String newExtension) throws IOException, NoDataByPath {
+        File file = new File(MOUNT_POINT_FILE, "test.text");
+
+        String newRhoChanel = "public";
+        int chanelValue = new Random().nextInt();
+        String rhoCode = """
+            @"%s"!(%s)
+            """.formatted(newRhoChanel, chanelValue);
+
+        Files.writeString(file.toPath(), rhoCode, StandardCharsets.UTF_8);
+
+        assertTrue(file.renameTo(new File(file.getParent(), "test." + newExtension)), "Failed to rename file");
+
+        waitOnBackgroundDeployments();
+
+        List<RhoTypes.Par> pars = f1R3FlyApi.findDataByName(newRhoChanel);
+        RhoTypes.Par first = pars.get(0);
+        assertEquals(first.getExprsList().get(0).getGInt(), chanelValue, "Deployed data should be equal to written data");
     }
 
 }

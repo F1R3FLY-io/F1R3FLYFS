@@ -19,7 +19,9 @@ public class AESCipher {
     private final Cipher cipher;
     private final SecretKeySpec keySpec;
 
-    public AESCipher(String keyToPath) throws FuseException {
+    private static AESCipher instance;
+
+    private AESCipher(String keyToPath) throws FuseException {
         try {
             this.cipher = Cipher.getInstance(CIPHER_NAME);
             this.keySpec = readOrGenerateKey(keyToPath);
@@ -82,5 +84,14 @@ public class AESCipher {
         }
     }
 
+    public static void init(String keyToPath) {
+        AESCipher.instance = new AESCipher(keyToPath);
+    }
 
+    public static AESCipher getInstance() {
+        if (instance == null) {
+            throw new IllegalStateException("AES cipher not initialized");
+        }
+        return instance;
+    }
 }

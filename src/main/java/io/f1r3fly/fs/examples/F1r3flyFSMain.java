@@ -28,6 +28,8 @@ class F1r3flyFSMain implements Callable<Integer> {
     @Option(names = {"-ck", "--cipher-key-path"}, required = true, description = "Cipher key path. If file not found, a new key will be generated.")
     private String cipherKeyPath;
 
+    @Option(names = {"-mn", "--mount-name"}, description = "Mount name of the previous mounted filesystem. If specified, the filesystem will be restored from F1r3fly.")
+    private String mountName;
 
     @Parameters(index = "0", description = "The path at which to mount the filesystem.")
     private Path mountPoint;
@@ -36,11 +38,17 @@ class F1r3flyFSMain implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-        AESCipher aesCipher = new AESCipher(cipherKeyPath);
+
+        AESCipher.init(cipherKeyPath); // init singleton instance
+
         F1r3flyApi f1R3FlyApi = new F1r3flyApi(Hex.decode(signingKey), host, port);
-        f1r3flyFS = new F1r3flyFS(f1R3FlyApi, aesCipher);
+        f1r3flyFS = new F1r3flyFS(f1R3FlyApi);
         try {
-            f1r3flyFS.mount(mountPoint, true);
+            if (mountName != null) {
+                f1r3flyFS.remount(mountName, mountPoint, true, false, new String[]{});
+            } else {
+                f1r3flyFS.mount(mountPoint, true);
+            }
         } finally {
             f1r3flyFS.umount();
         }

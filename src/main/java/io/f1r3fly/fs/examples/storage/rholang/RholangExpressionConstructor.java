@@ -43,19 +43,7 @@ public class RholangExpressionConstructor {
     }
 
     //** Creates a chanel with a file */
-    public static String sendMapIntoNewChanel(String channelName, Map<String, String> newChannelValue) {
-        // output looks like: @"path"!({"a":"a","b":"b"})
-        return new StringBuilder()
-            .append("@\"")
-            .append(channelName)
-            .append("\"!(")
-            .append(map2String(newChannelValue))
-            .append(")")
-            .toString();
-    }
-
-    //** Creates a chanel with a file */
-    public static String sendFileIntoNewChanel(String channelName, long size, byte[] content, long lastUpdated) {
+    public static String sendFileIntoNewChanel(String channelName, long size, byte[] content) {
         // output looks like: @"path"!({"type":"f","size":123,"fileContent":[0x01,0x02]})
         return new StringBuilder()
             .append("@\"")
@@ -75,12 +63,12 @@ public class RholangExpressionConstructor {
             .append(",\"")
             .append(LAST_UPDATED)
             .append("\":")
-            .append(lastUpdated)
+            .append(currentTime())
             .append("})")
             .toString();
     }
 
-    public static String sendDirectoryIntoNewChannel(String channelName, Set<String> children, long lastUpdated) {
+    public static String sendDirectoryIntoNewChannel(String channelName, Set<String> children) {
         // output looks like: @"path"!({"type":"d","children":["a","b"],"lastUpdated":123})
         return new StringBuilder()
             .append("@\"")
@@ -96,13 +84,13 @@ public class RholangExpressionConstructor {
             .append(",\"")
             .append(LAST_UPDATED)
             .append("\":")
-            .append(lastUpdated)
+            .append(currentTime())
             .append("})")
             .toString();
     }
 
     //** Consumes a value from a chanel */
-    public static String readAndForget(String chanel, long currentTime) {
+    public static String forgetChanel(String chanel) {
         // output looks like for(@v <- @"path"){v.set("lastUpdated",123)}
         return new StringBuilder()
             .append("for(@v <- @\"")
@@ -111,13 +99,13 @@ public class RholangExpressionConstructor {
             .append("v.set(\"")
             .append(LAST_UPDATED)
             .append("\",") //TODO: this is needed to prevent 'NoNewDeploy' error (updates a map and forgets)
-            .append(currentTime) // use Nil when fixed
+            .append(currentTime()) // use Nil when fixed
             .append(")}")
             .toString();
     }
 
     //** Updates a children field a chanel data */
-    public static String updateChildren(String chanel, Set<String> newChildren, long lastUpdated) {
+    public static String updateChildren(String chanel, Set<String> newChildren) {
         return new StringBuffer()
             .append("for(@v <- @\"")
             .append(chanel)
@@ -127,7 +115,7 @@ public class RholangExpressionConstructor {
             .append("\"!(v.set(\"")
             .append(LAST_UPDATED)
             .append("\",")
-            .append(lastUpdated)
+            .append(currentTime())
             .append(").set(\"")
             .append(CHILDREN)
             .append("\",")
@@ -156,7 +144,7 @@ public class RholangExpressionConstructor {
     }
 
     //** Consume a value from a channel and send to an appended value */
-    public static String appendValue(String chanel, long lastUpdated, byte[] newChunk, long size) {
+    public static String appendValue(String chanel, byte[] newChunk, long size) {
         // output looks like:
         // for(@v <- @"path"){
         //      @"path"!(v.set("lastUpdated",123).set("size", v.get("size) + size).set("fileContent", v.get("fileContent) ++ []))
@@ -171,7 +159,7 @@ public class RholangExpressionConstructor {
             .append("\"!(v.set(\"")
             .append(LAST_UPDATED)
             .append("\",")
-            .append(lastUpdated)
+            .append(currentTime())
             .append(").set(\"")
             .append(SIZE)
             .append("\",v.get(\"")
@@ -257,7 +245,7 @@ public class RholangExpressionConstructor {
         return result;
     }
 
-    public static ChannelData parseChannelData(@NotNull List<RhoTypes.Par> pars) throws IllegalArgumentException {
+    public static @NotNull ChannelData parseChannelData(@NotNull List<RhoTypes.Par> pars) throws IllegalArgumentException {
         if (pars.isEmpty()) {
             throw new IllegalArgumentException("Empty channel data");
         }
@@ -313,5 +301,9 @@ public class RholangExpressionConstructor {
         }
 
         return new ChannelData(type, lastUpdated, size, content, children);
+    }
+
+    protected static @NotNull long currentTime() {
+        return System.currentTimeMillis();
     }
 }
