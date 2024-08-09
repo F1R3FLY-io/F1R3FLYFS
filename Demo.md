@@ -42,7 +42,7 @@ where f9854c5199bc86237206c75b25c6aeca024dccc0f55df3a553131111fd25dd85 - key fro
 java -jar ./build/libs/f1r3flyfs-0.5.7-shadow.jar ~/demo-f1r3flyfs -sk a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954 -ck ~/cipher.key -h localhost -p 40402 
 ```
 
-If we wanna connect to cluster,  use "167.234.222.48" (public cluster ip) and 30002 instead of -h localhost -p 40402 in the above command
+If we wanna connect to cluster,  use "155.248.215.28" (public cluster ip using rspaceplusplus) and 30002 instead of -h localhost -p 40402 in the above command. For public cluster without rspaceplusplus, use: "138.2.235.131"
 
 # Demo
 
