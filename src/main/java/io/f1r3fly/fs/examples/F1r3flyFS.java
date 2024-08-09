@@ -1,7 +1,6 @@
 package io.f1r3fly.fs.examples;
 
 import io.f1r3fly.fs.*;
-import io.f1r3fly.fs.examples.datatransformer.AESCipher;
 import io.f1r3fly.fs.examples.storage.DeployDispatcher;
 import io.f1r3fly.fs.examples.storage.errors.NoDataByPath;
 import io.f1r3fly.fs.examples.storage.errors.PathIsNotADirectory;
@@ -14,7 +13,6 @@ import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseFileInfo;
 import io.f1r3fly.fs.struct.Statvfs;
 import io.f1r3fly.fs.utils.PathUtils;
-import jnr.ffi.Platform;
 import jnr.ffi.Pointer;
 import jnr.ffi.types.mode_t;
 import jnr.ffi.types.off_t;
@@ -23,14 +21,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rhoapi.RhoTypes;
 
-import java.io.*;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
-
-import static jnr.ffi.Platform.OS.WINDOWS;
 
 
 public class F1r3flyFS extends FuseStubFS {
@@ -136,7 +131,7 @@ public class F1r3flyFS extends FuseStubFS {
 
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        LOGGER.debug("Called Read file {} with buffer size {} and offset {}", path, size, offset);
+        LOGGER.trace("Called Read file {} with buffer size {} and offset {}", path, size, offset);
         try {
             MemoryPath p = getPath(path);
             if (p == null) {
@@ -310,7 +305,7 @@ public class F1r3flyFS extends FuseStubFS {
 
     @Override
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        LOGGER.debug("Called Write file {} with buffer size {} and offset {}", path, size, offset);
+        LOGGER.trace("Called Write file {} with buffer size {} and offset {}", path, size, offset);
         try {
             MemoryPath p = getPath(path);
             if (p == null) {
@@ -407,7 +402,23 @@ public class F1r3flyFS extends FuseStubFS {
 
             } else {
                 MemoryFile file = new MemoryFile(this.mountName, PathUtils.getFileName(absolutePath), parent, this.deployDispatcher, false);
-                file.initFromBytes(fileOrDir.fileContent());
+                long offset = 0;
+                offset = file.initFromBytes(fileOrDir.firstChunk(), offset);
+
+                if (!fileOrDir.otherChunks().isEmpty()) {
+                    Set<Integer> chunkNumbers = fileOrDir.otherChunks().keySet();
+                    Integer[] sortedChunkNumbers = chunkNumbers.stream().sorted().toArray(Integer[]::new);
+
+                    for (Integer chunkNumber : sortedChunkNumbers) {
+                        String subChannel = fileOrDir.otherChunks().get(chunkNumber);
+                        List<RhoTypes.Par> subChannelPars = f1R3FlyApi.findDataByName(subChannel);
+                        byte[] data = RholangExpressionConstructor.parseBytes(subChannelPars);
+
+                        offset = offset + file.initFromBytes(data, offset);
+                    }
+                }
+
+                file.initSubChannels(fileOrDir.otherChunks());
 
                 return file;
             }

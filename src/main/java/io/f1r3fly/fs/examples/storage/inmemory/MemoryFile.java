@@ -11,23 +11,30 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class MemoryFile extends MemoryPath {
 
     private final Logger log = org.slf4j.LoggerFactory.getLogger(MemoryFile.class);
 
     // it should be a number that can be divisible by 16 because of AES block size
-    public static final int MAX_FILE_CHUNK_SIZE = 16 * 1024 * 1024; // 16MB
-    protected static int ENCRYPTING_CHUNK_SIZE = 16 * 1024; // 16KB
+    private static final int MAX_FILE_CHUNK_SIZE = 16 * 10 * 1024 * 1024; // 160 mb
 
     protected RandomAccessFile rif;
     protected File cachedFile;
-    protected int lastDeploymentOffset = 0;
+    protected long lastDeploymentOffset = 0;
     protected boolean isDirty = true;
     // cached file size; avoid IO operations at getattr
-    protected int size = -1;
+    protected long size = -1;
+
+    // Illegal Filename Characters.
+    // In theory, it can't be used in filename, so it's safe to use it as a delimiter
+    private static String delimiter = "/";
+
+    private boolean isOtherChunksDeployed = false;
+    private Map<Integer, String> otherChunks = new ConcurrentHashMap<>();
 
     public MemoryFile(String prefix, String name, MemoryDirectory parent, DeployDispatcher deployDispatcher, boolean sendToShard) {
         super(prefix, name, parent, deployDispatcher);
@@ -42,7 +49,7 @@ public class MemoryFile extends MemoryPath {
     }
 
     private void enqueueCreatingFile() {
-        String rholang = RholangExpressionConstructor.sendFileIntoNewChanel(getAbsolutePath(), 0, new byte[0]);
+        String rholang = RholangExpressionConstructor.sendEmptyFileIntoNewChanel(getAbsolutePath());
         enqueueMutation(rholang);
     }
 
@@ -68,16 +75,6 @@ public class MemoryFile extends MemoryPath {
     }
 
     public synchronized void truncate(long offset) throws IOException {
-//        if (size < cachedFile.length()) {
-//            // Need to create a new, smaller buffer
-//            ByteBuffer newContents = ByteBuffer.allocate((int) size);
-//            byte[] bytesRead = new byte[(int) size];
-//            contents.get(bytesRead);
-//            newContents.put(bytesRead);
-//            contents = newContents;
-//        }
-        // unsupported
-//        throw new RuntimeException("Unsupported");
         if (offset != 0) {
             throw new RuntimeException("Unsupported");
         }
@@ -96,6 +93,13 @@ public class MemoryFile extends MemoryPath {
         cachedFile = Files.createTempFile(name, null).toFile();
 
         enqueueMutation(RholangExpressionConstructor.forgetChanel(getAbsolutePath()));
+        otherChunks.forEach((chunkNumber, subChannel) -> {
+            enqueueMutation(RholangExpressionConstructor.forgetChanel(subChannel));
+        });
+
+        otherChunks = new ConcurrentHashMap<>();
+        isOtherChunksDeployed = false;
+
         enqueueCreatingFile();
 
         open();
@@ -120,7 +124,7 @@ public class MemoryFile extends MemoryPath {
         }
 
         int writeEnd = (int) (writeOffset + bufSize);
-        int notDeployedChunkSize = writeEnd - lastDeploymentOffset;
+        int notDeployedChunkSize = (int) (writeEnd - lastDeploymentOffset);
         if (notDeployedChunkSize >= MAX_FILE_CHUNK_SIZE) {
             deployChunk();
         }
@@ -131,7 +135,7 @@ public class MemoryFile extends MemoryPath {
     private void deployChunk() throws IOException {
         open(); // make sure file is open
 
-        int size = Math.min(getSize() - lastDeploymentOffset, MAX_FILE_CHUNK_SIZE);
+        int size = (int) Math.min(getSize() - lastDeploymentOffset, MAX_FILE_CHUNK_SIZE);
 
         byte[] bytes = new byte[size];
         synchronized (this) {
@@ -143,7 +147,16 @@ public class MemoryFile extends MemoryPath {
             bytes = AESCipher.getInstance().encrypt(bytes);
         }
 
-        String rholang = RholangExpressionConstructor.appendValue(getAbsolutePath(), bytes, bytes.length);
+        int chunkNumber = (int) (lastDeploymentOffset / MAX_FILE_CHUNK_SIZE);
+        String rholang;
+        if (chunkNumber == 0) {
+            rholang = RholangExpressionConstructor.updateFileContent(getAbsolutePath(), bytes);
+        } else {
+            String subChannel = getAbsolutePath() + delimiter + chunkNumber;
+            rholang = RholangExpressionConstructor.sendFileContentChunk(subChannel, bytes);
+            otherChunks.put(chunkNumber, subChannel);
+            isOtherChunksDeployed = false;
+        }
         enqueueMutation(rholang);
 
         lastDeploymentOffset = lastDeploymentOffset + size;
@@ -172,6 +185,13 @@ public class MemoryFile extends MemoryPath {
                 deployChunk();
             }
 
+            if (!isOtherChunksDeployed) {
+                if (!otherChunks.isEmpty()) {
+                    enqueueMutation(RholangExpressionConstructor.updateOtherChunksMap(getAbsolutePath(), otherChunks));
+                }
+                isOtherChunksDeployed = true;
+            }
+
             if (rif != null) {
                 rif.close();
                 rif = null;
@@ -182,27 +202,33 @@ public class MemoryFile extends MemoryPath {
         }
     }
 
-    int getSize() {
+    long getSize() {
         if (size < 0) {
-            size = (int) cachedFile.length();
+            size = cachedFile.length();
         }
         return size;
     }
 
-    public void initFromBytes(byte[] bytes) {
-        // write bytes to file
-        try (FileOutputStream fos = new FileOutputStream(cachedFile)) {
+    public int initFromBytes(byte[] bytes, long offset) throws IOException {
+        open(); // make sure file is open
 
-            if (PathUtils.isEncryptedExtension(name)) {
-                bytes = AESCipher.getInstance().decrypt(bytes);
-            }
-
-            fos.write(bytes);
-        } catch (IOException e) {
-            e.printStackTrace();
+        if (PathUtils.isEncryptedExtension(name)) {
+            bytes = AESCipher.getInstance().decrypt(bytes);
         }
-        size = bytes.length;
-        lastDeploymentOffset = size;
+
+        synchronized (this) {
+            rif.seek(offset);
+            rif.write(bytes);
+        }
+
+        lastDeploymentOffset = offset + bytes.length;
+
+        return bytes.length;
+    }
+
+    public void initSubChannels(Map<Integer, String> subChannels) {
+        this.otherChunks = subChannels;
+        this.isOtherChunksDeployed = true;
     }
 
     public void onChange() {

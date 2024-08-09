@@ -16,6 +16,7 @@ public class DeployDispatcher {
     private F1r3flyApi f1R3FlyApi;
 
     // Config
+    private final int MAX_EXPRESSION_LENGTH_IN_LOG = 1000;
     private final int MAX_DEPLOYMENT_STRING_LENGTH = 1000;
     private final int POLL_INTERVAL_MS = 5000;
     private final int WAITING_STEP_MS = 5000;
@@ -85,7 +86,16 @@ public class DeployDispatcher {
     }
 
     public void enqueueDeploy(Deployment deployment) {
-        logger.debug("Enqueueing deployment: " + deployment);
+        // dont trim if log level is not enabled
+        if (logger.isDebugEnabled()) {
+            String smaller =
+                deployment.rhoOrMettaExpression.length() > MAX_EXPRESSION_LENGTH_IN_LOG
+                    ? deployment.rhoOrMettaExpression.substring(0, MAX_EXPRESSION_LENGTH_IN_LOG) + "..."
+                    : deployment.rhoOrMettaExpression;
+
+            logger.debug("Enqueueing deployment: {}", smaller);
+        }
+
         queue.add(deployment);
     }
 
@@ -97,8 +107,6 @@ public class DeployDispatcher {
             executorService.submit(backgroundThread);
         }
     }
-
-
 
 
     public void waitOnEmptyQueue() {

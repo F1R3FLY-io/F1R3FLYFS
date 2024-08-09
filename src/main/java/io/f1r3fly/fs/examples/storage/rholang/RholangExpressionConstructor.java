@@ -9,8 +9,6 @@ import java.util.stream.Collectors;
 
 public class RholangExpressionConstructor {
 
-    public static final String EmptyList = "[]"; // as a string
-    public static final String Nil = "Nil";
     private static final String LIST_DELIMITER = ",";
 
 
@@ -18,21 +16,21 @@ public class RholangExpressionConstructor {
     private static final String DIR_TYPE = "d";
     private static final String FILE_TYPE = "f";
 
-    private static final String FILE_CONTENT = "fileContent";
+    private static final String FIRST_CHUNK = "firstChunk";
     private static final String CHILDREN = "children";
-    private static final String SIZE = "size";
     private static final String LAST_UPDATED = "lastUpdated";
+    private static final String OTHER_CHUNKS = "otherChunks";
 
     /**
      * Represents a file or a folder
      *
      * @param type        "f" for file, "d" for directory
      * @param lastUpdated timestamp of the last update
-     * @param size        size of the file; -1 for a folder
-     * @param fileContent content of the file; null for a folder
+     * @param firstChunk content of the file; null for a folder
      * @param children    list of children; null for a file
+     * @param otherChunks map of sub channels; null for a folder
      */
-    public record ChannelData(String type, long lastUpdated, long size, byte[] fileContent, Set<String> children) {
+    public record ChannelData(String type, long lastUpdated, byte[] firstChunk, Set<String> children, Map<Integer, String> otherChunks) {
         public boolean isFile() {
             return type.equals(FILE_TYPE);
         }
@@ -43,8 +41,8 @@ public class RholangExpressionConstructor {
     }
 
     //** Creates a chanel with a file */
-    public static String sendFileIntoNewChanel(String channelName, long size, byte[] content) {
-        // output looks like: @"path"!({"type":"f","size":123,"fileContent":[0x01,0x02]})
+    public static String sendEmptyFileIntoNewChanel(String channelName) {
+        // output looks like: @"path"!({"type":"f","firstChunk":[]}, "otherChunks":{}, "lastUpdated":123})
         return new StringBuilder()
             .append("@\"")
             .append(channelName)
@@ -53,14 +51,10 @@ public class RholangExpressionConstructor {
             .append("\":\"")
             .append(FILE_TYPE)
             .append("\",\"")
-            .append(FILE_CONTENT)
-            .append("\":\"")
-            .append(Base16Coder.bytesToHex(content))
-            .append("\".hexToBytes(),\"")
-            .append(SIZE)
-            .append("\":")
-            .append(size)
-            .append(",\"")
+            .append(FIRST_CHUNK)
+            .append("\":[],\"")
+            .append(OTHER_CHUNKS)
+            .append("\":{},\"")
             .append(LAST_UPDATED)
             .append("\":")
             .append(currentTime())
@@ -144,10 +138,10 @@ public class RholangExpressionConstructor {
     }
 
     //** Consume a value from a channel and send to an appended value */
-    public static String appendValue(String chanel, byte[] newChunk, long size) {
+    public static String updateFileContent(String chanel, byte[] newChunk) {
         // output looks like:
         // for(@v <- @"path"){
-        //      @"path"!(v.set("lastUpdated",123).set("size", v.get("size) + size).set("fileContent", v.get("fileContent) ++ []))
+        //      @"path"!(v.set("lastUpdated",123).set("firstChunk", "base16encodedChunk".hexToBytes()))
         // }
 
         return new StringBuilder()
@@ -161,18 +155,51 @@ public class RholangExpressionConstructor {
             .append("\",")
             .append(currentTime())
             .append(").set(\"")
-            .append(SIZE)
-            .append("\",v.get(\"")
-            .append(SIZE)
-            .append("\") + ")
-            .append(size)
-            .append(").set(\"")
-            .append(FILE_CONTENT)
-            .append("\",v.get(\"")
-            .append(FILE_CONTENT)
-            .append("\") ++ \"")
+            .append(FIRST_CHUNK)
+            .append("\",\"")
             .append(Base16Coder.bytesToHex(newChunk))
             .append("\".hexToBytes()))}")
+            .toString();
+    }
+
+    public static String updateOtherChunksMap(String chanel, Map<Integer, String> otherChunks) {
+        // output looks like:
+        // for(@v <- @"path"){
+        //      @"path"!(v.set("lastUpdated",123).set("otherChunks", {1:"subChannel"}))
+        // }
+
+        return new StringBuilder()
+            .append("for(@v <- @\"")
+            .append(chanel)
+            .append("\"){")
+            .append("@\"")
+            .append(chanel)
+            .append("\"!(v.set(\"")
+            .append(LAST_UPDATED)
+            .append("\",")
+            .append(currentTime())
+            .append(").set(\"")
+            .append(OTHER_CHUNKS)
+            .append("\",{")
+            .append(
+                otherChunks.entrySet().stream()
+                    .map(e -> e.getKey() + ": " + string2RholngString(e.getValue()))
+                    .collect(Collectors.joining(LIST_DELIMITER))
+            )
+            .append("}))}")
+            .toString();
+    }
+
+    public static String sendFileContentChunk(String channel, byte[] chunk) {
+        // output looks like:
+        // @"channel"!("base16EncodedChunk".hexToBytes())
+
+        return new StringBuilder()
+            .append("@\"")
+            .append(channel)
+            .append("\"!(\"")
+            .append(Base16Coder.bytesToHex(chunk))
+            .append("\".hexToBytes())")
             .toString();
     }
 
@@ -208,41 +235,14 @@ public class RholangExpressionConstructor {
             .toString();
     }
 
-    public static String replaceChannelValue(String channel, Map<String, String> newChannelValue) {
-        // output looks like: for(_ <- @"path"){ @"path"!(newChannelValue) }
-        return new StringBuilder()
-            .append("for(_ <- @\"")
-            .append(channel)
-            .append("\"){@\"")
-            .append(channel)
-            .append("\"!(")
-            .append(map2String(newChannelValue))
-            .append(")}")
-            .toString();
-    }
-
-    public static HashMap<String, String> parseMap(@NotNull List<RhoTypes.Par> pars) {
+    public static @NotNull byte[] parseBytes(@NotNull List<RhoTypes.Par> pars) {
         RhoTypes.Par par = pars.get(pars.size() - 1);
         int exprsCount = par.getExprsCount() - 1;
         if (exprsCount < 0) {
-            return new HashMap<>();
+            throw new IllegalArgumentException("Empty channel data");
         }
 
-        List<rhoapi.RhoTypes.KeyValuePair> keyValues =
-            par.getExprs(exprsCount).getEMapBody().getKvsList();
-
-        HashMap<String, String> result = new HashMap<>();
-
-        for (rhoapi.RhoTypes.KeyValuePair kv : keyValues) {
-            String key = kv.getKey().getExprs(0).getGString();
-
-            RhoTypes.Expr valueExpr = kv.getValue().getExprs(0);
-            String value = valueExpr.getGString();
-
-            result.put(key, value);
-        }
-
-        return result;
+        return par.getExprs(exprsCount).getGByteArray().toByteArray();
     }
 
     public static @NotNull ChannelData parseChannelData(@NotNull List<RhoTypes.Par> pars) throws IllegalArgumentException {
@@ -268,21 +268,25 @@ public class RholangExpressionConstructor {
             .map(kv -> kv.getValue().getExprs(0).getGInt())
             .orElseThrow(() -> new IllegalArgumentException("No lastUpdated in channel data"));
 
-        long size = -1;
         byte[] content = null;
         Set<String> children = null;
+        Map<Integer, String> otherChunks = null;
 
         if (type.equals(FILE_TYPE)) {
 
-            size = keyValues.stream().filter(kv -> kv.getKey().getExprs(0).getGString().equals(SIZE))
-                .findFirst()
-                .map(kv -> kv.getValue().getExprs(0).getGInt())
-                .orElseThrow(() -> new IllegalArgumentException("No size in file data"));
-
-            content = keyValues.stream().filter(kv -> kv.getKey().getExprs(0).getGString().equals(FILE_CONTENT))
+            content = keyValues.stream().filter(kv -> kv.getKey().getExprs(0).getGString().equals(FIRST_CHUNK))
                 .findFirst()
                 .map(kv -> kv.getValue().getExprs(0).getGByteArray().toByteArray())
                 .orElseThrow(() -> new IllegalArgumentException("No value in file data"));
+
+            otherChunks = keyValues.stream().filter(kv -> kv.getKey().getExprs(0).getGString().equals(OTHER_CHUNKS))
+                .findFirst()
+                .map(kv -> kv.getValue().getExprs(0).getEMapBody().getKvsList().stream()
+                    .collect(Collectors.toMap(
+                        k -> (int) k.getKey().getExprs(0).getGInt(),
+                        v -> v.getValue().getExprs(0).getGString()
+                    )))
+                .orElseThrow(() -> new IllegalArgumentException("No otherChunks in file data"));
 
         } else if (type.equals(DIR_TYPE)) {
 
@@ -300,7 +304,7 @@ public class RholangExpressionConstructor {
 
         }
 
-        return new ChannelData(type, lastUpdated, size, content, children);
+        return new ChannelData(type, lastUpdated, content, children, otherChunks);
     }
 
     protected static @NotNull long currentTime() {

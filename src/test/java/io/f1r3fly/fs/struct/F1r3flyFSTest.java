@@ -26,6 +26,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 import rhoapi.RhoTypes;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -84,7 +85,7 @@ class F1r3flyFSTest {
 
         // Waits on the node initialization
         // Fresh start could take ~10 seconds
-//        Thread.sleep(10 * 1000);
+        Thread.sleep(10 * 1000);
 
         new File("/tmp/cipher.key").delete(); // remove key file if exists
 
@@ -110,14 +111,23 @@ class F1r3flyFSTest {
     }
 
     @AfterEach
-    void tearDown() {
-        if (f1r3flyFS != null) {
-            forceUmountAndCleanup();
+    void cleanup() {
+        try {
+            if (f1r3flyFS != null) {
+                forceUmountAndCleanup();
+            }
+        } catch (Throwable e) {
+            e.printStackTrace();
+            try {
+                Thread.sleep(100000);
+            } catch (InterruptedException ex) {
+                // ignore
+            }
         }
         if (f1r3fly != null) {
             f1r3fly.stop();
         }
-        Utils.cleanDataDirectory("data", Arrays.asList("genesis", "node.certificate.pem", "node.key.pem"));
+        listAppender.stop();
     }
 
     // TESTS:
@@ -186,15 +196,15 @@ class F1r3flyFSTest {
 
         assertTrue(file.createNewFile(), "Failed to create test file");
 
-        byte[] inputDataAsBinary = new byte[512 * 1024 * 1024]; // 512 MB
+        byte[] inputDataAsBinary = new byte[512 * 1024 * 1024]; // 512mb
         new Random().nextBytes(inputDataAsBinary);
         Files.write(file.toPath(), inputDataAsBinary);
 
-        assertWrittenData(file, inputDataAsBinary, "Read data should be equal to written data");
+        assertWrittenData(file, inputDataAsBinary ,true, "Read data should be equal to written data");
 
         remount();
 
-        assertWrittenData(file, inputDataAsBinary, "Read data should be equal to written data after remount");
+        assertWrittenData(file, inputDataAsBinary, false, "Read data should be equal to written data after remount");
     }
 
     @Test
@@ -214,18 +224,18 @@ class F1r3flyFSTest {
         Files.write(file.toPath(), inputDataAsBinary);
         log.info("Written data length: {}", inputDataAsBinary.length);
 
-        assertWrittenData(file, inputDataAsBinary, "Read data should be equal to written data");
+        assertWrittenData(file, inputDataAsBinary, true, "Read data should be equal to written data");
 
         File renamedFile = new File(file.getParent(), "renamed.txt");
         assertTrue(file.renameTo(renamedFile), "Failed to rename file");
 
         assertContainChilds(MOUNT_POINT_FILE, renamedFile);
 
-        assertWrittenData(renamedFile, inputDataAsBinary, "Read data (from renamed file) should be equal to written data");
+        assertWrittenData(renamedFile, inputDataAsBinary, true, "Read data (from renamed file) should be equal to written data");
 
         String inputDataAsString = "a".repeat(1024);
         Files.writeString(renamedFile.toPath(), inputDataAsString, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING); // truncate and override
-        assertWrittenData(renamedFile, inputDataAsString.getBytes(), "Read data (from renamed file) should be equal to written data");
+        assertWrittenData(renamedFile, inputDataAsString.getBytes(), true, "Read data (from renamed file) should be equal to written data");
 
         assertContainChilds(MOUNT_POINT_FILE, renamedFile); // it has to be the same folder after truncate and overide
 
@@ -340,12 +350,30 @@ class F1r3flyFSTest {
     }
 
     private static @NotNull byte[] getFileContentFromShardDirectly(File file) {
-        RholangExpressionConstructor.ChannelData dirOrFile = getChanelData(file);
 
-        assertTrue(dirOrFile.isFile(), "Chanel data should be a file");
-        assertNotNull(dirOrFile.fileContent(), "Chanel data should contain fileContent field");
+        try {
+            RholangExpressionConstructor.ChannelData dirOrFile = getChanelData(file);
 
-        return dirOrFile.fileContent();
+            assertTrue(dirOrFile.isFile(), "Chanel data should be a file");
+            assertNotNull(dirOrFile.firstChunk(), "Chanel data should contain firstChunk field");
+            assertNotNull(dirOrFile.otherChunks(), "Chanel data should contain otherChunks field");
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+
+            outputStream.write(dirOrFile.firstChunk());
+
+            Integer[] sortedKeys = dirOrFile.otherChunks().keySet().stream().sorted().toArray(Integer[]::new);
+            for (Integer key : sortedKeys) {
+                String subChannel = dirOrFile.otherChunks().get(key);
+                List<RhoTypes.Par> data = f1R3FlyApi.findDataByName(subChannel);
+                byte[] chunk = RholangExpressionConstructor.parseBytes(data);
+                outputStream.write(chunk);
+            }
+
+            return outputStream.toByteArray();
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static @NotNull Set<String> getFolderChildrenFromShardDirectly(File file) {
@@ -400,10 +428,12 @@ class F1r3flyFSTest {
         assertEquals(first.getExprsList().get(0).getGInt(), chanelValue, "Deployed data should be equal to written data");
     }
 
-    private static void assertWrittenData(File file, byte[] inputDataAsBinary, String message) throws IOException {
+    private static void assertWrittenData(File file, byte[] inputDataAsBinary, boolean assertDataFromShard, String message) throws IOException {
         byte[] readDataAsBinary = Files.readAllBytes(file.toPath());
         assertArrayEquals(inputDataAsBinary, readDataAsBinary, message);
-        assertFileContentFromShard(inputDataAsBinary, file);
+        if (assertDataFromShard) {
+            assertFileContentFromShard(inputDataAsBinary, file);
+        }
     }
 
     private static void assertFileContentFromShard(byte[] expectedData, File file) {

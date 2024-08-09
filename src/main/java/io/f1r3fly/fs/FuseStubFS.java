@@ -296,7 +296,7 @@ public class FuseStubFS extends AbstractFuseFS {
 
     @Override
     public int read_buf(String path, Pointer bufp, @size_t long size, @off_t long off, FuseFileInfo fi) {
-        LOGGER.debug("Called read_buf for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called read_buf for path: " + mountPoint.toAbsolutePath() + path);
         // should be implemented or null
         long vecmem = MemoryIO.getInstance().allocateMemory(Struct.size(new FuseBufvec(Runtime.getSystemRuntime())), false);
         if (vecmem == 0) {
