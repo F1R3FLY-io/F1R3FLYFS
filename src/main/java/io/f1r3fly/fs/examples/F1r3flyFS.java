@@ -361,9 +361,10 @@ public class F1r3flyFS extends FuseStubFS {
                 throw new PathIsNotADirectory("Root path " + root.getAbsolutePath() + " is not a directory");
             }
 
+            deployDispatcher.startBackgroundDeploy();
+
             super.mount(mountPoint, blocking, debug, fuseOpts);
 
-            deployDispatcher.startBackgroundDeploy();
         } catch (Throwable e) {
             LOGGER.error("Error re-mounting F1r3flyFS", e);
 
