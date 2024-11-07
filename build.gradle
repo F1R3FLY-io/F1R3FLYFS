@@ -1,6 +1,6 @@
 plugins {
     id 'java-library'
-    id 'com.github.johnrengelman.shadow' version '6.1.0'
+    id 'com.github.johnrengelman.shadow' version '7.0.0'
     id 'net.researchgate.release' version '2.8.1'
     id 'io.github.gradle-nexus.publish-plugin' version '1.1.0'
     id 'maven-publish'
@@ -63,15 +63,24 @@ java {
 }
 
 shadowJar {
+    mergeServiceFiles()
     archiveClassifier = 'shadow'
     relocate 'org.objectweb.asm', 'org.objectweb.asm.shaded'
+}
+
+jar {
+    manifest {
+        attributes(
+                'Main-Class': 'io.f1r3fly.fs.examples.F1r3flyFSMain'
+        )
+    }
 }
 
 task run(type: JavaExec) {
     group = "Execution"
     description = "Run the main class with JavaExecTask"
     classpath = sourceSets.main.runtimeClasspath
-    main = "coop.f1r3fly.fs.examples.F1r3flyFSMain"
+    mainClass = "io.f1r3fly.fs.examples.F1r3flyFSMain"
 }
 
 tasks.withType(Javadoc).configureEach {
@@ -80,6 +89,7 @@ tasks.withType(Javadoc).configureEach {
 
 test {
     useJUnitPlatform()
+    maxHeapSize = '4096m'
 }
 
 dependencies {
@@ -100,6 +110,15 @@ dependencies {
     implementation group: 'io.smallrye.reactive', name: 'mutiny', version: '2.5.6'
 
     implementation 'info.picocli:picocli:4.7.5'
+
+    // https://mvnrepository.com/artifact/org.bitcoin-s/bitcoin-s-crypto
+    // needed for creating a fresh (EC) private key
+    implementation group: 'org.bitcoin-s', name: 'bitcoin-s-crypto_2.13', version: '1.9.3'
+
+    implementation 'ch.qos.logback:logback-classic:1.2.3'
+    implementation 'ch.qos.logback:logback-core:1.2.3'
+    implementation 'org.slf4j:slf4j-api:1.7.30'
+
     annotationProcessor 'info.picocli:picocli-codegen:4.7.5'
 
     testImplementation "org.junit.jupiter:junit-jupiter-api:$junitVersion"
@@ -109,10 +128,12 @@ dependencies {
     testImplementation "org.testcontainers:junit-jupiter:$tcVersion"
 
     testImplementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.13'
+    testImplementation group: 'org.mockito', name: 'mockito-core', version: '4.8.0'
 
-    // https://mvnrepository.com/artifact/org.bitcoin-s/bitcoin-s-crypto
-    // needed for creating a fresh (EC) private key
-    testImplementation group: 'org.bitcoin-s', name: 'bitcoin-s-crypto_2.13', version: '1.9.3'
+    testImplementation group: 'commons-io', name: 'commons-io', version: '2.11.0'
+
+    // https://mvnrepository.com/artifact/commons-codec/commons-codec
+    implementation 'commons-codec:commons-codec:1.17.0'
 
 }
 
