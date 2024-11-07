@@ -174,7 +174,8 @@ public class F1r3flyApi {
                 .build()
         ).build();
 
-        int MAX_DEPTH = 1000;
+//        int MAX_DEPTH = 1000;
+        int MAX_DEPTH = 50;
 
         DeployServiceCommon.DataAtNameQuery request = DeployServiceCommon.DataAtNameQuery.newBuilder()
             .setName(par)
