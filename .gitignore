@@ -39,3 +39,9 @@ gradle-app.setting
 .classpath
 .settings/
 .project
+
+# F1r3fly data
+**/rnode.log
+**/*.mdb
+
+.direnv

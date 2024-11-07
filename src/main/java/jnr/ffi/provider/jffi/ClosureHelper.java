@@ -7,7 +7,6 @@ import jnr.ffi.mapper.DefaultSignatureType;
 import jnr.ffi.mapper.FromNativeContext;
 import jnr.ffi.mapper.FromNativeConverter;
 import jnr.ffi.provider.ClosureManager;
-import ru.serce.jnrfuse.FuseException;
 
 import java.lang.reflect.Field;
 import java.util.Collections;
@@ -61,7 +60,7 @@ public class ClosureHelper {
             ctm = (CompositeTypeMapper) typeMapperField.get(closureManager);
             ctx = new SimpleNativeContext(Runtime.getSystemRuntime(), Collections.emptyList());
         } catch (Exception e) {
-            throw new FuseException("Unable to create helper", e);
+            throw new RuntimeException("Unable to create helper", e);
         }
     }
 }
