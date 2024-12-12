@@ -40,6 +40,25 @@ public class RholangExpressionConstructor {
         }
     }
 
+    public static String checkBalanceRho(String addr) {
+        return new StringBuilder()
+            .append("new return, rl(`rho:registry:lookup`), RevVaultCh, vaultCh in { ")
+            .append("  rl!(`rho:rchain:revVault`, *RevVaultCh) | ")
+            .append("  for (@(_, RevVault) <- RevVaultCh) { ")
+            .append("    @RevVault!(\"findOrCreate\", \"")
+            .append(addr) // insert balance address
+            .append("\", *vaultCh) | ")
+            .append("    for (@maybeVault <- vaultCh) { ")
+            .append("      match maybeVault { ")
+            .append("        (true, vault) => @vault!(\"balance\", *return) ")
+            .append("        (false, err) => return!(err) ")
+            .append("      } ")
+            .append("    } ")
+            .append("  } ")
+            .append("}")
+            .toString();
+    }
+
     //** Creates a chanel with a file */
     public static String sendEmptyFileIntoNewChanel(String channelName) {
         // output looks like: @"path"!({"type":"f","firstChunk":[]}, "otherChunks":{}, "lastUpdated":123})

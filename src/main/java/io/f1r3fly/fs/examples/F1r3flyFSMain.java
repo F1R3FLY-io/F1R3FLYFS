@@ -1,16 +1,25 @@
 package io.f1r3fly.fs.examples;
 
+import io.f1r3fly.fs.SuccessCodes;
 import io.f1r3fly.fs.examples.datatransformer.AESCipher;
+import io.f1r3fly.fs.examples.storage.DeployDispatcher;
+import io.f1r3fly.fs.examples.storage.errors.F1r3flyDeployError;
+import io.f1r3fly.fs.examples.storage.errors.NoDataByPath;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
+import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.Callable;
 
 import fr.acinq.secp256k1.Hex;
+import rhoapi.RhoTypes;
 
 @Command(name = "f1r3FUSE", mixinStandardHelpOptions = true, version = "f1r3FUSE 1.0",
     description = "A FUSE filesystem based on the F1r3fly blockchain.")
@@ -35,6 +44,8 @@ class F1r3flyFSMain implements Callable<Integer> {
     private Path mountPoint;
 
     private F1r3flyFS f1r3flyFS;
+    private static final Logger LOGGER = LoggerFactory.getLogger(F1r3flyFSMain.class);
+
 
     @Override
     public Integer call() throws Exception {
@@ -43,11 +54,12 @@ class F1r3flyFSMain implements Callable<Integer> {
 
         F1r3flyApi f1R3FlyApi = new F1r3flyApi(Hex.decode(signingKey), host, port);
         f1r3flyFS = new F1r3flyFS(f1R3FlyApi);
+
         try {
             if (mountName != null) {
                 f1r3flyFS.remount(mountName, mountPoint, true, false, new String[]{});
             } else {
-                f1r3flyFS.mount(mountPoint, true);
+                f1r3flyFS.mount(mountPoint);
             }
         } finally {
             f1r3flyFS.umount();
