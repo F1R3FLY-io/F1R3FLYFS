@@ -129,7 +129,7 @@ public class F1r3flyApi {
                         ByteString b64 = ByteString.copyFrom(Hex.decode(deployId));
                         return Uni.createFrom().future(deployService.findDeploy(DeployServiceCommon.FindDeployQuery.newBuilder().setDeployId(b64).build()))
                             .flatMap(findResponse -> {
-                                LOGGER.trace("Find Response {}", findResponse);
+                                LOGGER.debug("Find Response {}", findResponse);
                                 if (findResponse.hasError()) {
                                     return this.<String>fail(rhoCode, findResponse.getError());
                                 } else {
@@ -174,7 +174,6 @@ public class F1r3flyApi {
                 .build()
         ).build();
 
-//        int MAX_DEPTH = 1000;
         int MAX_DEPTH = 50;
 
         DeployServiceCommon.DataAtNameQuery request = DeployServiceCommon.DataAtNameQuery.newBuilder()

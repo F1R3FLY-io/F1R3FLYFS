@@ -37,9 +37,9 @@ public class F1r3flyFSTokenization {
 
         String blockHash = null;
         try {
-            LOGGER.debug("Starting waiting for empty queue");
+            //LOGGER.debug("Starting waiting for empty queue");
             deployDispatcher.waitOnEmptyQueue();
-            LOGGER.debug("Got empty queue");
+            //LOGGER.debug("Got empty queue");
 
             // Deploy and retrieve the resulting block hash
             blockHash = f1R3FlyApi.deploy(
@@ -65,12 +65,12 @@ public class F1r3flyFSTokenization {
             String addressExpr = "11112ZM9yrfaTrzCCbKjPbxBncjNCkMFsPqtcLFvhBf4Kqx6rpir2w";
 
             // Retrieve the data inside the block at this expression
-            List<RhoTypes.Par> balanceData = f1R3FlyApi.getDataAtBlockByName(blockHash, addressExpr);
-            LOGGER.error("Balance data retrieved for address: {}", balanceData);
+            List<RhoTypes.Par> balanceData = f1R3FlyApi.findDataByName("balance");
+            LOGGER.debug("Balance data retrieved for address: {}", balanceData);
 
             // Extract and log the balance from the retrieved data
             String balance = extractBalanceFromData(balanceData);
-            LOGGER.error("Balance for address: {}", balance);
+            LOGGER.debug("Balance for address: {}", balance);
 
         } catch (NoDataByPath e) {
             LOGGER.error("No balance data found in block for address: {}", e.getMessage());
