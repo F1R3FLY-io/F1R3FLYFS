@@ -1,4 +1,4 @@
-package io.f1r3fly.fs.examples.storage.grcp;
+package io.f1r3fly.fs.examples.storage.grcp.client;
 
 import casper.CasperMessage;
 import casper.DeployServiceCommon;
@@ -13,8 +13,10 @@ import com.rfksystems.blake2b.security.Blake2bProvider;
 import io.f1r3fly.fs.FuseException;
 import fr.acinq.secp256k1.Hex;
 import fr.acinq.secp256k1.Secp256k1;
+import io.f1r3fly.fs.examples.storage.errors.AnotherProposalInProgressError;
 import io.f1r3fly.fs.examples.storage.errors.F1r3flyDeployError;
 import io.f1r3fly.fs.examples.storage.errors.NoDataByPath;
+import io.f1r3fly.fs.examples.storage.errors.NoNewDeploysError;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.smallrye.mutiny.Uni;
@@ -35,7 +37,7 @@ public class F1r3flyApi {
     public static final String RHOLANG = "rholang";
     public static final String METTA_LANGUAGE = "metta";
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(F1r3flyApi.class);
+    private static final Logger log = LoggerFactory.getLogger(F1r3flyApi.class);
 
     private static final Duration INIT_DELAY = Duration.ofMillis(100);
     private static final Duration MAX_DELAY = Duration.ofSeconds(5);
@@ -64,6 +66,12 @@ public class F1r3flyApi {
         this.proposeService = ProposeServiceGrpc.newFutureStub(channel)
             .withMaxInboundMessageSize(MAX_MESSAGE_SIZE)
             .withMaxOutboundMessageSize(MAX_MESSAGE_SIZE);
+
+        // add shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            log.info("Shutting down gRPC channel");
+            channel.shutdown();
+        }));
     }
 
     // Cut down on verbosity of surfacing successes
@@ -72,8 +80,8 @@ public class F1r3flyApi {
     }
 
     // Cut down on verbosity of surfacing errors
-    private <T> Uni<T> fail(String rho, ServiceErrorOuterClass.ServiceError error) {
-        return Uni.createFrom().failure(new F1r3flyDeployError(rho, gatherErrors(error)));
+    private <T> Uni<T> fail(String deployId, ServiceErrorOuterClass.ServiceError error) {
+        return Uni.createFrom().failure(new F1r3flyDeployError(deployId, gatherErrors(error)));
     }
 
     private String gatherErrors(ServiceErrorOuterClass.ServiceError error) {
@@ -81,11 +89,11 @@ public class F1r3flyApi {
         return messages.stream().collect(Collectors.joining("\n"));
     }
 
-    public String deploy(String rhoCode, boolean useBiggerRhloPrice, String language) throws F1r3flyDeployError {
+    public String deploy(String rhoCode, boolean useBiggerRhloPrice, String language) throws F1r3flyDeployError, NoNewDeploysError {
         try {
 
             int maxRholangInLogs = 2000;
-            LOGGER.debug("Rholang code {}", rhoCode.length() > maxRholangInLogs ? rhoCode.substring(0, maxRholangInLogs) : rhoCode);
+            log.debug("Rholang code {}", rhoCode.length() > maxRholangInLogs ? rhoCode.substring(0, maxRholangInLogs) : rhoCode);
 
             long phloLimit = useBiggerRhloPrice ? 5_000_000_000L : 50_000L;
 
@@ -103,70 +111,77 @@ public class F1r3flyApi {
             CasperMessage.DeployDataProto signed = signDeploy(deployment);
 
             // Deploy
-            Uni<String> deployVolumeContract =
-                Uni.createFrom().future(deployService.doDeploy(signed))
-                    .flatMap(deployResponse -> {
-//                        LOGGER.trace("Deploy Response {}", deployResponse);
-                        if (deployResponse.hasError()) {
-                            return this.<String>fail(rhoCode, deployResponse.getError());
-                        } else {
-                            return succeed(deployResponse.getResult());
-                        }
-                    })
-                    .flatMap(deployResult -> {
-                        String deployId = deployResult.substring(deployResult.indexOf("DeployId is: ") + 13, deployResult.length());
-                        return Uni.createFrom().future(proposeService.propose(ProposeServiceCommon.ProposeQuery.newBuilder().setIsAsync(false).build()))
-                            .flatMap(proposeResponse -> {
-//                                LOGGER.debug("Propose Response {}", proposeResponse);
-                                if (proposeResponse.hasError()) {
-                                    return this.<String>fail(rhoCode, proposeResponse.getError());
-                                } else {
-                                    return succeed(deployId);
-                                }
-                            });
-                    })
-                    .flatMap(deployId -> {
-                        ByteString b64 = ByteString.copyFrom(Hex.decode(deployId));
-                        return Uni.createFrom().future(deployService.findDeploy(DeployServiceCommon.FindDeployQuery.newBuilder().setDeployId(b64).build()))
-                            .flatMap(findResponse -> {
-                                LOGGER.trace("Find Response {}", findResponse);
-                                if (findResponse.hasError()) {
-                                    return this.<String>fail(rhoCode, findResponse.getError());
-                                } else {
-                                    return succeed(findResponse.getBlockInfo().getBlockHash());
-                                }
-                            });
-                    })
-                    .flatMap(blockHash -> {
-                        LOGGER.debug("Block Hash {}", blockHash);
-                        return Uni.createFrom().future(deployService.isFinalized(DeployServiceCommon.IsFinalizedQuery.newBuilder().setHash(blockHash).build()))
-                            .flatMap(isFinalizedResponse -> {
-                                LOGGER.debug("isFinalizedResponse {}", isFinalizedResponse);
-                                if (isFinalizedResponse.hasError() || !isFinalizedResponse.getIsFinalized()) {
-                                    return fail(rhoCode, isFinalizedResponse.getError());
-                                } else {
-                                    return succeed(blockHash);
-                                }
-                            })
-                            .onFailure().retry()
-                            .withBackOff(INIT_DELAY, MAX_DELAY)
-                            .atMost(RETRIES);
-                    });
+            DeployServiceV1.DeployResponse deployResponse = deployService.doDeploy(signed).get();
+            String deployResult = deployResponse.getResult();
 
-            // Drummer Hoff Fired It Off
-            return deployVolumeContract.await().indefinitely();
-        } catch (Exception e) {
-            if (e instanceof F1r3flyDeployError) {
-                throw (F1r3flyDeployError) e;
+            log.info("Deploy result: {}", deployResult);
+
+            if (deployResult.contains("Success")) {
+                return deployResult.substring(deployResult.indexOf("DeployId is: ") + 13);
             } else {
-                LOGGER.warn("failed to deploy Rho {}", rhoCode, e);
-                throw new F1r3flyDeployError(rhoCode, "Failed to deploy", e);
+                log.warn("Failed to deploy. Deploy result: {}", deployResult);
+                throw new F1r3flyDeployError("Invalid deployment", deployResult);
+            }
+        } catch (InterruptedException | ExecutionException e) {
+            if (e.getMessage().contains("NoNewDeploys")) {
+                throw new NoNewDeploysError("No new deploys found", "", e);
+            } else {
+                throw new F1r3flyDeployError("", "Failed to deploy", e);
+            }
+        }
+    }
+
+    public String propose(String deployId) throws NoNewDeploysError, F1r3flyDeployError, AnotherProposalInProgressError {
+        try {
+            return Uni.createFrom().future(proposeService.propose(ProposeServiceCommon.ProposeQuery.newBuilder().setIsAsync(false).build()))
+                .flatMap(proposeResponse -> {
+                    if (proposeResponse.hasError()) {
+                        return this.fail(deployId, proposeResponse.getError());
+                    } else {
+                        return Uni.createFrom().voidItem();
+                    }
+                })
+                .flatMap((Void) -> {
+                    ByteString b64 = ByteString.copyFrom(Hex.decode(deployId));
+                    return Uni.createFrom().future(deployService.findDeploy(DeployServiceCommon.FindDeployQuery.newBuilder().setDeployId(b64).build()))
+                        .flatMap(findResponse -> {
+                            log.trace("Find Response {}", findResponse);
+                            if (findResponse.hasError()) {
+                                return this.<String>fail(deployId, findResponse.getError());
+                            } else {
+                                return succeed(findResponse.getBlockInfo().getBlockHash());
+                            }
+                        });
+                })
+                .flatMap(blockHash -> {
+                    log.debug("Block Hash {}", blockHash);
+                    return Uni.createFrom().future(deployService.isFinalized(DeployServiceCommon.IsFinalizedQuery.newBuilder().setHash(blockHash).build()))
+                        .flatMap(isFinalizedResponse -> {
+                            log.debug("isFinalizedResponse {}", isFinalizedResponse);
+                            if (isFinalizedResponse.hasError() || !isFinalizedResponse.getIsFinalized()) {
+                                return fail(deployId, isFinalizedResponse.getError());
+                            } else {
+                                return succeed(blockHash);
+                            }
+                        })
+                        .onFailure().retry()
+                        .withBackOff(INIT_DELAY, MAX_DELAY)
+                        .atMost(RETRIES);
+                })
+                .await().indefinitely();
+        } catch (Throwable e) {
+            if (e.getMessage().contains("NoNewDeploys")) {
+                throw new NoNewDeploysError("No new deploys found", deployId, e);
+            } else if (e.getMessage().contains("propose is in progress") || e.getCause().getMessage().contains("propose is in progress")) {
+                throw new AnotherProposalInProgressError(e);
+            } else {
+                throw new F1r3flyDeployError(deployId, "Failed to deploy", e);
             }
         }
     }
 
     public List<RhoTypes.Par> findDataByName(String expr) throws NoDataByPath {
-        LOGGER.info("Find data by name {}", expr);
+        log.info("Find data by name {}", expr);
 
         RhoTypes.Par par = RhoTypes.Par.newBuilder().addExprs(
             RhoTypes.Expr.newBuilder()
@@ -185,31 +200,38 @@ public class F1r3flyApi {
         DeployServiceV1.ListeningNameDataResponse response = null;
         try {
             response = deployService.listenForDataAtName(request).get();
-            LOGGER.debug("Find data by name {}. Is error response = {}", expr, response.hasError());
+            log.debug("Find data by name {}. Is error response = {}", expr, response.hasError());
         } catch (InterruptedException | ExecutionException e) {
-            LOGGER.warn("Failed to find data by name {}", expr, e);
+            log.warn("Failed to find data by name {}", expr, e);
             throw new NoDataByPath(expr, "", e);
         }
 
         if (response.hasError()) {
-            LOGGER.debug("Get data by name {}. Error response {}", expr, response.getError());
+            log.debug("Get data by name {}. Error response {}", expr, response.getError());
             throw new NoDataByPath(expr, new FuseException(gatherErrors(response.getError())));
         } else if (response.getPayload().getLength() == 0) {
-            LOGGER.debug("Get data at by name {}. No data found (an empty list of block returned)", expr);
+            log.debug("Get data at by name {}. No data found (an empty list of block returned)", expr);
             throw new NoDataByPath(expr);
         } else {
             DeployServiceV1.ListeningNameDataPayload responsePayload = response.getPayload();
 
             // get data from last block
-            return responsePayload
-                .getBlockInfoList()
+            List<DeployServiceCommon.DataWithBlockInfo> blockInfoList = responsePayload
+                .getBlockInfoList();
+//                .stream()
+//                .sorted((x1, x2) -> Long.compare(x2.getPostBlockDataList().size(), x1.getPostBlockDataList().size()))
+//                .toList();
+
+            log.info("Get data by name {}. Found {} blocks", expr, blockInfoList.size());
+
+            return blockInfoList
                 .get(0)
                 .getPostBlockDataList();
         }
     }
 
     public List<RhoTypes.Par> getDataAtBlockByName(String blockHash, String expr) throws NoDataByPath {
-        LOGGER.info("Get data at block {} by name {}", blockHash, expr);
+        log.info("Get data at block {} by name {}", blockHash, expr);
 
         RhoTypes.Par par = RhoTypes.Par.newBuilder().addExprs(
             RhoTypes.Expr.newBuilder()
@@ -225,9 +247,9 @@ public class F1r3flyApi {
         casper.v1.DeployServiceV1.RhoDataResponse response = null;
         try {
             response = deployService.getDataAtName(request).get();
-            LOGGER.debug("Get data at block {} by name {}. Is error response = {}", blockHash, expr, response.hasError());
+            log.debug("Get data at block {} by name {}. Is error response = {}", blockHash, expr, response.hasError());
         } catch (InterruptedException | ExecutionException e) {
-            LOGGER.warn("Failed to get data at block {} by name {}", blockHash, expr, e);
+            log.warn("Failed to get data at block {} by name {}", blockHash, expr, e);
             throw new NoDataByPath(expr, blockHash, e);
         }
 

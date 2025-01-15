@@ -1,7 +1,8 @@
 package io.f1r3fly.fs.examples;
 
 import io.f1r3fly.fs.examples.datatransformer.AESCipher;
-import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
+import io.f1r3fly.fs.examples.storage.background.DeployDispatcher;
+import io.f1r3fly.fs.examples.storage.grcp.client.F1r3flyApi;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -16,11 +17,17 @@ import fr.acinq.secp256k1.Hex;
     description = "A FUSE filesystem based on the F1r3fly blockchain.")
 class F1r3flyFSMain implements Callable<Integer> {
 
-    @Option(names = {"-h", "--host"}, description = "Host of the F1r3fly blockchain internal gRPC API to connect to. Defaults to localhost.")
-    private String host = "localhost";
+    @Option(names = {"-sh", "--shard-host"}, description = "Host of the F1r3fly blockchain internal gRPC API to connect to. Defaults to localhost.")
+    private String shardHost = "localhost";
 
-    @Option(names = {"-p", "--port"}, description = "Port of the F1r3fly blockchain internal gRPC API to connect to. Defaults to 40402.")
-    private int port = 40402;
+    @Option(names = {"-sp", "--shard-port"}, description = "Port of the F1r3fly blockchain internal gRPC API to connect to. Defaults to 40402.")
+    private int shardPort = 40402;
+
+    @Option(names = {"-ch", "--client-host"}, description = "Host of the F1r3fly Drive gRPC API to listen gRPC notification from blockchain. Defaults to localhost.")
+    private String clientHost = "localhost";
+
+    @Option(names = {"-cp", "--client-port"}, description = "Port of the F1r3fly Drive gRPC API to listen gRPC notification from blockchain. Defaults to 51111.")
+    private int clientPort = 51111;
 
     @Option(names = {"-sk", "--signing-key"}, description = "Private key, in hexadecimal, to sign Rholang deployments with.")
     private String signingKey;
@@ -41,11 +48,23 @@ class F1r3flyFSMain implements Callable<Integer> {
 
         AESCipher.init(cipherKeyPath); // init singleton instance
 
-        F1r3flyApi f1R3FlyApi = new F1r3flyApi(Hex.decode(signingKey), host, port);
-        f1r3flyFS = new F1r3flyFS(f1R3FlyApi);
+        F1r3flyApi f1R3FlyApi = new F1r3flyApi(Hex.decode(signingKey), shardHost, shardPort);
+
+        DeployDispatcher deployDispatcher = new DeployDispatcher(f1R3FlyApi, clientHost + ":" + clientPort);
+
+        Config config = new Config(
+            clientHost,
+            clientPort,
+            mountName,
+            mountPoint,
+            deployDispatcher,
+            f1R3FlyApi
+        );
+
+        f1r3flyFS = new F1r3flyFS(config);
         try {
             if (mountName != null) {
-                f1r3flyFS.remount(mountName, mountPoint, true, false, new String[]{});
+                f1r3flyFS.remount(mountPoint, true, false, new String[]{});
             } else {
                 f1r3flyFS.mount(mountPoint, true);
             }

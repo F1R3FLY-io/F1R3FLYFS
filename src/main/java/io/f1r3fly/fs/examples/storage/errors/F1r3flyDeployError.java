@@ -1,17 +1,11 @@
 package io.f1r3fly.fs.examples.storage.errors;
 
-import org.jetbrains.annotations.NotNull;
-
 public class F1r3flyDeployError extends F1r3flyFSError {
-    public F1r3flyDeployError(String rawRho, String message) {
-        super("Failed to deploy Rholang expression: '%s'. Error: %s".formatted(truncateRhoIfTooLong(rawRho), message));
+    public F1r3flyDeployError(String deployId, String message) {
+        super("Failed to deploy (ID '%s'). Error: %s".formatted(deployId, message));
     }
 
-    private static @NotNull String truncateRhoIfTooLong(String rawRho) {
-        return rawRho.length() > 100 ? rawRho.substring(0, 100) + "..." : rawRho;
-    }
-
-    public F1r3flyDeployError(String rawRho, String message, Throwable cause) {
-        super("Failed to deploy Rholang expression: '%s'. Error: %s".formatted(truncateRhoIfTooLong(rawRho), message), cause);
+    public F1r3flyDeployError(String deployId, String message, Throwable cause) {
+        super("Failed to deploy (ID: '%s'). Error: %s".formatted(deployId, message), cause);
     }
 }

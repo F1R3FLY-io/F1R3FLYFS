@@ -1,6 +1,7 @@
 package io.f1r3fly.fs.examples.storage.rholang;
 
 import io.f1r3fly.fs.examples.datatransformer.Base16Coder;
+import io.f1r3fly.fs.examples.storage.grcp.listener.NotificationConstructor;
 import org.jetbrains.annotations.NotNull;
 import rhoapi.RhoTypes;
 
@@ -20,17 +21,19 @@ public class RholangExpressionConstructor {
     private static final String CHILDREN = "children";
     private static final String LAST_UPDATED = "lastUpdated";
     private static final String OTHER_CHUNKS = "otherChunks";
+    private static final String FILE_SIZE = "fileSize";
 
     /**
      * Represents a file or a folder
      *
-     * @param type        "f" for file, "d" for directory
+     * @param type        "f"for file, "d"for directory
      * @param lastUpdated timestamp of the last update
      * @param firstChunk content of the file; null for a folder
      * @param children    list of children; null for a file
      * @param otherChunks map of sub channels; null for a folder
+     * @param fileSize    size of the file; 0 for a folder
      */
-    public record ChannelData(String type, long lastUpdated, byte[] firstChunk, Set<String> children, Map<Integer, String> otherChunks) {
+    public record ChannelData(String type, long lastUpdated, byte[] firstChunk, Set<String> children, Map<Integer, String> otherChunks, long fileSize) {
         public boolean isFile() {
             return type.equals(FILE_TYPE);
         }
@@ -42,7 +45,7 @@ public class RholangExpressionConstructor {
 
     //** Creates a chanel with a file */
     public static String sendEmptyFileIntoNewChanel(String channelName) {
-        // output looks like: @"path"!({"type":"f","firstChunk":[]}, "otherChunks":{}, "lastUpdated":123})
+        // output looks like: @"path"!({"type":"f","firstChunk":[]}, "otherChunks":{}, "lastUpdated":123, "fileSize":0})
         return new StringBuilder()
             .append("@\"")
             .append(channelName)
@@ -58,7 +61,9 @@ public class RholangExpressionConstructor {
             .append(LAST_UPDATED)
             .append("\":")
             .append(currentTime())
-            .append("})")
+            .append(",\"")
+            .append(FILE_SIZE)
+            .append("\":0})")
             .toString();
     }
 
@@ -138,10 +143,10 @@ public class RholangExpressionConstructor {
     }
 
     //** Consume a value from a channel and send to an appended value */
-    public static String updateFileContent(String chanel, byte[] newChunk) {
+    public static String updateFileContent(String chanel, byte[] newChunk, long totalFileSize) {
         // output looks like:
         // for(@v <- @"path"){
-        //      @"path"!(v.set("lastUpdated",123).set("firstChunk", "base16encodedChunk".hexToBytes()))
+        //      @"path"!(v.set("lastUpdated",123).set("firstChunk", "base16encodedChunk".hexToBytes()).set("fileSize", 123))
         // }
 
         return new StringBuilder()
@@ -158,7 +163,12 @@ public class RholangExpressionConstructor {
             .append(FIRST_CHUNK)
             .append("\",\"")
             .append(Base16Coder.bytesToHex(newChunk))
-            .append("\".hexToBytes()))}")
+            .append("\".hexToBytes())")
+            .append(".set(\"")
+            .append(FILE_SIZE)
+            .append("\",")
+            .append(totalFileSize)
+            .append("))}")
             .toString();
     }
 
@@ -183,7 +193,7 @@ public class RholangExpressionConstructor {
             .append("\",{")
             .append(
                 otherChunks.entrySet().stream()
-                    .map(e -> e.getKey() + ": " + string2RholngString(e.getValue()))
+                    .map(e -> e.getKey() + ": "+ string2RholngString(e.getValue()))
                     .collect(Collectors.joining(LIST_DELIMITER))
             )
             .append("}))}")
@@ -228,7 +238,7 @@ public class RholangExpressionConstructor {
             .append("{")
             .append(
                 emap.entrySet().stream()
-                    .map(e -> string2RholngString(e.getKey()) + ": " + string2RholngString(e.getValue()))
+                    .map(e -> string2RholngString(e.getKey()) + ": "+ string2RholngString(e.getValue()))
                     .collect(Collectors.joining(LIST_DELIMITER))
             )
             .append("}")
@@ -271,6 +281,7 @@ public class RholangExpressionConstructor {
         byte[] content = null;
         Set<String> children = null;
         Map<Integer, String> otherChunks = null;
+        long fileSize = 0;
 
         if (type.equals(FILE_TYPE)) {
 
@@ -288,6 +299,11 @@ public class RholangExpressionConstructor {
                     )))
                 .orElseThrow(() -> new IllegalArgumentException("No otherChunks in file data"));
 
+            fileSize = keyValues.stream().filter(kv -> kv.getKey().getExprs(0).getGString().equals(FILE_SIZE))
+                .findFirst()
+                .map(kv -> kv.getValue().getExprs(0).getGInt())
+                .orElseThrow(() -> new IllegalArgumentException("No lastUpdated in channel data"));
+
         } else if (type.equals(DIR_TYPE)) {
 
             children = keyValues.stream().filter(kv -> kv.getKey().getExprs(0).getGString().equals(CHILDREN))
@@ -300,14 +316,148 @@ public class RholangExpressionConstructor {
 
         } else {
 
-            throw new IllegalArgumentException("Unknown type: " + type);
+            throw new IllegalArgumentException("Unknown type: "+ type);
 
         }
 
-        return new ChannelData(type, lastUpdated, content, children, otherChunks);
+        return new ChannelData(type, lastUpdated, content, children, otherChunks, fileSize);
     }
 
     protected static @NotNull long currentTime() {
         return System.currentTimeMillis();
+    }
+
+    // SUBSCRIPTIONS ON UPDATES
+
+    public static String appendSubscription(String clientHost, int clientPort, String mountId) {
+        // output looks like:
+        /*
+            for ( @clients <- @"@/mountID/clients") {
+                @"@/mountID/clients"!( clients.set( "clientHost:clientPort", { "host": "clientHost", "port": clientPort } ).set( "lastUpdated", 123 ) )
+            }
+         */
+
+        return new StringBuilder()
+            .append("for ( @clients <- @\"@/")
+            .append(mountId)
+            .append("/clients\") { @\"@/")
+            .append(mountId)
+            .append("/clients\"!( clients.set( \"")
+            .append(clientHost)
+            .append(":")
+            .append(clientPort)
+            .append("\", { \"host\": \"")
+            .append(clientHost)
+            .append("\", \"port\": ")
+            .append(clientPort)
+            .append("} ).set( \"")
+            .append(LAST_UPDATED)
+            .append("\", ")
+            .append(currentTime())
+            .append(") ) }")
+            .toString();
+    }
+
+    public static String createFirstSubscription(String clientHost, int clientPort, String mountId) {
+        // output looks like:
+        /*
+            @"@/mountID/clients"!({
+                "clientHost:clientPort": { "host": "clientHost", "port": clientPort }
+            }) | @1(1234)
+        */
+
+        return new StringBuilder()
+            .append("@\"@/")
+            .append(mountId)
+            .append("/clients\"!({ \"")
+            .append(clientHost)
+            .append(":")
+            .append(clientPort)
+            .append("\": { \"host\": \"")
+            .append(clientHost)
+            .append("\", \"port\": ")
+            .append(clientPort)
+            .append("}}) | @1!(")
+            .append(currentTime())
+            .append(")")
+            .toString();
+    }
+
+    public static String removeSubscription(String clientHost, int clientPort, String mountId) {
+        // output looks like:
+        /*
+            for ( @clients <- @"@/mountID/clients") {
+                @"@/mountID/clients"!( clients.delete("clientHost:clientPort") )
+            } | @!1(1234)
+         */
+
+        return new StringBuilder()
+            .append("for ( @clients <- @\"@/")
+            .append(mountId)
+            .append("/clients\") { @\"@/")
+            .append(mountId)
+            .append("/clients\"!( clients.delete(\"")
+            .append(clientHost)
+            .append(":")
+            .append(clientPort)
+            .append("\"))} | @1!(")
+            .append(currentTime())
+            .append(")")
+            .toString();
+    }
+
+    public static String triggerNotificationForSubscribers(String mountId, NotificationConstructor.NotificationPayload payload, String currentHost, int currentPort) {
+        // output looks like:
+        /*
+            new loop, grpcTell(`rho:io:grpcTell`) in {
+
+                contract loop(@clientsList, @updatedPath) = {
+                    match clientsList {
+                      [] => Nil
+                      [head ...tail] => {
+                        grpcTell!(
+                                head.nth(1).get("host"),
+                                head.nth(1).get("port"),
+                                updatedPath ) | loop!(tail)
+                      }
+                    }
+                } |
+
+                for (@clients <- @"@/mountID/clients") {
+                    loop!(clients.delete("clientHost:clientPort").toList(), "updatedFolder") |
+                    @"@/mountID/clients"!(clients)
+                }
+            } | @1!(1234)
+         */
+
+        return new StringBuilder()
+            .append("new loop, grpcTell(`rho:io:grpcTell`) in {")
+            .append("contract loop(@clientsList, @updatedPath) = {")
+            .append("match clientsList {")
+            .append("[] => Nil")
+            .append("[head ...tail] => {")
+            .append("grpcTell!(")
+            .append("head.nth(1).get(\"host\"),")
+            .append("head.nth(1).get(\"port\"),")
+            .append("updatedPath ) | loop!(tail)")
+            .append("}")
+            .append("}")
+            .append("} |")
+            .append("for (@clients <- @\"@/")
+            .append(mountId)
+            .append("/clients\") {")
+            .append("loop!(clients.delete(\"")
+            .append(currentHost)
+            .append(":")
+            .append(currentPort)
+            .append("\").toList(), \"")
+            .append(payload.makeString())
+            .append("\")")
+            .append("| @\"@/")
+            .append(mountId)
+            .append("/clients\"!(clients)}} | @1!(")
+            .append(currentTime())
+            .append(")")
+            .toString();
     }
 }

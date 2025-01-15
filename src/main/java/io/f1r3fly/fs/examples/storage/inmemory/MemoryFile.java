@@ -1,7 +1,10 @@
 package io.f1r3fly.fs.examples.storage.inmemory;
 
+import io.f1r3fly.fs.examples.Config;
 import io.f1r3fly.fs.examples.datatransformer.AESCipher;
-import io.f1r3fly.fs.examples.storage.DeployDispatcher;
+import io.f1r3fly.fs.examples.storage.errors.NoDataByPath;
+import io.f1r3fly.fs.examples.storage.grcp.listener.NotificationConstructor;
+import io.f1r3fly.fs.examples.storage.grcp.listener.NotificationConstructor.NotificationReasons;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseContext;
@@ -9,10 +12,13 @@ import io.f1r3fly.fs.utils.PathUtils;
 import jnr.ffi.Pointer;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
+import rhoapi.RhoTypes;
 
 import java.io.*;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MemoryFile extends MemoryPath {
@@ -27,7 +33,7 @@ public class MemoryFile extends MemoryPath {
     protected long lastDeploymentOffset = 0;
     protected boolean isDirty = true;
     // cached file size; avoid IO operations at getattr
-    protected long size = -1;
+    protected long size = 0;
 
     // Illegal Filename Characters.
     // In theory, it can't be used in filename, so it's safe to use it as a delimiter
@@ -36,10 +42,11 @@ public class MemoryFile extends MemoryPath {
     private boolean isOtherChunksDeployed = false;
     private Map<Integer, String> otherChunks = new ConcurrentHashMap<>();
 
-    public MemoryFile(String prefix, String name, MemoryDirectory parent, DeployDispatcher deployDispatcher, boolean sendToShard) {
-        super(prefix, name, parent, deployDispatcher);
+    public MemoryFile(Config config, String name, MemoryDirectory parent, boolean sendToShard) {
+        super(config, name, parent);
         if (sendToShard) {
             enqueueCreatingFile();
+            triggerNotificationWithReason(NotificationReasons.FILE_CREATED);
         }
         try {
             cachedFile = File.createTempFile(name, null);
@@ -49,7 +56,7 @@ public class MemoryFile extends MemoryPath {
     }
 
     private void enqueueCreatingFile() {
-        String rholang = RholangExpressionConstructor.sendEmptyFileIntoNewChanel(getAbsolutePath());
+        String rholang = RholangExpressionConstructor.sendEmptyFileIntoNewChanel(getChannelName());
         enqueueMutation(rholang);
     }
 
@@ -64,7 +71,7 @@ public class MemoryFile extends MemoryPath {
     public int read(Pointer buffer, long size, long offset) throws IOException {
         open(); // make sure file is open
 
-        int bytesToRead = (int) Math.min(this.size - offset, size);
+        int bytesToRead = (int) Math.min(getSize() - offset, size);
         byte[] chunk = new byte[bytesToRead];
 
         synchronized (this) {
@@ -76,12 +83,12 @@ public class MemoryFile extends MemoryPath {
         return bytesToRead;
     }
 
-    public synchronized void truncate(long offset) throws IOException {
+    public synchronized void truncate(long offset, boolean sendToShard) throws IOException {
         if (offset != 0) {
             throw new RuntimeException("Unsupported");
         }
 
-        if (size >= 0) {
+        if (getSize() >= 0) {
             size = 0; // size changed, reset it
         }
 
@@ -94,15 +101,19 @@ public class MemoryFile extends MemoryPath {
         cachedFile.delete();
         cachedFile = Files.createTempFile(name, null).toFile();
 
-        enqueueMutation(RholangExpressionConstructor.forgetChanel(getAbsolutePath()));
-        otherChunks.forEach((chunkNumber, subChannel) -> {
-            enqueueMutation(RholangExpressionConstructor.forgetChanel(subChannel));
-        });
-
         otherChunks = new ConcurrentHashMap<>();
         isOtherChunksDeployed = false;
 
-        enqueueCreatingFile();
+        if (sendToShard) {
+            enqueueMutation(RholangExpressionConstructor.forgetChanel(getChannelName()));
+            otherChunks.forEach((chunkNumber, subChannel) -> {
+                enqueueMutation(RholangExpressionConstructor.forgetChanel(subChannel));
+            });
+            enqueueCreatingFile();
+            triggerNotificationWithReason(NotificationReasons.TRUNCATED);
+        }
+
+
 
         open();
     }
@@ -112,7 +123,7 @@ public class MemoryFile extends MemoryPath {
 
         open(); // make sure file is open
 
-        if (size >= 0) {
+        if (getSize() >= 0) {
             size = -1; // size changed, reset it
         }
 
@@ -152,9 +163,9 @@ public class MemoryFile extends MemoryPath {
         int chunkNumber = (int) (lastDeploymentOffset / MAX_FILE_CHUNK_SIZE);
         String rholang;
         if (chunkNumber == 0) {
-            rholang = RholangExpressionConstructor.updateFileContent(getAbsolutePath(), bytes);
+            rholang = RholangExpressionConstructor.updateFileContent(getChannelName(), bytes, getSize());
         } else {
-            String subChannel = getAbsolutePath() + delimiter + chunkNumber;
+            String subChannel = getChannelName() + delimiter + chunkNumber;
             rholang = RholangExpressionConstructor.sendFileContentChunk(subChannel, bytes);
             otherChunks.put(chunkNumber, subChannel);
             isOtherChunksDeployed = false;
@@ -162,6 +173,12 @@ public class MemoryFile extends MemoryPath {
         enqueueMutation(rholang);
 
         lastDeploymentOffset = lastDeploymentOffset + size;
+
+        if (lastDeploymentOffset == getSize()) {
+           // deployed a last part of the file
+            triggerNotificationWithReason(NotificationReasons.FILE_WROTE);
+        }
+
     }
 
     public void open() throws IOException {
@@ -189,7 +206,7 @@ public class MemoryFile extends MemoryPath {
 
             if (!isOtherChunksDeployed) {
                 if (!otherChunks.isEmpty()) {
-                    enqueueMutation(RholangExpressionConstructor.updateOtherChunksMap(getAbsolutePath(), otherChunks));
+                    enqueueMutation(RholangExpressionConstructor.updateOtherChunksMap(getChannelName(), otherChunks));
                 }
                 isOtherChunksDeployed = true;
             }
@@ -205,7 +222,7 @@ public class MemoryFile extends MemoryPath {
     }
 
     long getSize() {
-        if (size < 0) {
+        if (size <= 0) {
             size = cachedFile.length();
         }
         return size;
@@ -248,7 +265,7 @@ public class MemoryFile extends MemoryPath {
     }
 
     @Override
-    public void rename(String newName, MemoryDirectory newParent, boolean sendToShard) throws IOException {
+    public void rename(String newName, MemoryDirectory newParent, boolean renameOnShard, boolean updateParentOnShard) throws IOException {
 
         isDirty = true;
 
@@ -262,12 +279,15 @@ public class MemoryFile extends MemoryPath {
         boolean needDecrypt = wasEncrypted && !willBeEncrypted;
 
         if (needEncrypt || needDecrypt) {
-            enqueueMutation(RholangExpressionConstructor.forgetChanel(getAbsolutePath())); // delete old
-            super.rename(newName, newParent, false); // skip event, chanel wil be re-created the below
+            enqueueMutation(RholangExpressionConstructor.forgetChanel(getChannelName())); // delete old
+            String oldPath = getAbsolutePath();
+            super.rename(newName, newParent, false, true); // skip event, channel wil be re-created the below
             redeployFileIntoChanel();
+            String newPath = getAbsolutePath();
+            triggerRenameNotification(oldPath, newPath); // notify subscribers separately b/c `super.rename` doesn't trigger it
         } else {
 
-            super.rename(newName, newParent, sendToShard); // just rename the rholang chanel
+            super.rename(newName, newParent, renameOnShard, updateParentOnShard); // just rename the rholang chanel
         }
 
     }
@@ -291,5 +311,31 @@ public class MemoryFile extends MemoryPath {
 
     private boolean isDeployable() {
         return PathUtils.isDeployableFile(name);
+    }
+
+    public void fetchContent(byte[] firstChunk, Map<Integer, String> otherChunks) throws NoDataByPath, IOException {
+        long offset = 0;
+        offset = initFromBytes(firstChunk, offset);
+
+        if (!otherChunks.isEmpty()) {
+            Set<Integer> chunkNumbers = otherChunks.keySet();
+            Integer[] sortedChunkNumbers = chunkNumbers.stream().sorted().toArray(Integer[]::new);
+
+            for (Integer chunkNumber : sortedChunkNumbers) {
+                String subChannel = otherChunks.get(chunkNumber);
+                List<RhoTypes.Par> subChannelPars = config.f1r3flyAPI.findDataByName(subChannel);
+                byte[] data = RholangExpressionConstructor.parseBytes(subChannelPars);
+
+                offset = offset + initFromBytes(data, offset);
+            }
+        }
+
+        initSubChannels(otherChunks);
+    }
+
+    @Override
+    public synchronized void delete(boolean sendToShard) {
+        super.delete(sendToShard);
+        cachedFile.delete();
     }
 }

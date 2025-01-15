@@ -1,6 +1,7 @@
 package io.f1r3fly.fs.examples.storage.inmemory;
 
-import io.f1r3fly.fs.examples.storage.DeployDispatcher;
+import io.f1r3fly.fs.examples.Config;
+import io.f1r3fly.fs.examples.storage.grcp.listener.NotificationConstructor;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseContext;
@@ -11,27 +12,27 @@ import java.io.IOException;
 public abstract class MemoryPath extends DeployablePath {
     protected String name;
     protected MemoryDirectory parent;
-    protected String prefix;
 
-    public MemoryPath(String prefix, String name, DeployDispatcher deployDispatcher) {
-        this(prefix, name, null, deployDispatcher);
+    public MemoryPath(Config config, String name) {
+        this(config, name, null);
     }
 
-    public MemoryPath(String prefix, String name, MemoryDirectory parent, DeployDispatcher deployDispatcher) {
+    public MemoryPath(Config config, String name, MemoryDirectory parent) {
         this.name = name;
         this.parent = parent;
-        this.prefix = prefix;
-        this.deployDispatcher = deployDispatcher;
+        this.config = config;
     }
 
-    public synchronized void delete() {
-        if (parent != null) {
-            parent.deleteChild(this);
-            parent = null;
+    public synchronized void delete(boolean sendToShard) {
+        if (sendToShard) {
+            String rholangExpression = RholangExpressionConstructor.forgetChanel(getChannelName());
+            enqueueMutation(rholangExpression);
+            triggerNotificationWithReason(NotificationConstructor.NotificationReasons.DELETED);
         }
 
-        String rholangExpression = RholangExpressionConstructor.forgetChanel(getAbsolutePath());
-        enqueueMutation(rholangExpression);
+        if (parent != null) {
+            parent.deleteChild(this, sendToShard);
+        }
     }
 
     public MemoryPath find(String path) {
@@ -46,23 +47,48 @@ public abstract class MemoryPath extends DeployablePath {
 
     public abstract void getattr(FileStat stat, FuseContext fuseContext);
 
-    public void rename(String newName, MemoryDirectory newParent, boolean sendToShard) throws IOException {
+    public void rename(String newName, MemoryDirectory newParent, boolean renameOnShard, boolean updateParentsOnShard) throws IOException {
+        if (parent == null) {
+            throw new IOException("Cannot rename root directory");
+        }
+
+
         while (newName.startsWith(PathUtils.getPathDelimiterBasedOnOS())) {
             newName = newName.substring(1);
         }
-        parent.deleteChild(this);
-        parent = newParent;
+        String oldChannelName = getChannelName();
         String oldPath = getAbsolutePath();
+
+
         name = newName;
-        if (sendToShard) {
-            String newPath = getAbsolutePath();
-            enqueueMutation(RholangExpressionConstructor.renameChanel(oldPath, newPath));
+        String newChannelName = getChannelName();
+        String newPath = getAbsolutePath();
+
+        boolean parentChanged = !parent.getAbsolutePath().equals(newParent.getAbsolutePath());
+
+        if (renameOnShard) {
+            enqueueMutation(RholangExpressionConstructor.renameChanel(oldChannelName, newChannelName));
+
+            // use old name in a notification, so sending now and then changing the name
+            triggerRenameNotification(oldPath, newPath);
+        }
+
+        if (parentChanged) {
+            parent.deleteChild(this, updateParentsOnShard);
+            newParent.addChildren(this, updateParentsOnShard);
+        } else {
+            if (updateParentsOnShard) {
+                parent.enqueueUpdatingChildrenList();
+            }
         }
     }
 
+    public String getChannelName() {
+        return config.mountName + getAbsolutePath();
+    }
     public String getAbsolutePath() {
         if (parent == null) {
-            return prefix + name;
+            return "";
         } else {
             return parent.getAbsolutePath() + PathUtils.getPathDelimiterBasedOnOS() + name;
         }

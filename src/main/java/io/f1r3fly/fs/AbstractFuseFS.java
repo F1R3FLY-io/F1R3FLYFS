@@ -1,5 +1,6 @@
 package io.f1r3fly.fs;
 
+import io.f1r3fly.fs.examples.Config;
 import io.f1r3fly.fs.struct.*;
 import jnr.ffi.LibraryLoader;
 import jnr.ffi.Pointer;
@@ -12,6 +13,7 @@ import io.f1r3fly.fs.utils.MountUtils;
 import io.f1r3fly.fs.utils.SecurityUtils;
 import io.f1r3fly.fs.utils.WinPathUtils;
 
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -33,11 +35,12 @@ public abstract class AbstractFuseFS implements FuseFS {
     protected final LibFuse libFuse;
     protected final FuseOperations fuseOperations;
     protected final AtomicBoolean mounted = new AtomicBoolean();
-    protected Path mountPoint;
     private volatile Pointer fusePointer;
-    protected String mountName = null; // REGENERATE IT FOR EACH MOUNT
+    protected Config config;
 
-    public AbstractFuseFS() {
+    public AbstractFuseFS(Config config) {
+        this.config = config;
+
         jnr.ffi.Platform p = jnr.ffi.Platform.getNativePlatform();
         LibFuse libFuse = null;
         switch (p.getOS()) {
@@ -242,16 +245,15 @@ public abstract class AbstractFuseFS implements FuseFS {
         if (!mounted.compareAndSet(false, true)) {
             throw new FuseException("Fuse fs already mounted!");
         }
-        this.mountPoint = mountPoint;
         String[] arg;
         String mountPointStr = mountPoint.toAbsolutePath().toString();
         if (mountPointStr.endsWith("\\")) {
             mountPointStr = mountPointStr.substring(0, mountPointStr.length() - 1);
         }
         if (!debug) {
-            arg = new String[]{this.mountName, "-o", "fsname=" + this.mountName, "-f", mountPointStr};
+            arg = new String[]{config.mountName, "-o", "fsname=" + config.mountName, "-f", mountPointStr};
         } else {
-            arg = new String[]{this.mountName, "-o", "fsname=" + this.mountName, "-f", "-d", mountPointStr};
+            arg = new String[]{config.mountName, "-o", "fsname=" + config.mountName, "-f", "-d", mountPointStr};
         }
         if (fuseOpts.length != 0) {
             int argLen = arg.length;
@@ -314,7 +316,7 @@ public abstract class AbstractFuseFS implements FuseFS {
                 libFuse.fuse_exit(fusePointer);
             }
         } else {
-            MountUtils.umount(mountPoint);
+            MountUtils.umount(config.mountPoint);
         }
         mounted.set(false);
     }

@@ -1,10 +1,14 @@
 package io.f1r3fly.fs.examples;
 
+import casper.ExternalCommunicationServiceCommon;
+import casper.v1.ExternalCommunicationServiceV1;
 import io.f1r3fly.fs.*;
-import io.f1r3fly.fs.examples.storage.DeployDispatcher;
+import io.f1r3fly.fs.examples.storage.background.NotificationsSubscriber;
 import io.f1r3fly.fs.examples.storage.errors.NoDataByPath;
 import io.f1r3fly.fs.examples.storage.errors.PathIsNotADirectory;
-import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
+import io.f1r3fly.fs.examples.storage.grcp.listener.F1r3flyDriveServer;
+import io.f1r3fly.fs.examples.storage.grcp.listener.NotificationConstructor;
+import io.f1r3fly.fs.examples.storage.grcp.listener.UpdateNotificationHandler;
 import io.f1r3fly.fs.examples.storage.inmemory.MemoryDirectory;
 import io.f1r3fly.fs.examples.storage.inmemory.MemoryFile;
 import io.f1r3fly.fs.examples.storage.inmemory.MemoryPath;
@@ -17,24 +21,24 @@ import jnr.ffi.Pointer;
 import jnr.ffi.types.mode_t;
 import jnr.ffi.types.off_t;
 import jnr.ffi.types.size_t;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rhoapi.RhoTypes;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 
 public class F1r3flyFS extends FuseStubFS {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(F1r3flyFS.class);
+    protected final Logger log;
 
-    private final F1r3flyApi f1R3FlyApi;
-    private DeployDispatcher deployDispatcher;
     private MemoryDirectory rootDirectory;
+    private F1r3flyDriveServer grpcServer;
 
     private final String[] MOUNT_OPTIONS = {
         // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options
@@ -44,15 +48,16 @@ public class F1r3flyFS extends FuseStubFS {
     };
 
 
-    public F1r3flyFS(F1r3flyApi f1R3FlyApi) {
-        super(); // no need to call Fuse constructor
+    public F1r3flyFS(Config config) {
+        super(config);
 
-        this.f1R3FlyApi = f1R3FlyApi;
+        this.config = config;
+        log = LoggerFactory.getLogger("F1r3flyFS (%s:%s)".formatted(config.clientHost, config.clientPort));
     }
 
     @Override
     public int create(String path, @mode_t long mode, FuseFileInfo fi) {
-        LOGGER.debug("Called Create file {}", path);
+        log.debug("Called Create file {}", path);
         try {
             if (getPath(path) != null) {
                 return -ErrorCodes.EEXIST();
@@ -64,7 +69,7 @@ public class F1r3flyFS extends FuseStubFS {
             }
             return -ErrorCodes.ENOENT();
         } catch (Throwable e) {
-            LOGGER.error("Error creating file {}", path, e);
+            log.error("Error creating file {}", path, e);
             return -ErrorCodes.EIO();
         }
     }
@@ -72,7 +77,7 @@ public class F1r3flyFS extends FuseStubFS {
 
     @Override
     public int getattr(String path, FileStat stat) {
-        LOGGER.debug("Called Getattr {}", path);
+        log.debug("Called Getattr {}", path);
         try {
             if (!isMounted()) {
                 return -ErrorCodes.ENOENT();
@@ -85,23 +90,23 @@ public class F1r3flyFS extends FuseStubFS {
             }
             return -ErrorCodes.ENOENT();
         } catch (Throwable e) {
-            LOGGER.error("Error getting attributes for {}", path, e);
+            log.error("Error getting attributes for {}", path, e);
             return -ErrorCodes.EIO();
         }
     }
 
     private String getLastComponent(String path) {
-        while (path.substring(path.length() - 1).equals("/")) {
+        while (path.substring(path.length() - 1).equals(PathUtils.getPathDelimiterBasedOnOS())) {
             path = path.substring(0, path.length() - 1);
         }
         if (path.isEmpty()) {
             return "";
         }
-        return path.substring(path.lastIndexOf("/") + 1);
+        return path.substring(path.lastIndexOf(PathUtils.getPathDelimiterBasedOnOS()) + 1);
     }
 
     private MemoryPath getParentPath(String path) {
-        return rootDirectory.find(path.substring(0, path.lastIndexOf("/")));
+        return rootDirectory.find(path.substring(0, path.lastIndexOf(PathUtils.getPathDelimiterBasedOnOS())));
     }
 
     private MemoryPath getPath(String path) {
@@ -112,7 +117,7 @@ public class F1r3flyFS extends FuseStubFS {
     @Override
     public int mkdir(String path, @mode_t long mode) {
         try {
-            LOGGER.debug("Called Mkdir {}", path);
+            log.debug("Called Mkdir {}", path);
             if (getPath(path) != null) {
                 return -ErrorCodes.EEXIST();
             }
@@ -121,9 +126,10 @@ public class F1r3flyFS extends FuseStubFS {
                 ((MemoryDirectory) parent).mkdir(getLastComponent(path), true);
                 return SuccessCodes.OK;
             }
+            log.warn("Parent of {} is not a directory: {}", path, parent == null ? "null" : path);
             return -ErrorCodes.ENOENT();
         } catch (Throwable e) {
-            LOGGER.error("Error creating directory {}", path, e);
+            log.error("Error creating directory {}", path, e);
             return -ErrorCodes.EIO();
         }
     }
@@ -131,7 +137,7 @@ public class F1r3flyFS extends FuseStubFS {
 
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        LOGGER.trace("Called Read file {} with buffer size {} and offset {}", path, size, offset);
+        log.trace("Called Read file {} with buffer size {} and offset {}", path, size, offset);
         try {
             MemoryPath p = getPath(path);
             if (p == null) {
@@ -142,14 +148,14 @@ public class F1r3flyFS extends FuseStubFS {
             }
             return ((MemoryFile) p).read(buf, size, offset);
         } catch (Throwable e) {
-            LOGGER.warn("Error reading file {}", path, e);
+            log.warn("Error reading file {}", path, e);
             return -ErrorCodes.EIO();
         }
     }
 
     @Override
     public int readdir(String path, Pointer buf, FuseFillDir filter, @off_t long offset, FuseFileInfo fi) {
-        LOGGER.debug("Called Readdir {}", path);
+        log.debug("Called Readdir {}", path);
         try {
             MemoryPath p = getPath(path);
             if (p == null) {
@@ -163,7 +169,7 @@ public class F1r3flyFS extends FuseStubFS {
             ((MemoryDirectory) p).read(buf, filter);
             return SuccessCodes.OK;
         } catch (Throwable e) {
-            LOGGER.error("Error reading directory {}", path, e);
+            log.error("Error reading directory {}", path, e);
             return -ErrorCodes.EIO();
         }
     }
@@ -171,7 +177,8 @@ public class F1r3flyFS extends FuseStubFS {
 
     @Override
     public int statfs(String path, Statvfs stbuf) {
-        LOGGER.debug("Called Statfs {}", path);
+        // many calls, so trace lvl
+        log.trace("Called Statfs {}", path);
         try {
             // UI checks free space before writing a file
             // letting Fuse know that we have 100GB free space
@@ -193,14 +200,14 @@ public class F1r3flyFS extends FuseStubFS {
 
             return super.statfs(path, stbuf);
         } catch (Throwable e) {
-            LOGGER.error("Error statfs", e);
+            log.error("Error statfs", e);
             return -ErrorCodes.EIO();
         }
     }
 
     @Override
     public int rename(String path, String newName) {
-        LOGGER.debug("Called Rename {} to {}", path, newName);
+        log.debug("Called Rename {} to {}", path, newName);
         try {
             MemoryPath p = getPath(path);
             if (p == null) {
@@ -214,22 +221,22 @@ public class F1r3flyFS extends FuseStubFS {
                 return -ErrorCodes.ENOTDIR();
             }
 //            p.delete();
-            p.rename(newName.substring(newName.lastIndexOf(PathUtils.getPathDelimiterBasedOnOS())), (MemoryDirectory) newParent, true);
-            ((MemoryDirectory) newParent).add(p, true);
+            p.rename(newName.substring(newName.lastIndexOf(PathUtils.getPathDelimiterBasedOnOS())), (MemoryDirectory) newParent, true, true);
+//            ((MemoryDirectory) newParent).add(p, true);
 
             if (p instanceof MemoryFile)
                 ((MemoryFile) p).onChange();
 
             return SuccessCodes.OK;
         } catch (Throwable e) {
-            LOGGER.error("Error renaming file {}", path, e);
+            log.error("Error renaming file {}", path, e);
             return -ErrorCodes.EIO();
         }
     }
 
     @Override
     public int rmdir(String path) {
-        LOGGER.debug("Called Rmdir {}", path);
+        log.debug("Called Rmdir {}", path);
         try {
             MemoryPath p = getPath(path);
             if (p == null) {
@@ -241,17 +248,17 @@ public class F1r3flyFS extends FuseStubFS {
             if (!((MemoryDirectory) p).isEmpty()) {
                 return -ErrorCodes.ENOTEMPTY();
             }
-            p.delete();
+            p.delete(true);
             return SuccessCodes.OK;
         } catch (Throwable e) {
-            LOGGER.error("Error removing directory {}", path, e);
+            log.error("Error removing directory {}", path, e);
             return -ErrorCodes.EIO();
         }
     }
 
     @Override
     public int truncate(String path, long offset) {
-        LOGGER.debug("Called Truncate file {}", path);
+        log.debug("Called Truncate file {}", path);
         try {
             MemoryPath p = getPath(path);
             if (p == null) {
@@ -260,33 +267,34 @@ public class F1r3flyFS extends FuseStubFS {
             if (!(p instanceof MemoryFile)) {
                 return -ErrorCodes.EISDIR();
             }
-            ((MemoryFile) p).truncate(offset);
+            ((MemoryFile) p).truncate(offset, true);
+
             return SuccessCodes.OK;
         } catch (Throwable e) {
-            LOGGER.error("Error truncating file {}", path, e);
+            log.error("Error truncating file {}", path, e);
             return -ErrorCodes.EIO();
         }
     }
 
     @Override
     public int unlink(String path) {
-        LOGGER.debug("Called Unlink {}", path);
+        log.debug("Called Unlink {}", path);
         try {
             MemoryPath p = getPath(path);
             if (p == null) {
                 return -ErrorCodes.ENOENT();
             }
-            p.delete();
+            p.delete(true);
             return SuccessCodes.OK;
         } catch (Throwable e) {
-            LOGGER.error("Error unlinking file {}", path, e);
+            log.error("Error unlinking file {}", path, e);
             return -ErrorCodes.EIO();
         }
     }
 
     @Override
     public int open(String path, FuseFileInfo fi) {
-        LOGGER.debug("Called Open file {}", path);
+        log.debug("Called Open file {}", path);
         try {
             MemoryPath p = getPath(path);
             if (p == null) {
@@ -294,18 +302,18 @@ public class F1r3flyFS extends FuseStubFS {
             }
             if (p instanceof MemoryFile) {
                 ((MemoryFile) p).open();
-                LOGGER.debug("Opened file {}", path);
+                log.debug("Opened file {}", path);
             }
             return SuccessCodes.OK;
         } catch (Throwable e) {
-            LOGGER.warn("Error opening file", e);
+            log.warn("Error opening file", e);
             return -ErrorCodes.EIO();
         }
     }
 
     @Override
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        LOGGER.trace("Called Write file {} with buffer size {} and offset {}", path, size, offset);
+        log.trace("Called Write file {} with buffer size {} and offset {}", path, size, offset);
         try {
             MemoryPath p = getPath(path);
             if (p == null) {
@@ -316,14 +324,14 @@ public class F1r3flyFS extends FuseStubFS {
             }
             return ((MemoryFile) p).write(buf, size, offset);
         } catch (Throwable e) {
-            LOGGER.warn("Error writing to file", e);
+            log.warn("Error writing to file", e);
             return -ErrorCodes.EIO();
         }
     }
 
     @Override
     public int flush(String path, FuseFileInfo fi) {
-        LOGGER.debug("Called Flush file {}", path);
+        log.debug("Called Flush file {}", path);
         try {
             MemoryPath p = getPath(path);
             if (p == null) {
@@ -333,27 +341,26 @@ public class F1r3flyFS extends FuseStubFS {
                 ((MemoryFile) p).close();
                 ((MemoryFile) p).onChange();
             }
+//             TODO: needed?
+//            ((MemoryDirectory) getParentPath(path)).triggerNotification("flush " + path);
             return SuccessCodes.OK;
         } catch (Throwable e) {
-            LOGGER.warn("Error closing file", e);
+            log.warn("Error closing file", e);
             return -ErrorCodes.EIO();
         }
     }
 
 
-
-    public void remount(String mountName, Path mountPoint) throws PathIsNotADirectory, NoDataByPath {
-        remount(mountName, mountPoint, false, false, new String[]{});
+    public void remount(Path mountPoint) throws PathIsNotADirectory, NoDataByPath, IOException, InterruptedException {
+        remount(mountPoint, false, false, new String[]{});
     }
-    public void remount(String mountName, Path mountPoint, boolean blocking, boolean debug, String[] fuseOpts) throws PathIsNotADirectory, NoDataByPath {
-        LOGGER.debug("Called remount F1r3flyFS with mount name {}, mount point {}, blocking {}, debug, {}, fuse opts {}",
-            mountName, mountPoint, blocking, debug, Arrays.toString(fuseOpts));
+
+    public void remount(Path mountPoint, boolean blocking, boolean debug, String[] fuseOpts) throws PathIsNotADirectory, NoDataByPath, IOException, InterruptedException {
+        log.debug("Called remount F1r3flyFS with mount name {}, mount point {}, blocking {}, debug, {}, fuse opts {}",
+            config.mountName, mountPoint, blocking, debug, Arrays.toString(fuseOpts));
         try {
-            this.mountName = mountName;
 
-            this.deployDispatcher = new DeployDispatcher(f1R3FlyApi);
-
-            MemoryPath root = fetchDirectoryFromShard(this.mountName, "", null);
+            MemoryPath root = fetchDirectoryFromShard(config.mountName, "", null);
 
             if (root instanceof MemoryDirectory) {
                 this.rootDirectory = (MemoryDirectory) root;
@@ -361,40 +368,43 @@ public class F1r3flyFS extends FuseStubFS {
                 throw new PathIsNotADirectory("Root path " + root.getAbsolutePath() + " is not a directory");
             }
 
-            deployDispatcher.startBackgroundDeploy();
+            config.deployDispatcher.startBackgroundDeploy();
+            NotificationsSubscriber.subscribe(config);
+
+            startGRPCServer();
 
             super.mount(mountPoint, blocking, debug, fuseOpts);
 
         } catch (Throwable e) {
-            LOGGER.error("Error re-mounting F1r3flyFS", e);
+            log.error("Error re-mounting F1r3flyFS", e);
 
-            // destroy background tasks and queue
-            if (this.deployDispatcher != null) {
-                this.deployDispatcher.destroy();
-                this.deployDispatcher = null;
+            if (this.rootDirectory != null) {
                 this.rootDirectory = null;
             }
+
+            // destroy background tasks and queue
+            config.deployDispatcher.hardStop();
 
             throw e;
         }
     }
 
-    private MemoryPath fetchDirectoryFromShard(String absolutePath, String name, MemoryDirectory parent) throws NoDataByPath {
+    private MemoryPath fetchDirectoryFromShard(String channelName, String name, MemoryDirectory parent) throws NoDataByPath {
         try {
-            List<RhoTypes.Par> pars = f1R3FlyApi.findDataByName(absolutePath);
+            List<RhoTypes.Par> pars = config.f1r3flyAPI.findDataByName(channelName);
 
             RholangExpressionConstructor.ChannelData fileOrDir = RholangExpressionConstructor.parseChannelData(pars);
 
             if (fileOrDir.isDir()) {
                 MemoryDirectory dir =
-                    new MemoryDirectory(this.mountName, name, parent, this.deployDispatcher, false);
+                    new MemoryDirectory(config, name, parent, false);
 
                 fileOrDir.children().forEach(childName -> {
                     try {
-                        MemoryPath child = fetchDirectoryFromShard(absolutePath + PathUtils.getPathDelimiterBasedOnOS() + childName, childName, dir);
-                        dir.add(child, false);
+                        MemoryPath child = fetchDirectoryFromShard(channelName + PathUtils.getPathDelimiterBasedOnOS() + childName, childName, dir);
+                        dir.addChildren(child, false);
                     } catch (NoDataByPath e) {
-                        LOGGER.error("Error fetching child directory from shard", e);
+                        log.error("Error fetching child {} of {} from shard", childName, channelName, e);
                         // skip for now
                     }
                 });
@@ -402,24 +412,9 @@ public class F1r3flyFS extends FuseStubFS {
                 return dir;
 
             } else {
-                MemoryFile file = new MemoryFile(this.mountName, PathUtils.getFileName(absolutePath), parent, this.deployDispatcher, false);
-                long offset = 0;
-                offset = file.initFromBytes(fileOrDir.firstChunk(), offset);
+                MemoryFile file = new MemoryFile(config, PathUtils.getFileName(channelName), parent, false);
 
-                if (!fileOrDir.otherChunks().isEmpty()) {
-                    Set<Integer> chunkNumbers = fileOrDir.otherChunks().keySet();
-                    Integer[] sortedChunkNumbers = chunkNumbers.stream().sorted().toArray(Integer[]::new);
-
-                    for (Integer chunkNumber : sortedChunkNumbers) {
-                        String subChannel = fileOrDir.otherChunks().get(chunkNumber);
-                        List<RhoTypes.Par> subChannelPars = f1R3FlyApi.findDataByName(subChannel);
-                        byte[] data = RholangExpressionConstructor.parseBytes(subChannelPars);
-
-                        offset = offset + file.initFromBytes(data, offset);
-                    }
-                }
-
-                file.initSubChannels(fileOrDir.otherChunks());
+                file.fetchContent(fileOrDir.firstChunk(), fileOrDir.otherChunks());
 
                 return file;
             }
@@ -427,69 +422,213 @@ public class F1r3flyFS extends FuseStubFS {
         } catch (NoDataByPath e) {
             throw e;
         } catch (Throwable e) {
-            LOGGER.error("Error fetching directory from shard", e);
+            log.error("Error fetching path {} from shard", channelName, e);
             throw new RuntimeException(e);
         }
     }
 
     @Override
     public void mount(Path mountPoint, boolean blocking, boolean debug, String[] fuseOpts) {
-        LOGGER.debug("Called Mounting F1r3flyFS on {} with opts {}", mountPoint, Arrays.toString(fuseOpts));
+        log.debug("Called Mounting F1r3flyFS on {} with opts {}", mountPoint, Arrays.toString(fuseOpts));
 
         try {
-            generateMountName();
+
+            String mountName = "f1r3flyfs" + ThreadLocalRandom.current().nextInt();
+
+            config = new Config(
+                config.clientHost,
+                config.clientPort,
+                mountName,
+                mountPoint,
+                config.deployDispatcher,
+                config.f1r3flyAPI
+            );
+
+            config.deployDispatcher.startBackgroundDeploy();
 
             // combine fuseOpts and MOUNT_OPTIONS
             String[] allFuseOpts = Arrays.copyOf(fuseOpts, fuseOpts.length + MOUNT_OPTIONS.length);
             System.arraycopy(MOUNT_OPTIONS, 0, allFuseOpts, fuseOpts.length, MOUNT_OPTIONS.length);
 
-            this.deployDispatcher = new DeployDispatcher(f1R3FlyApi);
-            this.rootDirectory = new MemoryDirectory(this.mountName, "", this.deployDispatcher, true);
+            this.rootDirectory = new MemoryDirectory(config, "", true);
 
-            deployDispatcher.startBackgroundDeploy();
+            NotificationsSubscriber.subscribe(config);
+
+            startGRPCServer();
 
             super.mount(mountPoint, blocking, debug, fuseOpts);
 
         } catch (Throwable e) {
-            LOGGER.error("Error mounting F1r3flyFS", e);
+            log.error("Error mounting F1r3flyFS", e);
 
-            // destroy background tasks and queue
-            if (this.deployDispatcher != null) {
-                this.deployDispatcher.destroy();
-                this.deployDispatcher = null;
+            if (this.rootDirectory != null) {
                 this.rootDirectory = null;
             }
 
-            throw e;
+            // destroy background tasks and queue
+            config.deployDispatcher.hardStop();
+
+            throw new FuseException("Error mounting F1r3flyFS", e);
         }
     }
 
-    public void waitOnBackgroundThread() {
-        LOGGER.debug("Called waitOnBackgroundThread");
-        try {
-            if (this.deployDispatcher != null) {
-                this.deployDispatcher.waitOnEmptyQueue();
+    private void startGRPCServer() throws IOException, InterruptedException {
+        UpdateNotificationHandler updateNotificationHandler = new UpdateNotificationHandler() {
+            private String prependMountName(String path) {
+                return config.mountName + path;
             }
-            LOGGER.debug("waitOnBackgroundThread completed");
+
+
+            @Override
+            public ExternalCommunicationServiceV1.UpdateNotificationResponse handle(ExternalCommunicationServiceCommon.UpdateNotification notification) {
+                if (rootDirectory != null) {
+                    log.info("sync: Received notification to {}:{} about {}", notification.getClientHost(), notification.getClientPort(), notification.getPayload());
+                    // TODO: make async and don't block gRPC server
+
+                    NotificationConstructor.NotificationPayload reason =
+                        NotificationConstructor.NotificationPayload.parseNotification(notification.getPayload());
+
+                    @Nullable
+                    MemoryPath p = rootDirectory.find(reason.path());
+
+
+                    MemoryPath parent =
+                        rootDirectory.getName().equals(reason.path()) ? // it's a root, so no parent
+                            null :
+                            getParentPath(reason.path());
+
+                    if (parent != null && !(parent instanceof MemoryDirectory)) {
+                        log.warn("sync: Parent of {} is not a directory", reason.path());
+                        return ExternalCommunicationServiceV1.UpdateNotificationResponse.newBuilder().build();
+                    }
+
+                    switch (reason.reason()) {
+                        case NotificationConstructor.NotificationReasons.FILE_CREATED:
+                        case NotificationConstructor.NotificationReasons.DIRECTORY_CREATED:
+                            if (parent == null) {
+                                log.warn("sync: Directory created but the parent is null. Perhabs got notification about creation of root directory {}. Skipping", reason.path());
+                                return ExternalCommunicationServiceV1.UpdateNotificationResponse.newBuilder().build();
+                            }
+                            if (p != null) { // force delete from local cache
+                                log.warn("sync: {} already exists", reason.path());
+
+                                p.delete(false);
+                            }
+
+
+                            try {
+                                String channelName = prependMountName(reason.path());
+                                MemoryPath dir = fetchDirectoryFromShard(channelName, PathUtils.getFileName(reason.path()), (MemoryDirectory) parent);
+                                ((MemoryDirectory) parent).addChildren(dir, false);
+                                log.info("sync: Created {}", reason.path());
+                            } catch (NoDataByPath e) {
+                                log.error("sync: Error fetching file {} from shard", reason.path(), e);
+                            }
+
+
+                            break;
+                        case NotificationConstructor.NotificationReasons.TRUNCATED:
+                            if (p instanceof MemoryFile) {
+                                try {
+                                    ((MemoryFile) p).truncate(0, false);
+                                    log.info("sync: Truncated file {}", reason.path());
+                                } catch (IOException e) {
+                                    log.error("sync: Error truncating file {}", reason.path(), e);
+                                }
+                            }
+                            break;
+
+                        case NotificationConstructor.NotificationReasons.RENAMED:
+                            if (p != null) {
+                                try {
+                                    if (reason.newPath() != null) {
+                                        MemoryPath newParent = getParentPath(reason.newPath());
+                                        if (!(newParent instanceof MemoryDirectory)) {
+                                            log.warn("sync: New parent of {} is not a directory", reason.newPath());
+                                            return ExternalCommunicationServiceV1.UpdateNotificationResponse.newBuilder().build();
+                                        }
+                                        String newName = PathUtils.getFileName(reason.newPath());
+                                        p.rename(newName, (MemoryDirectory) newParent, false, false);
+                                        log.info("sync: Renamed {} to {}", reason.path(), reason.newPath());
+                                    } else {
+                                        log.warn("sync: New path is null for renaming {}", reason.path());
+                                    }
+                                } catch (IOException e) {
+                                    log.error("sync: Error renaming file {}", reason.path(), e);
+                                }
+                            } else {
+                                log.warn("sync: {} does not exist", reason.path());
+                            }
+                            break;
+
+                        case NotificationConstructor.NotificationReasons.FILE_WROTE:
+                            if (p != null && !(p instanceof MemoryFile)) {
+                                log.info("sync: {} is not a file. Path from notification {}", p.getAbsolutePath(), reason.path());
+                                return ExternalCommunicationServiceV1.UpdateNotificationResponse.newBuilder().build();
+                            }
+                            try {
+                                if (p != null) {
+                                    p.delete(false);
+                                }
+                                String channelName = prependMountName(reason.path());
+                                MemoryPath file = fetchDirectoryFromShard(channelName, PathUtils.getFileName(reason.path()), (MemoryDirectory) parent);
+                                ((MemoryDirectory) parent).addChildren(file, false);
+                                log.info("sync: Updated content for file {} (parent: {}, childs: {})", reason.path(), parent.getName(), Arrays.toString(((MemoryDirectory) parent).getChild().stream().map((f) -> f.getName()).toArray()));
+                            } catch (NoDataByPath e) {
+                                log.error("sync: Error fetching content for file {}", reason.path(), e);
+                            }
+                            break;
+
+                        case NotificationConstructor.NotificationReasons.DELETED:
+                            if (p != null) {
+                                p.delete(false);
+                                log.info("sync: Deleted {}", reason.path());
+                            }
+                            break;
+
+                        default:
+                            log.warn("sync: Unknown reason {}", reason.reason());
+                    }
+                }
+
+                return ExternalCommunicationServiceV1.UpdateNotificationResponse.newBuilder().build();
+            }
+        };
+
+        this.grpcServer = F1r3flyDriveServer.create(config.clientPort, updateNotificationHandler);
+        this.grpcServer.start();
+    }
+
+    public void waitOnBackgroundThread() {
+        log.info("Called waitOnBackgroundThread");
+        try {
+            config.deployDispatcher.waitOnEmptyQueue();
+            log.info("waitOnBackgroundThread completed");
         } catch (Throwable e) {
-            LOGGER.error("Error destroying F1r3flyFS", e);
+            log.error("Error destroying F1r3flyFS", e);
             throw e;
         }
     }
 
     @Override
     public void umount() {
-        LOGGER.debug("Called Umounting F1r3flyFS");
+        log.info("Called Umounting F1r3flyFS");
         try {
-            waitOnBackgroundThread();
-            if (this.deployDispatcher != null) {
-                this.deployDispatcher.destroy();
+            if (!mounted.get()) {
+                return;
             }
-            this.deployDispatcher = null;
+
+            NotificationsSubscriber.unsubscribe(config);
+            this.grpcServer.shutdownGracefully();
+
+            waitOnBackgroundThread();
+
+            config.deployDispatcher.hardStop();
+
             this.rootDirectory = null;
             super.umount();
         } catch (Throwable e) {
-            LOGGER.error("Error unmounting F1r3flyFS", e);
+            log.error("Error unmounting F1r3flyFS", e);
             throw e;
         }
     }
@@ -497,15 +636,11 @@ public class F1r3flyFS extends FuseStubFS {
     // public because of this method is used in tests
     public String prependMountName(String path) {
         // example: f1r3flyfs-123123123/path-to-file
-        return this.mountName + path;
+        return config.mountName + path;
     }
 
     public String getMountName() {
-        return this.mountName;
-    }
-
-    protected void generateMountName() {
-        this.mountName = "f1r3flyfs" + ThreadLocalRandom.current().nextInt();
+        return config.mountName;
     }
 
     protected boolean isMounted() {

@@ -1,42 +1,57 @@
 package io.f1r3fly.fs.examples.storage.inmemory;
 
 import io.f1r3fly.fs.FuseFillDir;
-import io.f1r3fly.fs.examples.storage.DeployDispatcher;
+import io.f1r3fly.fs.examples.Config;
+import io.f1r3fly.fs.examples.storage.grcp.listener.NotificationConstructor;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseContext;
 import io.f1r3fly.fs.utils.PathUtils;
 import jnr.ffi.Pointer;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public class MemoryDirectory extends MemoryPath {
-    protected List<MemoryPath> contents = new ArrayList<>();
 
-    public MemoryDirectory(String prefix, String name, DeployDispatcher deployDispatcher, boolean sendToShard) {
-        super(prefix, name, deployDispatcher);
+    protected List<MemoryPath> children = new ArrayList<>();
+
+    public MemoryDirectory(Config config, String name, boolean sendToShard) {
+        super(config, name);
         if (sendToShard) {
             enqueueCreatingDirectory();
         }
     }
 
-    public MemoryDirectory(String prefix, String name, MemoryDirectory parent, DeployDispatcher deployDispatcher, boolean sendToShard) {
-        super(prefix, name, parent, deployDispatcher);
+    public Collection<MemoryPath> getChild() {
+        return children;
+    }
+
+    public MemoryDirectory(Config config, String name, MemoryDirectory parent, boolean sendToShard) {
+        super(config, name, parent);
         if (sendToShard) {
             enqueueCreatingDirectory();
         }
     }
 
     private void enqueueCreatingDirectory() {
-        String rholang = RholangExpressionConstructor.sendDirectoryIntoNewChannel(getAbsolutePath(), Set.of());
+        String rholang = RholangExpressionConstructor.sendDirectoryIntoNewChannel(getChannelName(), Set.of());
         enqueueMutation(rholang);
+        triggerNotificationWithReason(NotificationConstructor.NotificationReasons.DIRECTORY_CREATED);
     }
 
-    public synchronized void add(MemoryPath p, boolean sendToRChain) {
-        contents.add(p);
+
+
+    public synchronized void addChildren(MemoryPath p, boolean sendToRChain) {
+        if (children.stream().anyMatch((c) -> c.getName().equals(p.name))) {
+            return;
+        }
+
+        children.add(p);
         p.parent = this;
 
         if (sendToRChain) {
@@ -44,22 +59,25 @@ public class MemoryDirectory extends MemoryPath {
         }
     }
 
-    private void enqueueUpdatingChildrenList() {
+    public void enqueueUpdatingChildrenList() {
         String rholang = RholangExpressionConstructor.updateChildren(
-            getAbsolutePath(),
-            contents.stream().map(MemoryPath::getName).collect(Collectors.toSet())
+            getChannelName(),
+            children.stream().map(MemoryPath::getName).collect(Collectors.toSet())
         );
 
         enqueueMutation(rholang);
     }
 
-    public synchronized void deleteChild(MemoryPath child) {
-        contents.remove(child);
-        
-        enqueueUpdatingChildrenList();
+    public synchronized void deleteChild(MemoryPath child, boolean sendToShard) {
+        children.remove(child);
+
+        if (sendToShard) {
+            enqueueUpdatingChildrenList();
+        }
     }
 
     @Override
+    @Nullable
     public MemoryPath find(String path) {
         if (super.find(path) != null) {
             return super.find(path);
@@ -69,7 +87,7 @@ public class MemoryDirectory extends MemoryPath {
         }
         synchronized (this) {
             if (!path.contains(PathUtils.getPathDelimiterBasedOnOS())) {
-                for (MemoryPath p : contents) {
+                for (MemoryPath p : children) {
                     if (p.name.equals(path)) {
                         return p;
                     }
@@ -78,7 +96,7 @@ public class MemoryDirectory extends MemoryPath {
             }
             String nextName = path.substring(0, path.indexOf(PathUtils.getPathDelimiterBasedOnOS()));
             String rest = path.substring(path.indexOf(PathUtils.getPathDelimiterBasedOnOS()));
-            for (MemoryPath p : contents) {
+            for (MemoryPath p : children) {
                 if (p.name.equals(nextName)) {
                     return p.find(rest);
                 }
@@ -95,23 +113,32 @@ public class MemoryDirectory extends MemoryPath {
     }
 
     public synchronized void mkdir(String lastComponent, boolean sendToShard) {
-        contents.add(new MemoryDirectory(prefix, lastComponent, this, deployDispatcher, sendToShard));
+        children.add(new MemoryDirectory(config, lastComponent, this, sendToShard));
 
-        enqueueUpdatingChildrenList();
+        if (sendToShard) {
+            enqueueUpdatingChildrenList();
+        }
     }
 
     public synchronized void mkfile(String lastComponent, boolean sendToRChain) {
-        contents.add(new MemoryFile(prefix, lastComponent, this, deployDispatcher, sendToRChain));
-        enqueueUpdatingChildrenList();
+        MemoryFile memoryFile = new MemoryFile(config, lastComponent, this, sendToRChain);
+        children.add(memoryFile);
+        if (sendToRChain) {
+            enqueueUpdatingChildrenList();
+        }
     }
 
+
+
     public synchronized void read(Pointer buf, FuseFillDir filler) {
-        for (MemoryPath p : contents) {
+        for (MemoryPath p : children) {
             filler.apply(buf, p.name, null, 0);
         }
     }
 
     public boolean isEmpty() {
-        return contents.isEmpty();
+        return children.isEmpty();
     }
+
+
 }
