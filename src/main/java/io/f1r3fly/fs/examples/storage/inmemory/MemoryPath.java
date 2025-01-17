@@ -61,17 +61,10 @@ public abstract class MemoryPath extends DeployablePath {
 
 
         name = newName;
-        String newChannelName = getChannelName();
-        String newPath = getAbsolutePath();
 
         boolean parentChanged = !parent.getAbsolutePath().equals(newParent.getAbsolutePath());
 
-        if (renameOnShard) {
-            enqueueMutation(RholangExpressionConstructor.renameChanel(oldChannelName, newChannelName));
 
-            // use old name in a notification, so sending now and then changing the name
-            triggerRenameNotification(oldPath, newPath);
-        }
 
         if (parentChanged) {
             parent.deleteChild(this, updateParentsOnShard);
@@ -80,6 +73,16 @@ public abstract class MemoryPath extends DeployablePath {
             if (updateParentsOnShard) {
                 parent.enqueueUpdatingChildrenList();
             }
+        }
+
+        if (renameOnShard) {
+            String newChannelName = getChannelName();
+            String newPath = getAbsolutePath();
+
+            enqueueMutation(RholangExpressionConstructor.renameChanel(oldChannelName, newChannelName));
+
+            // use old name in a notification, so sending now and then changing the name
+            triggerRenameNotification(oldPath, newPath);
         }
     }
 
