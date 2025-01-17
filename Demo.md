@@ -39,10 +39,21 @@ where f9854c5199bc86237206c75b25c6aeca024dccc0f55df3a553131111fd25dd85 - key fro
 
 ```sh
 # creating ~/demo-f1r3flyfs folder and mounting it to F1r3flyFS
-java -jar ./build/libs/f1r3flyfs-0.5.7-shadow.jar ~/demo-f1r3flyfs -sk a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954 -ck ~/cipher.key -h localhost -p 40402 
+java -jar ./build/libs/f1r3flyfs-0.5.7-shadow.jar ~/demo-f1r3flyfs -sk a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954 -ck ~/cipher.key -sh localhost -sp 40402 -ch localhost -cp 51111 
 ```
 
-If we wanna connect to cluster,  use "155.248.215.28" (public cluster ip using rspaceplusplus) and 30002 instead of -h localhost -p 40402 in the above command. For public cluster without rspaceplusplus, use: "138.2.235.131"
+4. Find the mount id of the first F1r3flyFS app. For example, it is `f1r3flyfs-1926576453` from the output below.
+
+```sh
+mount -v
+f1r3flyfs-1926576453 on /Users/andriistefaniv/demo-f1r3flyfs (macfuse, nodev, nosuid, synchronous, mounted by andriistefaniv) # this is an example of output of `mount -v`
+```
+
+5. Run second F1r3flyFS app with the same key (`a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954`) from another location.
+
+```sh
+java -jar ./build/libs/f1r3flyfs-0.5.7-shadow.jar ~/demo-f1r3flyfs2 -sk a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954 -ck ~/cipher.key -sh localhost -sp 40402 -ch localhost -cp 51112 -mn f1r3flyfs-1926576453
+```
 
 # Demo
 
@@ -60,27 +71,54 @@ Copy 1M file inside ~/demo-f1r3flyfs folder
 # generating binary file with 1M size
 dd if=/dev/zero of=large_data.txt  bs=1m  count=1
 
-cp large_data.txt ~/demo-f1r3flyfs/ OR rsync -av --progress large_data.txt ./demo-f1r3flyfs (here more logs)
+cp large_data.txt ~/demo-f1r3flyfs/ # OR rsync -av --progress large_data.txt ./demo-f1r3flyfs # for more logs
 # wait for some time
 
 # make sure that file is copied
 ls -lh ~/demo-f1r3flyfs/large_data.txt
 ```
 
+Wait (from 10s or 1 minute) and read from second mount point
+
+```sh
+cat ~/demo-f1r3flyfs2/demo.txt
+ls -lh ~/demo-f1r3flyfs2/
+```
+
+Delete the file via second client (it is two-way sync)
+
+```sh
+rm ~/demo-f1r3flyfs2/demo.txt
+ls -lh ~/demo-f1r3flyfs2/
+```
+
+Wait again and check the file was deleted at the first mount
+
+```sh
+ls -lh ~/demo-f1r3flyfs/
+```
+
+**All operations can be performed via UI client (for example Finder from macOS) as well.**
+
 # Cleanup
 
 Stop all processes and remove all files
 
 ```sh
+# Stop node and F1r3flyFS apps
+# or kill if stuck
+ps aux | grep java | grep -v grep | awk '{print $2}' | xargs kill -9
+
 # clean Node state:
 rm -rf ~/.rnode/casperbuffer/ ~/.rnode/dagstorage/ ~/.rnode/deploystorage/ ~/.rnode/blockstorage/ ~/.rnode/rnode.log ~/.rnode/rspace++/ ~/.rnode/node.certificate.pem ~/.rnode/node.key.pem
 
 # Unmount ~/demo-f1r3flyfs if f1r3flyFS crashed
 sudo diskutil umount force ~/demo-f1r3flyfs
+sudo diskutil umount force ~/demo-f1r3flyfs2
 
-# ~/demo-f1r3flyfs has to be empty folder
-# delete ~/demo-f1r3flyfs before running the next demo
+# delete ~/demo-f1r3flyfs and ~/demo-f1r3flyfs2 before running the next demo
 rm -rf ~/demo-f1r3flyfs
+rm -rf ~/demo-f1r3flyfs2
 
 # remove large_data.txt
 rm -f large_data.txt
