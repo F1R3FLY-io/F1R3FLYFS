@@ -59,7 +59,7 @@ class F1r3flyFSMain implements Callable<Integer> {
             if (mountName != null) {
                 f1r3flyFS.remount(mountName, mountPoint, true, false, new String[]{});
             } else {
-                f1r3flyFS.mount(mountPoint);
+                f1r3flyFS.mount(mountPoint, true);
             }
         } finally {
             f1r3flyFS.umount();
