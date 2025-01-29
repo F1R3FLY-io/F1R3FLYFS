@@ -450,6 +450,10 @@ public class F1r3flyFS extends FuseStubFS {
 
             deployDispatcher.startBackgroundDeploy();
 
+            F1r3flyFSTokenization.initializeTokenDirectory(mountPoint, this.rootDirectory);
+            waitOnBackgroundThread();
+            F1r3flyFSTokenization.initializeBalance(f1R3FlyApi, this.deployDispatcher);
+
             super.mount(mountPoint, blocking, debug, fuseOpts);
 
         } catch (Throwable e) {
@@ -464,9 +468,6 @@ public class F1r3flyFS extends FuseStubFS {
 
             throw e;
         }
-
-        F1r3flyFSTokenization.initializeTokenDirectory(mountPoint, this.rootDirectory);
-        F1r3flyFSTokenization.initializeBalance(f1R3FlyApi, this.deployDispatcher);
     }
 
     public void waitOnBackgroundThread() {
