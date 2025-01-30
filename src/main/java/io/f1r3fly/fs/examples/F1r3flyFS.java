@@ -451,9 +451,10 @@ public class F1r3flyFS extends FuseStubFS {
 
             deployDispatcher.startBackgroundDeploy();
 
-            F1r3flyFSTokenization.initializeTokenDirectory(mountPoint, this.rootDirectory);
+            F1r3flyFSTokenization tokenization = new F1r3flyFSTokenization(mountPoint, rootDirectory, this, this.deployDispatcher);
+            tokenization.initializeTokenDirectory();
             waitOnBackgroundThread();
-            F1r3flyFSTokenization.initializeBalance(f1R3FlyApi, this.deployDispatcher);
+            tokenization.initializeBalance(f1R3FlyApi, this.deployDispatcher);
 
             super.mount(mountPoint, blocking, debug, fuseOpts);
 
