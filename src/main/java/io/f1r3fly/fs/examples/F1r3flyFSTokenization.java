@@ -115,7 +115,7 @@ public class F1r3flyFSTokenization {
             createTokens(amount, entry.getKey().toString());
         }
 
-        LOGGER.debug("Created tokens successfully! - initialized tokens folder");
+        LOGGER.debug("Created tokens successfully! (initialized tokens folder)");
     }
 
     public String extractBalanceFromData(List<RhoTypes.Par> balanceData) {
@@ -152,12 +152,10 @@ public class F1r3flyFSTokenization {
     }
 
     private void createTokens(int amount, String value) {
-        String fileName = "token_" + value;
+        String fileName = amount + "x_token" + "_" + value;
         String path = "/tokens" + "/" + fileName + ".f1r3flyToken";
-        for(int i = 0; i < amount; i++) {
-            f1r3flyFS.create(path,  0666, null);
-        }
+        f1r3flyFS.create(path,  0666, null);
 
-        LOGGER.debug("Created token files amount: {} with name: {}", amount, fileName);
+        LOGGER.debug("Created token files amount: {} with name: {}", amount, value);
     }
 }
