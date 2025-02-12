@@ -1,61 +1,24 @@
-jnr-fuse
-==
-[![Build Status](https://travis-ci.com/SerCeMan/jnr-fuse.svg?branch=master)](https://travis-ci.com/SerCeMan/jnr-fuse)  [![Join the chat at https://gitter.im/SerCeMan/jnr-fuse](https://badges.gitter.im/SerCeMan/jnr-fuse.svg)](https://gitter.im/SerCeMan/jnr-fuse?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+# F1r3flyFS
 
-jnr-fuse is a FUSE implementation in java using Java Native Runtime (JNR). 
+F1r3flyFS is a FUSE implementation in java using Java Native Runtime (JNR) and F1r3fly Node.
 
-## Project Goals
+## Installation
 
-The main goal of the project is to provide an easy way to create a high-performance filesystem in userspace.
+1. Install Nix: https://nixos.org/download/
+   - For more information about Nix and how it works see: https://nixos.org/guides/how-nix-works/
 
-## About technologies
-[FUSE](https://github.com/libfuse/libfuse) (Filesystem in Userspace)  is an OS mechanism for unix-like OS that lets non-privileged users create their own file systems without editing kernel code. 
+2. Install direnv: https://direnv.net/#basic-installation
+   - For more information about direnv and how it works see: https://direnv.net/
+  
+3. Install protobuf compiler: https://grpc.io/docs/protoc-installation/
 
-[Java Native Runtime](https://github.com/jnr/jnr-ffi) (JNR) is high-performance Java API for binding native libraries and native memory.
+4. Clone this repository and after entering the repository, run `direnv allow`. There should be a message asking you to do this. 
+   - This will do a one-time compile of all our libraries which will take a couple of minutes. After completion, your environment will be setup.
 
-## Get it
+5. Install `f1r3fly` as per the instructions in the [F1r3fly repository](https://github.com/F1R3FLY-io/f1r3fly/tree/preston/rholang_rust?tab=readme-ov-file#installation).
 
-Prior to `0.5.5`, jnr-fuse was only available in [JCenter](https://bintray.com/serce/maven/jnr-fuse). Due to [sunsetting](https://jfrog.com/blog/into-the-sunset-bintray-jcenter-gocenter-and-chartcenter/) of JCenter, starting from `0.5.5` is available in maven central. 
+6. Install [jnr-fuse](https://github.com/SerCeMan/jnr-fuse/blob/master/INSTALLATION.md).
 
-### Gradle
-```groovy
-dependencies {
-    compile 'com.github.serceman:jnr-fuse:0.5.6'
-}
-````
-### Maven
-```xml
-<dependencies>
-    <dependency>
-        <groupId>com.github.serceman</groupId>
-        <artifactId>jnr-fuse</artifactId>
-        <version>0.5.6</version>
-    </dependency>
-</dependencies>
-```
+## Usage
 
-## How to use
-For implementing your own filesystem you just need to extend FuseStubFS class and implement methods you need. 
-
-See [some examples](https://github.com/SerCeMan/jnr-fuse/tree/master/src/main/java/ru/serce/jnrfuse/examples).
-
-See [blog article about the implementation](http://serce.me/posts/22-06-2015-jnr-fuse/)
-
-## Projects using jnr-fuse
-* [Alluxio](https://github.com/Alluxio/alluxio/tree/master/integration/fuse): Alluxio is a memory-centric distributed storage system
-* [Cryptomator](https://github.com/cryptomator/cryptomator): A user-friendly encryption tool for cloud storage services
-* [mux2fs](https://github.com/tfiskgul/mux2fs): Muxes subtitles into Matroska files as a FUSE filesystem
-* [healthcare-api-dicom-fuse](https://github.com/GoogleCloudPlatform/healthcare-api-dicom-fuse): FUSE plugin for the Google Cloud Healthcare DICOM API
-
-## Supported platforms
-| Supported platforms                                           |     |      |
-|---------------------------------------------------------------|-----|------|
-| Linux                                                         | x64 | x86  |
-| MacOS (via [osxfuse](https://osxfuse.github.io/))             | x64 | x86  |
-| Windows (via [winfsp](https://github.com/billziss-gh/winfsp/))| x64 | n/a  |
-
-## Installation and troubleshooting
-
-See [instructions](https://github.com/SerCeMan/jnr-fuse/blob/master/INSTALLATION.md).
-
-
+See [Demo.md](./Demo.md) for a step-by-step guide on how to run F1r3flyFS.
