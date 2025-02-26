@@ -39,7 +39,7 @@ public class F1r3flyApi {
 
     private static final Duration INIT_DELAY = Duration.ofMillis(100);
     private static final Duration MAX_DELAY = Duration.ofSeconds(5);
-    private static final int RETRIES = 10;
+    private static final int RETRIES = 100;
     private static final int MAX_MESSAGE_SIZE = Integer.MAX_VALUE; // ~2 GB
 
     private final byte[] signingKey;

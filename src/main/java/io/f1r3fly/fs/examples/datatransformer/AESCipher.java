@@ -23,8 +23,9 @@ public class AESCipher {
 
     private AESCipher(String keyToPath) throws FuseException {
         try {
+            String resolvedPath = resolvePath(keyToPath);
             this.cipher = Cipher.getInstance(CIPHER_NAME);
-            this.keySpec = readOrGenerateKey(keyToPath);
+            this.keySpec = readOrGenerateKey(resolvedPath);
             this.cipher.init(Cipher.ENCRYPT_MODE, keySpec);
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | IOException | InvalidKeyException e) {
             throw new FuseException("Failed to initialize AES cipher", e);
@@ -59,7 +60,8 @@ public class AESCipher {
 
     private SecretKeySpec readOrGenerateKey(String pathToKey) throws NoSuchAlgorithmException, IOException {
         SecretKeySpec keySpec;
-        if (new File(pathToKey).exists()) {
+        File keyFile = new File(pathToKey);
+        if (keyFile.exists()) {
             keySpec = readKey(pathToKey);
         } else {
             keySpec = generateKey();
@@ -69,6 +71,7 @@ public class AESCipher {
     }
 
     private void saveKey(SecretKeySpec keySpec, String pathToKey) throws IOException {
+        System.out.println("Saving key to " + pathToKey);
         try (FileOutputStream fos = new FileOutputStream(pathToKey)) {
             fos.write(keySpec.getEncoded());
         } catch (IOException e) {
@@ -84,7 +87,15 @@ public class AESCipher {
         }
     }
 
-    public static void init(String keyToPath) {
+    private String resolvePath(String path) {
+        if (path.startsWith("~")) {
+            String userHome = System.getProperty("user.home");
+            return path.replaceFirst("^~", userHome);
+        }
+        return path;
+    }
+
+    public static void init(String keyToPath) throws FuseException {
         AESCipher.instance = new AESCipher(keyToPath);
     }
 

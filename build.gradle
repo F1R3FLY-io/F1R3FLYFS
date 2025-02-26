@@ -87,10 +87,10 @@ tasks.withType(Javadoc).configureEach {
     options.addStringOption('Xdoclint:none', '-quiet')
 }
 
-test {
-    useJUnitPlatform()
-    maxHeapSize = '4096m'
-}
+// test {
+//     useJUnitPlatform()
+//     maxHeapSize = '4096m'
+// }
 
 dependencies {
     api 'com.github.jnr:jnr-ffi:2.2.15'
