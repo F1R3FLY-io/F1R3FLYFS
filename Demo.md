@@ -74,6 +74,10 @@ ls -lh ~/demo-f1r3flyfs/large_data.txt
 Stop all processes and remove all files
 
 ```sh
+# Stop node and F1r3flyFS apps
+# or kill if stuck
+ps aux | grep java | grep -v grep | awk '{print $2}' | xargs kill -9
+
 # clean Node state:
 rm -rf ~/.rnode
 
