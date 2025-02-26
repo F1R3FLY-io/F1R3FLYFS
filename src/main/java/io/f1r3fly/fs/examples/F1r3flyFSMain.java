@@ -69,8 +69,7 @@ class F1r3flyFSMain implements Callable<Integer> {
         // AESCipher.init(cipherKeyPath); // init singleton instance
 
         F1r3flyApi f1R3FlyApi = new F1r3flyApi(Hex.decode(signingKey), host, port);
-        String deployHash = f1R3FlyApi.deploy(rholangCode, false, "rholang");
-        System.out.println("Deployed: " + deployHash);
+        f1R3FlyApi.deploy(rholangCode, false, "rholang");
         // f1r3flyFS = new F1r3flyFS(f1R3FlyApi);
         // try {
         //     if (mountName != null) {

@@ -106,7 +106,7 @@ public class F1r3flyApi {
             Uni<String> deployVolumeContract =
                 Uni.createFrom().future(deployService.doDeploy(signed))
                     .flatMap(deployResponse -> {
-//                        LOGGER.trace("Deploy Response {}", deployResponse);
+                       LOGGER.trace("Deploy Response {}", deployResponse);
                         if (deployResponse.hasError()) {
                             return this.<String>fail(rhoCode, deployResponse.getError());
                         } else {
@@ -117,7 +117,7 @@ public class F1r3flyApi {
                         String deployId = deployResult.substring(deployResult.indexOf("DeployId is: ") + 13, deployResult.length());
                         return Uni.createFrom().future(proposeService.propose(ProposeServiceCommon.ProposeQuery.newBuilder().setIsAsync(false).build()))
                             .flatMap(proposeResponse -> {
-//                                LOGGER.debug("Propose Response {}", proposeResponse);
+                               LOGGER.debug("Propose Response {}", proposeResponse);
                                 if (proposeResponse.hasError()) {
                                     return this.<String>fail(rhoCode, proposeResponse.getError());
                                 } else {
