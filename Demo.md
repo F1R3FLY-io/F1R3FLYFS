@@ -77,6 +77,9 @@ Stop all processes and remove all files
 # clean Node state:
 rm -rf ~/.rnode
 
+# clean Node state except for genesis files:
+find ~/.rnode -type f ! -path "$HOME/.rnode/genesis/*" -delete && find ~/.rnode -mindepth 1 -maxdepth 1 -type d ! -name "genesis" -exec rm -rf {} +
+
 # Unmount ~/demo-f1r3flyfs if f1r3flyFS crashed
 sudo diskutil umount force ~/demo-f1r3flyfs
 
