@@ -27,16 +27,16 @@ class F1r3flyFSMain implements Callable<Integer> {
             "--signing-key" }, description = "Private key, in hexadecimal, to sign Rholang deployments with.")
     private String signingKey;
 
-    @Option(names = { "-ck",
-            "--cipher-key-path" }, required = true, description = "Cipher key path. If file not found, a new key will be generated.")
-    private String cipherKeyPath;
+    // @Option(names = { "-ck",
+    //         "--cipher-key-path" }, required = true, description = "Cipher key path. If file not found, a new key will be generated.")
+    // private String cipherKeyPath;
 
-    @Option(names = { "-mn",
-            "--mount-name" }, description = "Mount name of the previous mounted filesystem. If specified, the filesystem will be restored from F1r3fly.")
-    private String mountName;
+    // @Option(names = { "-mn",
+    //         "--mount-name" }, description = "Mount name of the previous mounted filesystem. If specified, the filesystem will be restored from F1r3fly.")
+    // private String mountName;
 
-    @Parameters(index = "0", description = "The path at which to mount the filesystem.")
-    private Path mountPoint;
+    // @Parameters(index = "0", description = "The path at which to mount the filesystem.")
+    // private Path mountPoint;
 
     // private F1r3flyFS f1r3flyFS;
 
@@ -44,30 +44,29 @@ class F1r3flyFSMain implements Callable<Integer> {
     public Integer call() throws Exception {
         String rholangCode = """
             new gptAnswer, audio, dalle3Answer,
-            gpt3(`rho:ai:gpt3`),
-            gpt4(`rho:ai:gpt4`),
-            dalle3(`rho:ai:dalle3`),
-            textToAudio(`rho:ai:textToAudio`),
-            dumpFile(`rho:ai:dumpFile`),  // temporary
-            stdout(`rho:io:stdout`) in {
-            
-                gpt3!("Describe an appearance of human-like robot: ", *gptAnswer) |
-                for(@answer <- gptAnswer) {
-                    stdout!(["GTP3 created a prompt", answer]) |
-                    dalle3!(answer, *dalle3Answer) |
-                    for(@dalle3Answer <- dalle3Answer) {
-                        stdout!(["Dall-e-3 created an image", dalle3Answer])
-                    }
-                } |
-            
-                textToAudio!("Hello, I am a robot. Rholang give me a voice!", *audio) |
-            
-                for(@bytes <- audio) {
-                    dumpFile!("text-to-audio.mp3", bytes)
-                }
-            }""";
+    gpt4(`rho:ai:gpt4`),
+    dalle3(`rho:ai:dalle3`),
+    textToAudio(`rho:ai:textToAudio`),
+    stdout(`rho:io:stdout`) in {
+			
+  gpt4!("Describe an appearance of human-like robot: ", *gptAnswer) |
+  for(@answer <- gptAnswer) {
+    stdout!(["GTP4 created a prompt", answer]) |
 
-        AESCipher.init(cipherKeyPath); // init singleton instance
+    dalle3!(answer, *dalle3Answer) |
+    for(@dalle3Answer <- dalle3Answer) {
+      stdout!(["Dall-e-3 created an image", dalle3Answer])
+    }
+  } |
+
+  textToAudio!("Hello, I am a robot. Rholang give me a voice!", *audio) |
+  for(@audio <- audio) {
+    stdout!("Text to audio created")
+  }
+}
+""";
+
+        // AESCipher.init(cipherKeyPath); // init singleton instance
 
         F1r3flyApi f1R3FlyApi = new F1r3flyApi(Hex.decode(signingKey), host, port);
         String deployHash = f1R3FlyApi.deploy(rholangCode, false, "rholang");

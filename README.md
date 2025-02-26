@@ -22,3 +22,13 @@ F1r3flyFS is a FUSE implementation in java using Java Native Runtime (JNR) and F
 ## Usage
 
 See [Demo.md](./Demo.md) for a step-by-step guide on how to run F1r3flyFS.
+
+### Client 
+
+See [F1r3flyFSMain.java](./src/main/java/io/f1r3fly/fs/examples/F1r3flyFSMain.java) for rholang code input.
+
+Ensure you have set up genesis directory and running node as per [Demo.md](./Demo.md#running-local-singleton-f1r3fly-node).
+
+Run: `./gradlew run --args='-sk a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954 -h localhost -p 40402'`
+- This will deploy the rholang code to the F1r3fly blockchain and confirm the deployment via `isFinalized`.
+
