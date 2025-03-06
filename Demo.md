@@ -21,9 +21,7 @@ Prerequisites: [Environment set up](./README.md#installation).
    ```sbt 'compile ;project node ;assembly'```
 
 ```sh
-java -Djna.library.path=./rust_libraries/release --add-opens java.base/sun.security.util=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED -jar node/target/scala-2.12/rnode-assembly-0.0.0-unknown.jar run -s --no-upnp --allow-private-addresses --synchrony-constraint-threshold=0.0 \
-  --validator-private-key f9854c5199bc86237206c75b25c6aeca024dccc0f55df3a553131111fd25dd85 \
-  --api-grpc-max-recv-message-size 1073741824
+java -Djna.library.path=./rust_libraries/release --add-opens java.base/sun.security.util=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED -jar node/target/scala-2.12/rnode-assembly-1.0.0-SNAPSHOT.jar run -s --no-upnp --allow-private-addresses --synchrony-constraint-threshold=0.0 --validator-private-key f9854c5199bc86237206c75b25c6aeca024dccc0f55df3a553131111fd25dd85 --api-grpc-max-recv-message-size 1073741824
 ```
 
 where f9854c5199bc86237206c75b25c6aeca024dccc0f55df3a553131111fd25dd85 - key from 'cat fileName.sk file' under local ~/.rnode/genesis folder
