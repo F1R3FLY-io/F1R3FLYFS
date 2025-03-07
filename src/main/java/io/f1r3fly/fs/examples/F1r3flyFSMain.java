@@ -2,6 +2,7 @@ package io.f1r3fly.fs.examples;
 
 import io.f1r3fly.fs.examples.datatransformer.AESCipher;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
+import io.f1r3fly.fs.utils.SecurityUtils;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -40,6 +41,15 @@ class F1r3flyFSMain implements Callable<Integer> {
     public Integer call() throws Exception {
 
         AESCipher.init(cipherKeyPath); // init singleton instance
+
+        if (SecurityUtils.isRunningOnWSL()) {
+            if (!mountPoint.toFile().exists()) {
+                if (!mountPoint.toFile().mkdirs()) {
+                    System.err.println("Failed to create mount point directory: " + mountPoint);
+                    return 1;
+                }
+            }
+        }
 
         F1r3flyApi f1R3FlyApi = new F1r3flyApi(Hex.decode(signingKey), host, port);
         f1r3flyFS = new F1r3flyFS(f1R3FlyApi);

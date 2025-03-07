@@ -13,6 +13,7 @@ import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseFileInfo;
 import io.f1r3fly.fs.struct.Statvfs;
 import io.f1r3fly.fs.utils.PathUtils;
+import io.f1r3fly.fs.utils.SecurityUtils;
 import jnr.ffi.Pointer;
 import jnr.ffi.types.mode_t;
 import jnr.ffi.types.off_t;
@@ -36,13 +37,21 @@ public class F1r3flyFS extends FuseStubFS {
     private DeployDispatcher deployDispatcher;
     private MemoryDirectory rootDirectory;
 
-    private final String[] MOUNT_OPTIONS = {
+    private String[] getMountOptions() {
         // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options
-        "-o", "noappledouble",
-        "-o", "daemon_timeout=3600", // 1 hour timeout
-        "-o", "default_permissions" // permission is not supported that, this disables the permission check from Fuse side
-    };
-
+        if (SecurityUtils.isRunningOnWSL()) {
+            return new String[] {
+                "-o", "default_permissions", // permission is not supported that, this disables the permission check from Fuse side
+                "-o", "allow_other"
+            };
+        } else {
+            return new String[] {
+                "-o", "noappledouble",
+                "-o", "daemon_timeout=3600", // 1 hour timeout
+                "-o", "default_permissions",
+            };
+        }
+    }
 
     public F1r3flyFS(F1r3flyApi f1R3FlyApi) {
         super(); // no need to call Fuse constructor
@@ -439,16 +448,21 @@ public class F1r3flyFS extends FuseStubFS {
         try {
             generateMountName();
 
-            // combine fuseOpts and MOUNT_OPTIONS
-            String[] allFuseOpts = Arrays.copyOf(fuseOpts, fuseOpts.length + MOUNT_OPTIONS.length);
-            System.arraycopy(MOUNT_OPTIONS, 0, allFuseOpts, fuseOpts.length, MOUNT_OPTIONS.length);
+            // Get platform-specific mount options
+            String[] mountOptions = getMountOptions();
+
+            // combine fuseOpts and platform-specific mount options
+            String[] allFuseOpts = Arrays.copyOf(fuseOpts, fuseOpts.length + mountOptions.length);
+            System.arraycopy(mountOptions, 0, allFuseOpts, fuseOpts.length, mountOptions.length);
+        
+            LOGGER.debug("Combined mount options: {}", Arrays.toString(allFuseOpts));
 
             this.deployDispatcher = new DeployDispatcher(f1R3FlyApi);
             this.rootDirectory = new MemoryDirectory(this.mountName, "", this.deployDispatcher, true);
 
             deployDispatcher.startBackgroundDeploy();
 
-            super.mount(mountPoint, blocking, debug, fuseOpts);
+            super.mount(mountPoint, blocking, debug, allFuseOpts);
 
         } catch (Throwable e) {
             LOGGER.error("Error mounting F1r3flyFS", e);

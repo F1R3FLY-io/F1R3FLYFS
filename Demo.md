@@ -72,8 +72,8 @@ ls -lh ~/demo-f1r3flyfs/large_data.txt
 Stop all processes and remove all files
 
 ```sh
-# Stop node and F1r3flyFS apps
-# or kill if stuck
+# Stop node and F1r3flyFS apps. Or kill if stuck.
+# WARNING: This will kill all Java processes.
 ps aux | grep java | grep -v grep | awk '{print $2}' | xargs kill -9
 
 # clean Node state:
@@ -83,7 +83,12 @@ rm -rf ~/.rnode
 find ~/.rnode -type f ! -path "$HOME/.rnode/genesis/*" -delete && find ~/.rnode -mindepth 1 -maxdepth 1 -type d ! -name "genesis" -exec rm -rf {} +
 
 # Unmount ~/demo-f1r3flyfs if f1r3flyFS crashed
+
+# Mac OS
 sudo diskutil umount force ~/demo-f1r3flyfs
+
+# Linux
+sudo umount -l ~/demo-f1r3flyfs
 
 # ~/demo-f1r3flyfs has to be empty folder
 # delete ~/demo-f1r3flyfs before running the next demo
@@ -92,3 +97,29 @@ rm -rf ~/demo-f1r3flyfs
 # remove large_data.txt
 rm -f large_data.txt
 ```
+## Troubleshooting
+
+### WSL
+
+Error:
+```
+fusermount: option allow_other only allowed if 'user_allow_other' is set in /etc/fuse.conf
+```
+
+This allows Windows file explorer to access the mounted folder under WSL.
+
+Solution:
+
+```sh
+sudo nano /etc/fuse.conf
+```
+
+Uncomment the line:
+
+```
+user_allow_other
+```
+
+Save and exit.
+
+
