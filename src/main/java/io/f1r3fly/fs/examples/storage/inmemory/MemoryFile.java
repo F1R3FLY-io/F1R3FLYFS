@@ -62,6 +62,8 @@ public class MemoryFile extends MemoryPath {
     }
 
     public int read(Pointer buffer, long size, long offset) throws IOException {
+        open(); // make sure file is open
+
         int bytesToRead = (int) Math.min(this.size - offset, size);
         byte[] chunk = new byte[bytesToRead];
 
