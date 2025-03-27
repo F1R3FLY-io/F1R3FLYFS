@@ -18,6 +18,7 @@ F1r3flyFS is a FUSE implementation in java using Java Native Runtime (JNR) and F
 5. Install `f1r3fly` as per the instructions in the [F1r3fly repository](https://github.com/F1R3FLY-io/f1r3fly/tree/preston/rholang_rust?tab=readme-ov-file#installation).
 
 6. Install [jnr-fuse](https://github.com/SerCeMan/jnr-fuse/blob/master/INSTALLATION.md).
+   - Also see [macfuse](https://github.com/macfuse/macfuse/wiki/Getting-Started) which is the same library for MacOS. This contains installation steps and troubleshooting solutions for MacOS.
 
 ## Usage
 
