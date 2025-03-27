@@ -2,6 +2,8 @@
 
 Prerequisites: [Environment set up](./README.md#installation).
 
+Running on Windows Subsystem for Linux (WSL)? See branch -> `wsl`
+
 1. Prepare `~/.rnode/genesis/wallet.txt` file with a key
 
 ```
