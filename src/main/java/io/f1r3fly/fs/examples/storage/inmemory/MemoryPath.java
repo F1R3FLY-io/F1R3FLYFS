@@ -24,14 +24,16 @@ public abstract class MemoryPath extends DeployablePath {
         this.deployDispatcher = deployDispatcher;
     }
 
-    public synchronized void delete() {
+    public synchronized void delete(boolean sendToShard) {
         if (parent != null) {
-            parent.deleteChild(this);
+            parent.deleteChild(this, sendToShard);
             parent = null;
         }
 
-        String rholangExpression = RholangExpressionConstructor.forgetChanel(getAbsolutePath());
-        enqueueMutation(rholangExpression);
+        if (sendToShard) {
+            String rholangExpression = RholangExpressionConstructor.forgetChanel(getAbsolutePath());
+            enqueueMutation(rholangExpression);
+        }
     }
 
     public MemoryPath find(String path) {
@@ -50,7 +52,7 @@ public abstract class MemoryPath extends DeployablePath {
         while (newName.startsWith(PathUtils.getPathDelimiterBasedOnOS())) {
             newName = newName.substring(1);
         }
-        parent.deleteChild(this);
+        parent.deleteChild(this, sendToShard);
         parent = newParent;
         String oldPath = getAbsolutePath();
         name = newName;

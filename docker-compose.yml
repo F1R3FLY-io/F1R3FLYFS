@@ -38,6 +38,7 @@ services:
               --fork-choice-check-if-stale-interval 30seconds --fork-choice-stale-threshold 30seconds
     ports:
     - $MY_NET_IP:40411:40401
+    - $MY_NET_IP:40412:40402
     - $MY_NET_IP:40413:40403
     - $MY_NET_IP:40415:40405
     # Ports exposed externally

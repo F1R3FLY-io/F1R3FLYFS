@@ -22,7 +22,7 @@ public class MemoryFile extends MemoryPath {
     // it should be a number that can be divisible by 16 because of AES block size
     private static final int MAX_FILE_CHUNK_SIZE = 16 * 10 * 1024 * 1024; // 160 mb
 
-    protected RandomAccessFile rif;
+    private RandomAccessFile rif;
     protected File cachedFile;
     protected long lastDeploymentOffset = 0;
     protected boolean isDirty = true;

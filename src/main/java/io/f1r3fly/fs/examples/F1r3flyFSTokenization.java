@@ -1,11 +1,11 @@
 package io.f1r3fly.fs.examples;
 
+import casper.DeployServiceCommon;
 import io.f1r3fly.fs.SuccessCodes;
 import io.f1r3fly.fs.examples.storage.DeployDispatcher;
 import io.f1r3fly.fs.examples.storage.errors.NoDataByPath;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
-import io.f1r3fly.fs.examples.storage.inmemory.MemoryDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.MemoryPath;
+import io.f1r3fly.fs.examples.storage.inmemory.*;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.struct.FuseFileInfo;
 import jnr.ffi.Memory;
@@ -49,93 +49,55 @@ public class F1r3flyFSTokenization {
         1L                           // 1
     );
 
-    private final Path mountPoint;
-    private final MemoryDirectory rootDirectory;
+    private MemoryDirectory tokenDirectory;
     private final F1r3flyFS f1r3flyFS;
     private final DeployDispatcher deployDispatcher;
+    private final F1r3flyApi f1R3FlyApi;
 
-    public F1r3flyFSTokenization(Path mountPoint, MemoryDirectory rootDirectory, F1r3flyFS f1r3flyFS, DeployDispatcher deployDispatcher) {
-        this.mountPoint = mountPoint;
-        this.rootDirectory = rootDirectory;
+    public F1r3flyFSTokenization(F1r3flyFS f1r3flyFS, F1r3flyApi f1R3FlyApi, DeployDispatcher deployDispatcher) {
         this.f1r3flyFS = f1r3flyFS;
         this.deployDispatcher = deployDispatcher;
+        this.f1R3FlyApi = f1R3FlyApi;
     }
 
-    public void initializeTokenDirectory() {
-        String newDirPath = mountPoint.toString() + "/tokens";
-        rootDirectory.mkdir(getLastComponent(newDirPath), true);
+    public void initializeTokenDirectory(MemoryDirectory rootDirectory) {
+        tokenDirectory = rootDirectory.mkdir(".tokens", false);
         LOGGER.debug("Created tokens folder");
     }
 
-    public void initializeBalance(F1r3flyApi f1R3FlyApi, DeployDispatcher deployDispatcher) {
-        // using hardcoded address for testing
-        String rholangExpression = RholangExpressionConstructor.checkBalanceRho("11112ZM9yrfaTrzCCbKjPbxBncjNCkMFsPqtcLFvhBf4Kqx6rpir2w");
+    public void initializeBalance(String itselfAddress) {
+        String rholangExpression = RholangExpressionConstructor.checkBalanceRho(itselfAddress);
 
-        // define rho code
-        DeployDispatcher.Deployment deployment = new DeployDispatcher.Deployment(
-            rholangExpression,
-            true,
-            F1r3flyApi.RHOLANG
-        );
+        RhoTypes.Expr balanceData = f1R3FlyApi.exploratoryDeploy(rholangExpression);
 
-        try {
-            deployDispatcher.waitOnEmptyQueue();
-            deployDispatcher.enqueueDeploy(deployment);
-            LOGGER.debug("Deployment successful.");
-        } catch (Exception e) {
-            LOGGER.error("Deployment failed with an exception.");
-        }
-
-        // retrieve balance data from the block if deployment was successful\
-        String balance = null;
-        try {
-            deployDispatcher.waitOnEmptyQueue();
-            List<RhoTypes.Par> balanceData = f1R3FlyApi.findDataByName("balance");
-
-            balance = extractBalanceFromData(balanceData);
-            LOGGER.debug("Balance: {}", balance);
-        } catch (NoDataByPath e) {
-            LOGGER.error("No balance data found in block for address: {}", e.getMessage());
-        }
-
-        // calculate tokens and initialise them inside the tokens folder
-        if(balance == null) {
-            LOGGER.error("Balance is null");
+        if (balanceData == null) {
+            LOGGER.error("No balance data found in block");
             return;
         }
 
-        long numberBalance = Long.parseLong(balance);
-        Map<Long, Integer> tokenMap = splitBalance(numberBalance);
+        if (!balanceData.hasGInt()) {
+            LOGGER.error("Wrong data type: {}", balanceData);
+            return;
+        }
 
-        LOGGER.debug("Token Breakdown:");
+        long balance = balanceData.getGInt();
+        LOGGER.debug("Balance: {}", balance);
+
+        Map<Long, Integer> tokenMap = splitBalance(balance);
+
+        LOGGER.info("Token Breakdown:");
         for (Map.Entry<Long, Integer> entry : tokenMap.entrySet()) {
             LOGGER.debug("{} tokens of {}", entry.getValue(), entry.getKey());
             int amount = entry.getValue();
 
-            createTokens(amount, entry.getKey().toString());
+            createTokens(amount, entry.getKey());
         }
 
         LOGGER.debug("Created tokens successfully! (initialized tokens folder)");
-    }
 
-    public String extractBalanceFromData(List<RhoTypes.Par> balanceData) {
-        if (balanceData != null && !balanceData.isEmpty()) {
-            RhoTypes.Par par = balanceData.get(0);
-            if (par.getExprsCount() > 0 && par.getExprs(0).hasGInt()) {
-                return String.valueOf(par.getExprs(0).getGInt());
-            }
-        }
-        return null;
-    }
-
-    private String getLastComponent(String path) {
-        while (path.endsWith("/")) {
-            path = path.substring(0, path.length() - 1);
-        }
-        if (path.isEmpty()) {
-            return "";
-        }
-        return path.substring(path.lastIndexOf("/") + 1);
+        // create directories for other addresses
+        createRavAddressDirectories(itselfAddress);
+        LOGGER.debug("Created directories for other addresses");
     }
 
     private Map<Long, Integer> splitBalance(long balance) {
@@ -151,11 +113,46 @@ public class F1r3flyFSTokenization {
         return tokenMap;
     }
 
-    private void createTokens(int amount, String value) {
-        String fileName = amount + "x_token" + "_" + value;
-        String path = "/tokens" + "/" + fileName + ".f1r3flyToken";
-        f1r3flyFS.create(path,  0666, null);
+    private void createTokens(int amount, long value) {
+        for (int i = 0; i < amount; i++) {
+            String fileName = value + "-REV." + i + ".token";
 
-        LOGGER.debug("Created token files amount: {} with name: {}", amount, value);
+            TokenFile tokenFile = new TokenFile(f1r3flyFS.getMountName(), fileName, tokenDirectory, deployDispatcher, false, value);
+
+            tokenDirectory.add(tokenFile, false);
+            LOGGER.debug("Created token files amount: {} with name: {}", amount, value);
+        }
+
+    }
+
+    private List<String> parseRavAddressesFromGenesisBlock() {
+        List<DeployServiceCommon.DeployInfo> deploys = f1R3FlyApi.getGenesisBlock().getDeploysList();
+
+        DeployServiceCommon.DeployInfo tokenInitializeDeploy =
+            deploys.stream().filter((deployInfo1 ->
+                deployInfo1.getTerm().contains("revVaultInitCh"))).findFirst().orElseThrow();
+
+        String regex = "\\\"(1111[A-Za-z0-9]+)\\\"";
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(regex);
+        java.util.regex.Matcher matcher = pattern.matcher(tokenInitializeDeploy.getTerm());
+
+        List<String> ravAddresses = new java.util.ArrayList<>();
+        while (matcher.find()) {
+            ravAddresses.add(matcher.group(1));
+        }
+
+        return ravAddresses;
+    }
+
+    private void createRavAddressDirectories(String itselfAddress) {
+        List<String> ravAddresses = parseRavAddressesFromGenesisBlock();
+
+        // remove itself address from the list
+        ravAddresses.remove(itselfAddress);
+
+        for (String address : ravAddresses) {
+            WalletDirectory directory = new WalletDirectory(f1r3flyFS.getMountName(), address, tokenDirectory, deployDispatcher, address);
+            tokenDirectory.add(directory, false);
+        }
     }
 }

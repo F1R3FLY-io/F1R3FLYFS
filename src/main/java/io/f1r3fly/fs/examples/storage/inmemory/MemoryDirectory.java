@@ -14,7 +14,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class MemoryDirectory extends MemoryPath {
-    protected List<MemoryPath> contents = new ArrayList<>();
+    private List<MemoryPath> contents = new ArrayList<>();
 
     public MemoryDirectory(String prefix, String name, DeployDispatcher deployDispatcher, boolean sendToShard) {
         super(prefix, name, deployDispatcher);
@@ -53,10 +53,12 @@ public class MemoryDirectory extends MemoryPath {
         enqueueMutation(rholang);
     }
 
-    public synchronized void deleteChild(MemoryPath child) {
+    public synchronized void deleteChild(MemoryPath child, boolean sendToRChain) {
         contents.remove(child);
-        
-        enqueueUpdatingChildrenList();
+
+        if (sendToRChain) {
+            enqueueUpdatingChildrenList();
+        }
     }
 
     @Override
@@ -94,10 +96,12 @@ public class MemoryDirectory extends MemoryPath {
         stat.st_gid.set(fuseContext.gid.get());
     }
 
-    public synchronized void mkdir(String lastComponent, boolean sendToShard) {
-        contents.add(new MemoryDirectory(prefix, lastComponent, this, deployDispatcher, sendToShard));
+    public synchronized MemoryDirectory mkdir(String lastComponent, boolean sendToShard) {
+        MemoryDirectory newDir = new MemoryDirectory(prefix, lastComponent, this, deployDispatcher, sendToShard);
+        contents.add(newDir);
 
         enqueueUpdatingChildrenList();
+        return newDir;
     }
 
     public synchronized void mkfile(String lastComponent, boolean sendToRChain) {

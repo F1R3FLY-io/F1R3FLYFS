@@ -40,6 +40,7 @@ public class F1r3flyFS extends FuseStubFS {
     private final String[] MOUNT_OPTIONS = {
         // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options
         "-o", "noappledouble",
+        "-o", "noapplexattr",
         "-o", "daemon_timeout=3600", // 1 hour timeout
         "-o", "default_permissions" // permission is not supported that, this disables the permission check from Fuse side
     };
@@ -57,6 +58,12 @@ public class F1r3flyFS extends FuseStubFS {
     public int create(String path, @mode_t long mode, FuseFileInfo fi) {
         LOGGER.debug("Called Create file {}", path);
         try {
+            // Reject creation of Apple metadata files
+            if (isAppleMetadataFile(path)) {
+                LOGGER.debug("Rejecting creation of Apple metadata file: {}", path);
+                return -ErrorCodes.EACCES();
+            }
+            
             if (getPath(path) != null) {
                 return -ErrorCodes.EEXIST();
             }
@@ -78,6 +85,12 @@ public class F1r3flyFS extends FuseStubFS {
         LOGGER.debug("Called Getattr {}", path);
         try {
             if (!isMounted()) {
+                return -ErrorCodes.ENOENT();
+            }
+
+            // Explicitly reject Apple metadata files
+            if (isAppleMetadataFile(path)) {
+                LOGGER.debug("Rejecting Apple metadata file: {}", path);
                 return -ErrorCodes.ENOENT();
             }
 
@@ -244,7 +257,7 @@ public class F1r3flyFS extends FuseStubFS {
             if (!((MemoryDirectory) p).isEmpty()) {
                 return -ErrorCodes.ENOTEMPTY();
             }
-            p.delete();
+            p.delete(true);
             return SuccessCodes.OK;
         } catch (Throwable e) {
             LOGGER.error("Error removing directory {}", path, e);
@@ -279,7 +292,7 @@ public class F1r3flyFS extends FuseStubFS {
             if (p == null) {
                 return -ErrorCodes.ENOENT();
             }
-            p.delete();
+            p.delete(true);
             return SuccessCodes.OK;
         } catch (Throwable e) {
             LOGGER.error("Error unlinking file {}", path, e);
@@ -291,6 +304,12 @@ public class F1r3flyFS extends FuseStubFS {
     public int open(String path, FuseFileInfo fi) {
         LOGGER.debug("Called Open file {}", path);
         try {
+            // Reject opening Apple metadata files
+            if (isAppleMetadataFile(path)) {
+                LOGGER.debug("Rejecting open of Apple metadata file: {}", path);
+                return -ErrorCodes.ENOENT();
+            }
+            
             MemoryPath p = getPath(path);
             if (p == null) {
                 return -ErrorCodes.ENOENT();
@@ -445,16 +464,18 @@ public class F1r3flyFS extends FuseStubFS {
             // combine fuseOpts and MOUNT_OPTIONS
             String[] allFuseOpts = Arrays.copyOf(fuseOpts, fuseOpts.length + MOUNT_OPTIONS.length);
             System.arraycopy(MOUNT_OPTIONS, 0, allFuseOpts, fuseOpts.length, MOUNT_OPTIONS.length);
+            
+            LOGGER.debug("Combined mount options: {}", Arrays.toString(allFuseOpts));
 
             this.deployDispatcher = new DeployDispatcher(f1R3FlyApi);
             this.rootDirectory = new MemoryDirectory(this.mountName, "", this.deployDispatcher, true);
 
             deployDispatcher.startBackgroundDeploy();
 
-            F1r3flyFSTokenization tokenization = new F1r3flyFSTokenization(mountPoint, rootDirectory, this, this.deployDispatcher);
-            tokenization.initializeTokenDirectory();
+            F1r3flyFSTokenization tokenization = new F1r3flyFSTokenization(this, f1R3FlyApi, this.deployDispatcher);
+            tokenization.initializeTokenDirectory(rootDirectory);
             waitOnBackgroundThread();
-            tokenization.initializeBalance(f1R3FlyApi, this.deployDispatcher);
+            tokenization.initializeBalance(ConfigStorage.getRevAddress());
 
             super.mount(mountPoint, blocking, debug, fuseOpts);
 
@@ -468,7 +489,7 @@ public class F1r3flyFS extends FuseStubFS {
                 this.rootDirectory = null;
             }
 
-            throw e;
+            throw new RuntimeException(e);
         }
     }
 
@@ -518,5 +539,9 @@ public class F1r3flyFS extends FuseStubFS {
 
     protected boolean isMounted() {
         return this.rootDirectory != null;
+    }
+
+    private boolean isAppleMetadataFile(String path) {
+        return path.contains(".DS_Store") || path.contains("._.");
     }
 }

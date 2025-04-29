@@ -54,7 +54,7 @@ public class RholangExpressionConstructor {
             .append("        (false, err) => return!(err) ")
             .append("      } ")
             .append("    } ")
-            .append("  } | for (@v <- return) {@\"balance\"!(v) } ")
+            .append("  } ")
             .append("}")
             .toString();
     }
@@ -328,5 +328,94 @@ public class RholangExpressionConstructor {
 
     protected static @NotNull long currentTime() {
         return System.currentTimeMillis();
+    }
+    
+    /**
+     * Constructs a Rholang expression for transferring REV tokens between addresses
+     * 
+     * @param revAddrFrom source REV address
+     * @param revAddrTo destination REV address
+     * @param amount amount to transfer
+     * @return Rholang expression for REV transfer
+     * 
+     * Output looks like:
+     * new rl(`rho:registry:lookup`), RevVaultCh in {
+     *   rl!(`rho:rchain:revVault`, *RevVaultCh) |
+     *   for (@(_, RevVault) <- RevVaultCh) {
+     *     new vaultCh, vaultTo, revVaultkeyCh, deployerId(`rho:rchain:deployerId`), deployId(`rho:rchain:deployId`) in {
+     *       match ("1111uwQS3sRCQm36VkJPFQVVNWYbXQmp2EfP3c3JvcQkKJK6QNqZh", "1111uwRc5pUBYUT4ERVsmpPj1TD1cpQvQpSCVJwAhzp1Cpt8hXuVR", 100) {
+     *         (revAddrFrom, revAddrTo, amount) => {
+     *           @RevVault!("findOrCreate", revAddrFrom, *vaultCh) |
+     *           @RevVault!("findOrCreate", revAddrTo, *vaultTo) |
+     *           @RevVault!("deployerAuthKey", *deployerId, *revVaultkeyCh) |
+     *           for (@vault <- vaultCh; key <- revVaultkeyCh; _ <- vaultTo) {
+     *             match vault {
+     *               (true, vault) => {
+     *                 new resultCh in {
+     *                   @vault!("transfer", revAddrTo, amount, *key, *resultCh) |
+     *                   for (@result <- resultCh) {
+     *                     match result {
+     *                       (true , _  ) => deployId!((true, "Transfer successful (not yet finalized)."))
+     *                       (false, err) => deployId!((false, err))
+     *                     }
+     *                   }
+     *                 }
+     *               }
+     *               err => {
+     *                 deployId!((false, "REV vault cannot be found or created."))
+     *               }
+     *             }
+     *           }
+     *         }
+     *       }
+     *     }
+     *   }
+     * }
+     */
+    public static String transfer(String revAddrFrom, String revAddrTo, long amount) {
+        return new StringBuilder()
+            .append("new rl(`rho:registry:lookup`), RevVaultCh in {")
+            .append("rl!(`rho:rchain:revVault`, *RevVaultCh) | ")
+            .append("for (@(_, RevVault) <- RevVaultCh) {")
+            .append("new vaultCh, vaultTo, revVaultkeyCh, ")
+            .append("deployerId(`rho:rchain:deployerId`), ")
+            .append("deployId(`rho:rchain:deployId`) ")
+            .append("in {")
+            .append("match (\"")
+            .append(revAddrFrom)
+            .append("\", \"")
+            .append(revAddrTo)
+            .append("\", ")
+            .append(amount)
+            .append(") {")
+            .append("(revAddrFrom, revAddrTo, amount) => {")
+            .append("@RevVault!(\"findOrCreate\", revAddrFrom, *vaultCh) | ")
+            .append("@RevVault!(\"findOrCreate\", revAddrTo, *vaultTo) | ")
+            .append("@RevVault!(\"deployerAuthKey\", *deployerId, *revVaultkeyCh) | ")
+            .append("for (@vault <- vaultCh; key <- revVaultkeyCh; _ <- vaultTo) {")
+            .append("match vault {")
+            .append("(true, vault) => {")
+            .append("new resultCh in {")
+            .append("@vault!(\"transfer\", revAddrTo, amount, *key, *resultCh) | ")
+            .append("for (@result <- resultCh) {")
+            .append("match result {")
+            .append("(true, _) => deployId!((true, \"Transfer successful (not yet finalized).\"))")
+            .append("(false, err) => deployId!((false, err))")
+            .append("}")
+            .append("}")
+            .append("}")
+            .append("}")
+            .append("err => {")
+            .append("deployId!((false, \"REV vault cannot be found or created.\"))")
+            .append("}")
+            .append("}")
+            .append("}")
+            .append("}")
+            .append("}")
+            .append("}")
+            .append("}}")
+            .append("|")
+            .append(currentTime())
+            .toString();
     }
 }

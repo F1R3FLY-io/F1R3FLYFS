@@ -43,25 +43,38 @@ public class F1r3flyApi {
     private static final int MAX_MESSAGE_SIZE = Integer.MAX_VALUE; // ~2 GB
 
     private final byte[] signingKey;
-    private final DeployServiceGrpc.DeployServiceFutureStub deployService;
-    private final ProposeServiceGrpc.ProposeServiceFutureStub proposeService;
+    private final DeployServiceGrpc.DeployServiceFutureStub validatorDeployService;
+    private final ProposeServiceGrpc.ProposeServiceFutureStub validatorProposeService;
+    private final DeployServiceGrpc.DeployServiceFutureStub observerDeployService;
+    private final ProposeServiceGrpc.ProposeServiceFutureStub observerProposeService;
 
 
     public F1r3flyApi(byte[] signingKey,
-                      String nodeHost,
-                      int grpcPort
+                      String validatorHost,
+                      int validatorPort,
+                      String observerHost,
+                      int observerPort
     ) {
         super();
 
         Security.addProvider(new Blake2bProvider());
 
-        ManagedChannel channel = ManagedChannelBuilder.forAddress(nodeHost, grpcPort).usePlaintext().build();
+        ManagedChannel validatorChannel = ManagedChannelBuilder.forAddress(validatorHost, validatorPort).usePlaintext().build();
 
         this.signingKey = signingKey;
-        this.deployService = DeployServiceGrpc.newFutureStub(channel)
+        this.validatorDeployService = DeployServiceGrpc.newFutureStub(validatorChannel)
             .withMaxInboundMessageSize(MAX_MESSAGE_SIZE)
             .withMaxOutboundMessageSize(MAX_MESSAGE_SIZE);
-        this.proposeService = ProposeServiceGrpc.newFutureStub(channel)
+        this.validatorProposeService = ProposeServiceGrpc.newFutureStub(validatorChannel)
+            .withMaxInboundMessageSize(MAX_MESSAGE_SIZE)
+            .withMaxOutboundMessageSize(MAX_MESSAGE_SIZE);
+
+        ManagedChannel observerChannel = ManagedChannelBuilder.forAddress(observerHost, observerPort).usePlaintext().build();
+
+        this.observerDeployService = DeployServiceGrpc.newFutureStub(observerChannel)
+            .withMaxInboundMessageSize(MAX_MESSAGE_SIZE)
+            .withMaxOutboundMessageSize(MAX_MESSAGE_SIZE);
+        this.observerProposeService = ProposeServiceGrpc.newFutureStub(observerChannel)
             .withMaxInboundMessageSize(MAX_MESSAGE_SIZE)
             .withMaxOutboundMessageSize(MAX_MESSAGE_SIZE);
     }
@@ -79,6 +92,63 @@ public class F1r3flyApi {
     private String gatherErrors(ServiceErrorOuterClass.ServiceError error) {
         ProtocolStringList messages = error.getMessagesList();
         return messages.stream().collect(Collectors.joining("\n"));
+    }
+
+    public DeployServiceCommon.BlockInfo getGenesisBlock() {
+        DeployServiceV1.LastFinalizedBlockResponse response = null;
+            try {
+                response = observerDeployService.lastFinalizedBlock(DeployServiceCommon.LastFinalizedBlockQuery.newBuilder().build()).get();
+            } catch (InterruptedException | ExecutionException e) {
+                LOGGER.error("Error retrieving last finalized block", e);
+                Thread.currentThread().interrupt(); // Restore interrupted status
+                return null;
+            }
+
+        DeployServiceCommon.BlockInfo block = response.getBlockInfo();
+
+        while (block.getBlockInfo().getBlockNumber() > 0) {
+            try {
+                block = observerDeployService.getBlock(
+                    DeployServiceCommon.BlockQuery.newBuilder()
+                        .setHash(block.getBlockInfo().getParentsHashList(0))
+                        .build()
+                ).get().getBlockInfo();
+            } catch (InterruptedException | ExecutionException e) {
+                LOGGER.error("Error retrieving block information", e);
+                Thread.currentThread().interrupt(); // Restore interrupted status
+                return null;
+            }
+        }
+
+        return block;
+    }
+
+    public RhoTypes.Expr exploratoryDeploy(String rhoCode) {
+        try {
+            LOGGER.debug("Exploratory deploy code {}", rhoCode);
+
+            // Create query
+            DeployServiceCommon.ExploratoryDeployQuery exploratoryDeploy =
+                DeployServiceCommon.ExploratoryDeployQuery.newBuilder()
+                .setTerm(rhoCode)
+                .build();
+
+            // Deploy
+            DeployServiceV1.ExploratoryDeployResponse deployResponse =
+                observerDeployService.exploratoryDeploy(exploratoryDeploy).get();
+
+            if (deployResponse.hasError()) {
+                LOGGER.debug("Exploratory deploy code {}. Error response {}", rhoCode, deployResponse.getError());
+                return null;
+            } else {
+                LOGGER.debug("Exploratory deploy code {}. Response {}", rhoCode, deployResponse.getResult());
+            }
+
+            return deployResponse.getResult().getPostBlockData(0).getExprs(0);
+        } catch (Exception e) {
+            LOGGER.warn("failed to deploy exploratory code", e);
+            return null;
+        }
     }
 
     public String deploy(String rhoCode, boolean useBiggerRhloPrice, String language) throws F1r3flyDeployError {
@@ -106,7 +176,7 @@ public class F1r3flyApi {
 
             // Deploy
             Uni<String> deployVolumeContract =
-                Uni.createFrom().future(deployService.doDeploy(signed))
+                Uni.createFrom().future(validatorDeployService.doDeploy(signed))
                     .flatMap(deployResponse -> {
 //                        LOGGER.trace("Deploy Response {}", deployResponse);
                         if (deployResponse.hasError()) {
@@ -117,7 +187,7 @@ public class F1r3flyApi {
                     })
                     .flatMap(deployResult -> {
                         String deployId = deployResult.substring(deployResult.indexOf("DeployId is: ") + 13, deployResult.length());
-                        return Uni.createFrom().future(proposeService.propose(ProposeServiceCommon.ProposeQuery.newBuilder().setIsAsync(false).build()))
+                        return Uni.createFrom().future(validatorProposeService.propose(ProposeServiceCommon.ProposeQuery.newBuilder().setIsAsync(false).build()))
                             .flatMap(proposeResponse -> {
 //                                LOGGER.debug("Propose Response {}", proposeResponse);
                                 if (proposeResponse.hasError()) {
@@ -129,7 +199,7 @@ public class F1r3flyApi {
                     })
                     .flatMap(deployId -> {
                         ByteString b64 = ByteString.copyFrom(Hex.decode(deployId));
-                        return Uni.createFrom().future(deployService.findDeploy(DeployServiceCommon.FindDeployQuery.newBuilder().setDeployId(b64).build()))
+                        return Uni.createFrom().future(validatorDeployService.findDeploy(DeployServiceCommon.FindDeployQuery.newBuilder().setDeployId(b64).build()))
                             .flatMap(findResponse -> {
 //                                LOGGER.debug("Find Response {}", findResponse);
                                 if (findResponse.hasError()) {
@@ -141,7 +211,7 @@ public class F1r3flyApi {
                     })
                     .flatMap(blockHash -> {
                         LOGGER.debug("Block Hash {}", blockHash);
-                        return Uni.createFrom().future(deployService.isFinalized(DeployServiceCommon.IsFinalizedQuery.newBuilder().setHash(blockHash).build()))
+                        return Uni.createFrom().future(validatorDeployService.isFinalized(DeployServiceCommon.IsFinalizedQuery.newBuilder().setHash(blockHash).build()))
                             .flatMap(isFinalizedResponse -> {
                                 LOGGER.debug("isFinalizedResponse {}", isFinalizedResponse);
                                 if (isFinalizedResponse.hasError() || !isFinalizedResponse.getIsFinalized()) {
@@ -185,7 +255,7 @@ public class F1r3flyApi {
 
         DeployServiceV1.ListeningNameDataResponse response = null;
         try {
-            response = deployService.listenForDataAtName(request).get();
+            response = validatorDeployService.listenForDataAtName(request).get();
             LOGGER.debug("Find data by name {}. Is error response = {}", expr, response.hasError());
         } catch (InterruptedException | ExecutionException e) {
             LOGGER.warn("Failed to find data by name {}", expr, e);
@@ -225,7 +295,7 @@ public class F1r3flyApi {
 
         casper.v1.DeployServiceV1.RhoDataResponse response = null;
         try {
-            response = deployService.getDataAtName(request).get();
+            response = validatorDeployService.getDataAtName(request).get();
             LOGGER.debug("Get data at block {} by name {}. Is error response = {}", blockHash, expr, response.hasError());
         } catch (InterruptedException | ExecutionException e) {
             LOGGER.warn("Failed to get data at block {} by name {}", blockHash, expr, e);
@@ -235,7 +305,7 @@ public class F1r3flyApi {
 
         // retries:
 //        Uni<casper.v1.DeployServiceV1.RhoDataResponse> getDataAtName =
-//            Uni.createFrom().future(deployService.getDataAtName(request))
+//            Uni.createFrom().future(validatorDeployService.getDataAtName(request))
 //                .flatMap(getResponse -> {
 //                    LOGGER.debug("Get data at block {} by name {}\". Response {}", blockHash, expr, getResponse);
 //                    if (getResponse.hasError()) {

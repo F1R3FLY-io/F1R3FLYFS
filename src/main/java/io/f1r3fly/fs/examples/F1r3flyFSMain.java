@@ -25,14 +25,23 @@ import rhoapi.RhoTypes;
     description = "A FUSE filesystem based on the F1r3fly blockchain.")
 class F1r3flyFSMain implements Callable<Integer> {
 
-    @Option(names = {"-h", "--host"}, description = "Host of the F1r3fly blockchain internal gRPC API to connect to. Defaults to localhost.")
-    private String host = "localhost";
+    @Option(names = {"-h", "--validator-host"}, description = "Host of the F1r3fly blockchain internal gRPC API to connect to. Defaults to localhost.")
+    private String validatorHost = "localhost";
 
-    @Option(names = {"-p", "--port"}, description = "Port of the F1r3fly blockchain internal gRPC API to connect to. Defaults to 40402.")
-    private int port = 40402;
+    @Option(names = {"-p", "--validator-port"}, description = "Port of the F1r3fly blockchain internal gRPC API to connect to. Defaults to 40402.")
+    private int validatorPort = 40402;
+
+    @Option(names = {"-oh", "--observer-host"}, description = "Host of the F1r3fly blockchain observer gRPC API to connect to. Defaults to localhost.")
+    private String observerHost = "localhost";
+
+    @Option(names = {"-op", "--observer-port"}, description = "Port of the F1r3fly blockchain observer gRPC API to connect to. Defaults to 40403.")
+    private int observerPort = 40403;
 
     @Option(names = {"-sk", "--signing-key"}, description = "Private key, in hexadecimal, to sign Rholang deployments with.")
     private String signingKey;
+
+    @Option(names = {"-w", "--wallet-address"}, description = "The REV address associated with the signing key.")
+    private String wallet;
 
     @Option(names = {"-ck", "--cipher-key-path"}, required = true, description = "Cipher key path. If file not found, a new key will be generated.")
     private String cipherKeyPath;
@@ -44,15 +53,19 @@ class F1r3flyFSMain implements Callable<Integer> {
     private Path mountPoint;
 
     private F1r3flyFS f1r3flyFS;
-    private static final Logger LOGGER = LoggerFactory.getLogger(F1r3flyFSMain.class);
 
 
     @Override
     public Integer call() throws Exception {
 
+        byte[] signingKeyHex = Hex.decode(signingKey);
+
         AESCipher.init(cipherKeyPath); // init singleton instance
 
-        F1r3flyApi f1R3FlyApi = new F1r3flyApi(Hex.decode(signingKey), host, port);
+        ConfigStorage.setPrivateKey(signingKeyHex);
+        ConfigStorage.setRevAddress(wallet); // TODO: parse it from signing key
+
+        F1r3flyApi f1R3FlyApi = new F1r3flyApi(signingKeyHex, validatorHost, validatorPort, observerHost, observerPort);
         f1r3flyFS = new F1r3flyFS(f1R3FlyApi);
 
         try {
