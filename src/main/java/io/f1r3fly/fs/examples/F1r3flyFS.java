@@ -1,7 +1,11 @@
 package io.f1r3fly.fs.examples;
 
-import io.f1r3fly.fs.*;
+import io.f1r3fly.fs.ErrorCodes;
+import io.f1r3fly.fs.FuseFillDir;
+import io.f1r3fly.fs.FuseStubFS;
+import io.f1r3fly.fs.SuccessCodes;
 import io.f1r3fly.fs.examples.storage.DeployDispatcher;
+import io.f1r3fly.fs.examples.storage.errors.F1r3flyDeployError;
 import io.f1r3fly.fs.examples.storage.errors.NoDataByPath;
 import io.f1r3fly.fs.examples.storage.errors.PathIsNotADirectory;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
@@ -33,15 +37,14 @@ public class F1r3flyFS extends FuseStubFS {
     private static final Logger LOGGER = LoggerFactory.getLogger(F1r3flyFS.class);
 
     private final F1r3flyApi f1R3FlyApi;
-    private DeployDispatcher deployDispatcher;
-    private MemoryDirectory rootDirectory;
-
     private final String[] MOUNT_OPTIONS = {
         // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options
         "-o", "noappledouble",
         "-o", "daemon_timeout=3600", // 1 hour timeout
         "-o", "default_permissions" // permission is not supported that, this disables the permission check from Fuse side
     };
+    private DeployDispatcher deployDispatcher;
+    private MemoryDirectory rootDirectory;
 
 
     public F1r3flyFS(F1r3flyApi f1R3FlyApi) {
@@ -91,7 +94,7 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
     private String getLastComponent(String path) {
-        while (path.substring(path.length() - 1).equals("/")) {
+        while (path.endsWith("/")) {
             path = path.substring(0, path.length() - 1);
         }
         if (path.isEmpty()) {
@@ -341,10 +344,10 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
 
-
     public void remount(String mountName, Path mountPoint) throws PathIsNotADirectory, NoDataByPath {
         remount(mountName, mountPoint, false, false, new String[]{});
     }
+
     public void remount(String mountName, Path mountPoint, boolean blocking, boolean debug, String[] fuseOpts) throws PathIsNotADirectory, NoDataByPath {
         LOGGER.debug("Called remount F1r3flyFS with mount name {}, mount point {}, blocking {}, debug, {}, fuse opts {}",
             mountName, mountPoint, blocking, debug, Arrays.toString(fuseOpts));
@@ -462,6 +465,9 @@ public class F1r3flyFS extends FuseStubFS {
 
             throw e;
         }
+
+        F1r3flyFSTokenization.initializeTokenDirectory(mountPoint, this.rootDirectory);
+        F1r3flyFSTokenization.initializeBalance(f1R3FlyApi, this.deployDispatcher);
     }
 
     public void waitOnBackgroundThread() {
