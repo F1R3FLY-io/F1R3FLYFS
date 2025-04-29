@@ -49,7 +49,7 @@ class F1r3flyFSTest {
     private static final Path MOUNT_POINT = new File("/tmp/f1r3flyfs/").toPath();
     private static final File MOUNT_POINT_FILE = MOUNT_POINT.toFile();
 
-    public static final DockerImageName F1R3FLY_IMAGE = DockerImageName.parse("ghcr.io/f1r3fly-io/rnode:latest");
+    public static final DockerImageName F1R3FLY_IMAGE = DockerImageName.parse("f1r3flyindustries/f1r3fly-rust-node:latest");
 
     private static GenericContainer<?> f1r3fly;
 
