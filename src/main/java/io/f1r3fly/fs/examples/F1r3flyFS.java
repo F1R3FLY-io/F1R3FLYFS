@@ -5,13 +5,15 @@ import io.f1r3fly.fs.FuseFillDir;
 import io.f1r3fly.fs.FuseStubFS;
 import io.f1r3fly.fs.SuccessCodes;
 import io.f1r3fly.fs.examples.storage.DeployDispatcher;
-import io.f1r3fly.fs.examples.storage.errors.F1r3flyDeployError;
-import io.f1r3fly.fs.examples.storage.errors.NoDataByPath;
-import io.f1r3fly.fs.examples.storage.errors.PathIsNotADirectory;
+import io.f1r3fly.fs.examples.storage.errors.*;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
-import io.f1r3fly.fs.examples.storage.inmemory.MemoryDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.MemoryFile;
-import io.f1r3fly.fs.examples.storage.inmemory.MemoryPath;
+import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
+import io.f1r3fly.fs.examples.storage.inmemory.common.IFile;
+import io.f1r3fly.fs.examples.storage.inmemory.common.IPath;
+import io.f1r3fly.fs.examples.storage.inmemory.deployable.InMemoryDirectory;
+import io.f1r3fly.fs.examples.storage.inmemory.deployable.InMemoryFile;
+import io.f1r3fly.fs.examples.storage.inmemory.deployable.RemountedDirectory;
+import io.f1r3fly.fs.examples.storage.inmemory.deployable.RemountedFile;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseFileInfo;
@@ -28,8 +30,10 @@ import rhoapi.RhoTypes;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 
 public class F1r3flyFS extends FuseStubFS {
@@ -45,7 +49,7 @@ public class F1r3flyFS extends FuseStubFS {
         "-o", "default_permissions" // permission is not supported that, this disables the permission check from Fuse side
     };
     private DeployDispatcher deployDispatcher;
-    private MemoryDirectory rootDirectory;
+    private InMemoryDirectory rootDirectory;
 
 
     public F1r3flyFS(F1r3flyApi f1R3FlyApi) {
@@ -63,15 +67,22 @@ public class F1r3flyFS extends FuseStubFS {
                 LOGGER.debug("Rejecting creation of Apple metadata file: {}", path);
                 return -ErrorCodes.EACCES();
             }
-            
-            if (getPath(path) != null) {
+
+            IPath maybeExist = findPath(path);
+
+            if (maybeExist != null) {
+                // already exists
                 return -ErrorCodes.EEXIST();
             }
-            MemoryPath parent = getParentPath(path);
-            if (parent instanceof MemoryDirectory) {
-                ((MemoryDirectory) parent).mkfile(getLastComponent(path), true);
-                return SuccessCodes.OK;
-            }
+
+            IDirectory parent = getParentPath(path); // fail if not found
+
+            parent.mkfile(getLastComponent(path));
+
+            return SuccessCodes.OK;
+
+        } catch (PathNotFound e) {
+            LOGGER.warn("Parent path not found for {}", path, e);
             return -ErrorCodes.ENOENT();
         } catch (Throwable e) {
             LOGGER.error("Error creating file {}", path, e);
@@ -82,7 +93,7 @@ public class F1r3flyFS extends FuseStubFS {
 
     @Override
     public int getattr(String path, FileStat stat) {
-        LOGGER.debug("Called Getattr {}", path);
+        LOGGER.trace("Called Getattr {}", path);
         try {
             if (!isMounted()) {
                 return -ErrorCodes.ENOENT();
@@ -94,9 +105,9 @@ public class F1r3flyFS extends FuseStubFS {
                 return -ErrorCodes.ENOENT();
             }
 
-            MemoryPath p = getPath(path);
+            IPath p = findPath(path);
             if (p != null) {
-                p.getattr(stat, getContext());
+                p.getAttr(stat, getContext());
                 return SuccessCodes.OK;
             }
             return -ErrorCodes.ENOENT();
@@ -107,21 +118,65 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
     private String getLastComponent(String path) {
-        while (path.endsWith("/")) {
+        while (path.endsWith(PathUtils.getPathDelimiterBasedOnOS())) {
             path = path.substring(0, path.length() - 1);
         }
         if (path.isEmpty()) {
             return "";
         }
-        return path.substring(path.lastIndexOf("/") + 1);
+        return path.substring(path.lastIndexOf(PathUtils.getPathDelimiterBasedOnOS()) + 1);
     }
 
-    private MemoryPath getParentPath(String path) {
-        return rootDirectory.find(path.substring(0, path.lastIndexOf("/")));
+    private IDirectory getParentPath(String path) throws PathNotFound {
+        String parentPath = path.substring(0, path.lastIndexOf("/"));
+
+        IPath parent = getPath(parentPath);
+
+        if (!(parent instanceof IDirectory)) {
+            throw new IllegalArgumentException("Parent path is not a directory: " + parentPath);
+        }
+        return (IDirectory) parent;
     }
 
-    private MemoryPath getPath(String path) {
+    private IPath findPath(String path) {
         return rootDirectory.find(path);
+    }
+    private IPath getPath(String path) throws PathNotFound {
+        IPath element = findPath(path);
+
+        if (element == null) {
+            throw new PathNotFound(path);
+        }
+
+        return element;
+    }
+
+    private IDirectory getDirectory(String path) throws PathNotFound, PathIsNotADirectory {
+        IPath element = findPath(path);
+
+        if (element == null) {
+            throw new PathNotFound(path);
+        }
+
+        if (!(element instanceof IDirectory)) {
+            throw new PathIsNotADirectory(path);
+        }
+
+        return (IDirectory) element;
+    }
+
+    private IFile getFile(String path) throws PathNotFound, PathIsNotAFile {
+        IPath element = findPath(path);
+
+        if (element == null) {
+            throw new PathNotFound(path);
+        }
+
+        if (!(element instanceof IFile)) {
+            throw new PathIsNotAFile(path);
+        }
+
+        return (IFile) element;
     }
 
 
@@ -129,14 +184,22 @@ public class F1r3flyFS extends FuseStubFS {
     public int mkdir(String path, @mode_t long mode) {
         try {
             LOGGER.debug("Called Mkdir {}", path);
-            if (getPath(path) != null) {
+
+            IPath maybeExist = findPath(path);
+            if (maybeExist != null) {
+                // already exists
                 return -ErrorCodes.EEXIST();
             }
-            MemoryPath parent = getParentPath(path);
-            if (parent instanceof MemoryDirectory) {
-                ((MemoryDirectory) parent).mkdir(getLastComponent(path), true);
-                return SuccessCodes.OK;
-            }
+
+            IDirectory parent = getParentPath(path);
+            parent.mkdir(getLastComponent(path));
+
+            return SuccessCodes.OK;
+        } catch (OperationNotPermitted e) {
+            LOGGER.warn("Mkdir not permitted {}", path, e);
+            return -ErrorCodes.EPERM();
+        } catch (PathNotFound e) {
+            LOGGER.warn("Path not found {}", path, e);
             return -ErrorCodes.ENOENT();
         } catch (Throwable e) {
             LOGGER.error("Error creating directory {}", path, e);
@@ -149,14 +212,15 @@ public class F1r3flyFS extends FuseStubFS {
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
         LOGGER.trace("Called Read file {} with buffer size {} and offset {}", path, size, offset);
         try {
-            MemoryPath p = getPath(path);
-            if (p == null) {
-                return -ErrorCodes.ENOENT();
-            }
-            if (!(p instanceof MemoryFile)) {
-                return -ErrorCodes.EISDIR();
-            }
-            return ((MemoryFile) p).read(buf, size, offset);
+            IFile file = getFile(path);
+
+            return file.read(buf, size, offset);
+        } catch (PathIsNotAFile e) {
+            LOGGER.warn("Path {} is not a file", path, e);
+            return -ErrorCodes.EISDIR();
+        } catch (PathNotFound e) {
+            LOGGER.warn("Path {} not found", path, e);
+            return -ErrorCodes.ENOENT();
         } catch (Throwable e) {
             LOGGER.warn("Error reading file {}", path, e);
             return -ErrorCodes.EIO();
@@ -167,17 +231,16 @@ public class F1r3flyFS extends FuseStubFS {
     public int readdir(String path, Pointer buf, FuseFillDir filter, @off_t long offset, FuseFileInfo fi) {
         LOGGER.debug("Called Readdir {}", path);
         try {
-            MemoryPath p = getPath(path);
-            if (p == null) {
-                return -ErrorCodes.ENOENT();
-            }
-            if (!(p instanceof MemoryDirectory)) {
-                return -ErrorCodes.ENOTDIR();
-            }
-            filter.apply(buf, ".", null, 0);
-            filter.apply(buf, "..", null, 0);
-            ((MemoryDirectory) p).read(buf, filter);
+            IDirectory p = getDirectory(path);
+            p.read(buf, filter);
+
             return SuccessCodes.OK;
+        } catch (PathIsNotADirectory e) {
+            LOGGER.warn("Path {} is not a directory", path, e);
+            return -ErrorCodes.ENOTDIR();
+        } catch (PathNotFound e) {
+            LOGGER.warn("Path {} not found", path, e);
+            return -ErrorCodes.ENOENT();
         } catch (Throwable e) {
             LOGGER.error("Error reading directory {}", path, e);
             return -ErrorCodes.EIO();
@@ -187,7 +250,7 @@ public class F1r3flyFS extends FuseStubFS {
 
     @Override
     public int statfs(String path, Statvfs stbuf) {
-        LOGGER.debug("Called Statfs {}", path);
+        LOGGER.trace("Called Statfs {}", path);
         try {
             // UI checks free space before writing a file
             // letting Fuse know that we have 100GB free space
@@ -209,7 +272,7 @@ public class F1r3flyFS extends FuseStubFS {
 
             return super.statfs(path, stbuf);
         } catch (Throwable e) {
-            LOGGER.error("Error statfs", e);
+            LOGGER.error("Error getting filesystem stats for path {}", path, e);
             return -ErrorCodes.EIO();
         }
     }
@@ -218,27 +281,29 @@ public class F1r3flyFS extends FuseStubFS {
     public int rename(String path, String newName) {
         LOGGER.debug("Called Rename {} to {}", path, newName);
         try {
-            MemoryPath p = getPath(path);
-            if (p == null) {
-                return -ErrorCodes.ENOENT();
-            }
-            MemoryPath newParent = getParentPath(newName);
-            if (newParent == null) {
-                return -ErrorCodes.ENOENT();
-            }
-            if (!(newParent instanceof MemoryDirectory)) {
-                return -ErrorCodes.ENOTDIR();
-            }
-//            p.delete();
-            p.rename(newName.substring(newName.lastIndexOf(PathUtils.getPathDelimiterBasedOnOS())), (MemoryDirectory) newParent, true);
-            ((MemoryDirectory) newParent).add(p, true);
+            IPath p = getPath(path); // fail if not found
+            IDirectory newParent = getParentPath(newName); // fail if not found
 
-            if (p instanceof MemoryFile)
-                ((MemoryFile) p).onChange();
+            IDirectory oldParent = p.getParent();
+            p.rename(newName.substring(newName.lastIndexOf(PathUtils.getPathDelimiterBasedOnOS()) + 1), newParent);
+
+            if (oldParent != newParent) {
+                newParent.addChild(p);
+                oldParent.deleteChild(p);
+            } else {
+                newParent.addChild(p); // re-add to force update children list at the shard
+            }
+
+
+            if (p instanceof InMemoryFile)
+                ((InMemoryFile) p).onChange();
 
             return SuccessCodes.OK;
+        } catch (PathNotFound e) {
+            LOGGER.warn("Path not found during rename: {}", e.getMessage());
+            return -ErrorCodes.ENOENT();
         } catch (Throwable e) {
-            LOGGER.error("Error renaming file {}", path, e);
+            LOGGER.error("Error renaming file {} to {}", path, newName, e);
             return -ErrorCodes.EIO();
         }
     }
@@ -247,18 +312,23 @@ public class F1r3flyFS extends FuseStubFS {
     public int rmdir(String path) {
         LOGGER.debug("Called Rmdir {}", path);
         try {
-            MemoryPath p = getPath(path);
-            if (p == null) {
-                return -ErrorCodes.ENOENT();
-            }
-            if (!(p instanceof MemoryDirectory)) {
-                return -ErrorCodes.ENOTDIR();
-            }
-            if (!((MemoryDirectory) p).isEmpty()) {
+            IDirectory p = getDirectory(path);
+            if (!p.isEmpty()) {
+                LOGGER.debug("Directory {} is not empty", path);
                 return -ErrorCodes.ENOTEMPTY();
             }
-            p.delete(true);
+            p.delete();
+            IDirectory parent = p.getParent();
+            if (parent != null) {
+                parent.deleteChild(p);
+            }
             return SuccessCodes.OK;
+        } catch (OperationNotPermitted e) {
+            LOGGER.warn("rmdir not permitted {}", path, e);
+            return -ErrorCodes.EPERM();
+        } catch (PathNotFound e) {
+            LOGGER.warn("Path {} not found", path, e);
+            return -ErrorCodes.ENOENT();
         } catch (Throwable e) {
             LOGGER.error("Error removing directory {}", path, e);
             return -ErrorCodes.EIO();
@@ -269,15 +339,15 @@ public class F1r3flyFS extends FuseStubFS {
     public int truncate(String path, long offset) {
         LOGGER.debug("Called Truncate file {}", path);
         try {
-            MemoryPath p = getPath(path);
-            if (p == null) {
-                return -ErrorCodes.ENOENT();
-            }
-            if (!(p instanceof MemoryFile)) {
-                return -ErrorCodes.EISDIR();
-            }
-            ((MemoryFile) p).truncate(offset);
+            IFile p = getFile(path);
+            p.truncate(offset);
             return SuccessCodes.OK;
+        } catch (PathIsNotAFile e) {
+            LOGGER.warn("Path {} is not a file", path, e);
+            return -ErrorCodes.EISDIR();
+        } catch (PathNotFound e) {
+            LOGGER.warn("Path {} not found", path, e);
+            return -ErrorCodes.ENOENT();
         } catch (Throwable e) {
             LOGGER.error("Error truncating file {}", path, e);
             return -ErrorCodes.EIO();
@@ -288,12 +358,19 @@ public class F1r3flyFS extends FuseStubFS {
     public int unlink(String path) {
         LOGGER.debug("Called Unlink {}", path);
         try {
-            MemoryPath p = getPath(path);
-            if (p == null) {
-                return -ErrorCodes.ENOENT();
+            IPath p = getPath(path);
+            p.delete();
+            IDirectory parent = p.getParent();
+            if (parent != null) {
+                parent.deleteChild(p);
             }
-            p.delete(true);
             return SuccessCodes.OK;
+        } catch (OperationNotPermitted e) {
+            LOGGER.warn("Unlink not permitted {}", path, e);
+            return -ErrorCodes.EPERM();
+        } catch (PathNotFound e) {
+            LOGGER.warn("Path {} not found", path, e);
+            return -ErrorCodes.ENOENT();
         } catch (Throwable e) {
             LOGGER.error("Error unlinking file {}", path, e);
             return -ErrorCodes.EIO();
@@ -310,15 +387,16 @@ public class F1r3flyFS extends FuseStubFS {
                 return -ErrorCodes.ENOENT();
             }
             
-            MemoryPath p = getPath(path);
-            if (p == null) {
-                return -ErrorCodes.ENOENT();
-            }
-            if (p instanceof MemoryFile) {
-                ((MemoryFile) p).open();
-                LOGGER.debug("Opened file {}", path);
-            }
+            IFile p = getFile(path);
+            p.open();
+            LOGGER.debug("Opened file {}", path);
             return SuccessCodes.OK;
+        } catch (PathNotFound e) {
+            LOGGER.warn("Path {} not found", path, e);
+            return -ErrorCodes.ENOENT();
+        } catch (PathIsNotAFile e) {
+            LOGGER.warn("Path {} is not a file", path, e);
+            return -ErrorCodes.EISDIR();
         } catch (Throwable e) {
             LOGGER.warn("Error opening file", e);
             return -ErrorCodes.EIO();
@@ -329,16 +407,16 @@ public class F1r3flyFS extends FuseStubFS {
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
         LOGGER.trace("Called Write file {} with buffer size {} and offset {}", path, size, offset);
         try {
-            MemoryPath p = getPath(path);
-            if (p == null) {
-                return -ErrorCodes.ENOENT();
-            }
-            if (!(p instanceof MemoryFile)) {
-                return -ErrorCodes.EISDIR();
-            }
-            return ((MemoryFile) p).write(buf, size, offset);
+            IFile file = getFile(path);
+            return file.write(buf, size, offset);
+        } catch (PathIsNotAFile e) {
+            LOGGER.warn("Path {} is not a file", path, e);
+            return -ErrorCodes.EISDIR();
+        } catch (PathNotFound e) {
+            LOGGER.warn("Path {} not found", path, e);
+            return -ErrorCodes.ENOENT();
         } catch (Throwable e) {
-            LOGGER.warn("Error writing to file", e);
+            LOGGER.error("Error writing to file {}", path, e);
             return -ErrorCodes.EIO();
         }
     }
@@ -347,17 +425,19 @@ public class F1r3flyFS extends FuseStubFS {
     public int flush(String path, FuseFileInfo fi) {
         LOGGER.debug("Called Flush file {}", path);
         try {
-            MemoryPath p = getPath(path);
-            if (p == null) {
-                return -ErrorCodes.ENOENT();
-            }
-            if (p instanceof MemoryFile) {
-                ((MemoryFile) p).close();
-                ((MemoryFile) p).onChange();
-            }
+            IFile file = getFile(path);
+
+            file.close();
+
             return SuccessCodes.OK;
+        } catch (PathIsNotAFile e) {
+            LOGGER.warn("Path {} is not a file", path, e);
+            return -ErrorCodes.EISDIR();
+        } catch (PathNotFound e) {
+            LOGGER.warn("Path {} not found", path, e);
+            return -ErrorCodes.ENOENT();
         } catch (Throwable e) {
-            LOGGER.warn("Error closing file", e);
+            LOGGER.error("Error flushing file {}", path, e);
             return -ErrorCodes.EIO();
         }
     }
@@ -375,56 +455,57 @@ public class F1r3flyFS extends FuseStubFS {
 
             this.deployDispatcher = new DeployDispatcher(f1R3FlyApi);
 
-            MemoryPath root = fetchDirectoryFromShard(this.mountName, "", null);
+            IPath root = fetchDirectoryFromShard(this.mountName, "", null);
 
-            if (root instanceof MemoryDirectory) {
-                this.rootDirectory = (MemoryDirectory) root;
+            if (root instanceof InMemoryDirectory) {
+                this.rootDirectory = (InMemoryDirectory) root;
             } else {
                 throw new PathIsNotADirectory("Root path " + root.getAbsolutePath() + " is not a directory");
             }
 
+            F1r3flyFSTokenization.initializeTokenDirectory(rootDirectory, this.deployDispatcher);
             deployDispatcher.startBackgroundDeploy();
 
             super.mount(mountPoint, blocking, debug, fuseOpts);
 
-        } catch (Throwable e) {
-            LOGGER.error("Error re-mounting F1r3flyFS", e);
-
-            // destroy background tasks and queue
-            if (this.deployDispatcher != null) {
-                this.deployDispatcher.destroy();
-                this.deployDispatcher = null;
-                this.rootDirectory = null;
-            }
-
+        } catch (NoDataByPath | PathIsNotADirectory e) {
+            LOGGER.error("Error re-mounting F1r3flyFS: {}", e.getMessage(), e);
+            cleanupResources();
             throw e;
+        } catch (Throwable e) {
+            LOGGER.error("Unexpected error re-mounting F1r3flyFS on {}: {}", mountPoint, e.getMessage(), e);
+            cleanupResources();
+            throw new RuntimeException("Failed to remount F1r3flyFS", e);
         }
     }
 
-    private MemoryPath fetchDirectoryFromShard(String absolutePath, String name, MemoryDirectory parent) throws NoDataByPath {
+    private IPath fetchDirectoryFromShard(String absolutePath, String name, InMemoryDirectory parent) throws NoDataByPath {
         try {
             List<RhoTypes.Par> pars = f1R3FlyApi.findDataByName(absolutePath);
 
             RholangExpressionConstructor.ChannelData fileOrDir = RholangExpressionConstructor.parseChannelData(pars);
 
             if (fileOrDir.isDir()) {
-                MemoryDirectory dir =
-                    new MemoryDirectory(this.mountName, name, parent, this.deployDispatcher, false);
+                RemountedDirectory dir =
+                    new RemountedDirectory(this.mountName, name, parent, this.deployDispatcher);
 
-                fileOrDir.children().forEach(childName -> {
+                Set<IPath> children = fileOrDir.children().stream().map((childName) -> {
                     try {
-                        MemoryPath child = fetchDirectoryFromShard(absolutePath + PathUtils.getPathDelimiterBasedOnOS() + childName, childName, dir);
-                        dir.add(child, false);
+                        return fetchDirectoryFromShard(absolutePath + PathUtils.getPathDelimiterBasedOnOS() + childName, childName, dir);
                     } catch (NoDataByPath e) {
-                        LOGGER.error("Error fetching child directory from shard", e);
+                        LOGGER.error("Error fetching child directory from shard for path: {}",
+                            absolutePath + PathUtils.getPathDelimiterBasedOnOS() + childName, e);
                         // skip for now
+                        return null;
                     }
-                });
+                }).filter(Objects::nonNull).collect(Collectors.toSet());
+
+                dir.setChildren(children);
 
                 return dir;
 
             } else {
-                MemoryFile file = new MemoryFile(this.mountName, PathUtils.getFileName(absolutePath), parent, this.deployDispatcher, false);
+                RemountedFile file = new RemountedFile(this.mountName, PathUtils.getFileName(absolutePath), parent, this.deployDispatcher);
                 long offset = 0;
                 offset = file.initFromBytes(fileOrDir.firstChunk(), offset);
 
@@ -447,10 +528,11 @@ public class F1r3flyFS extends FuseStubFS {
             }
 
         } catch (NoDataByPath e) {
+            LOGGER.warn("No data found for path: {}", absolutePath, e);
             throw e;
         } catch (Throwable e) {
-            LOGGER.error("Error fetching directory from shard", e);
-            throw new RuntimeException(e);
+            LOGGER.error("Error fetching directory from shard for path: {}", absolutePath, e);
+            throw new RuntimeException("Failed to fetch directory data for " + absolutePath, e);
         }
     }
 
@@ -464,32 +546,34 @@ public class F1r3flyFS extends FuseStubFS {
             // combine fuseOpts and MOUNT_OPTIONS
             String[] allFuseOpts = Arrays.copyOf(fuseOpts, fuseOpts.length + MOUNT_OPTIONS.length);
             System.arraycopy(MOUNT_OPTIONS, 0, allFuseOpts, fuseOpts.length, MOUNT_OPTIONS.length);
-            
-            LOGGER.debug("Combined mount options: {}", Arrays.toString(allFuseOpts));
 
             this.deployDispatcher = new DeployDispatcher(f1R3FlyApi);
-            this.rootDirectory = new MemoryDirectory(this.mountName, "", this.deployDispatcher, true);
+            this.rootDirectory = new InMemoryDirectory(this.mountName, "", null, this.deployDispatcher);
 
             deployDispatcher.startBackgroundDeploy();
 
-            F1r3flyFSTokenization tokenization = new F1r3flyFSTokenization(this, f1R3FlyApi, this.deployDispatcher);
-            tokenization.initializeTokenDirectory(rootDirectory);
+            F1r3flyFSTokenization.initializeTokenDirectory(rootDirectory, this.deployDispatcher);
             waitOnBackgroundThread();
-            tokenization.initializeBalance(ConfigStorage.getRevAddress());
 
-            super.mount(mountPoint, blocking, debug, fuseOpts);
+            super.mount(mountPoint, blocking, debug, allFuseOpts);
 
+        } catch (RuntimeException e) {
+            LOGGER.error("Runtime error during mount: {}", e.getMessage(), e);
+            cleanupResources();
+            throw e;
         } catch (Throwable e) {
-            LOGGER.error("Error mounting F1r3flyFS", e);
+            LOGGER.error("Error mounting F1r3flyFS on {}: {}", mountPoint, e.getMessage(), e);
+            cleanupResources();
+            throw new RuntimeException("Failed to mount F1r3flyFS", e);
+        }
+    }
 
-            // destroy background tasks and queue
-            if (this.deployDispatcher != null) {
-                this.deployDispatcher.destroy();
-                this.deployDispatcher = null;
-                this.rootDirectory = null;
-            }
-
-            throw new RuntimeException(e);
+    private void cleanupResources() {
+        // destroy background tasks and queue
+        if (this.deployDispatcher != null) {
+            this.deployDispatcher.destroy();
+            this.deployDispatcher = null;
+            this.rootDirectory = null;
         }
     }
 
@@ -501,8 +585,8 @@ public class F1r3flyFS extends FuseStubFS {
             }
             LOGGER.debug("waitOnBackgroundThread completed");
         } catch (Throwable e) {
-            LOGGER.error("Error destroying F1r3flyFS", e);
-            throw e;
+            LOGGER.error("Error waiting for background thread operations to complete", e);
+            throw new RuntimeException("Failed to wait for background operations", e);
         }
     }
 
@@ -517,9 +601,12 @@ public class F1r3flyFS extends FuseStubFS {
             this.deployDispatcher = null;
             this.rootDirectory = null;
             super.umount();
-        } catch (Throwable e) {
-            LOGGER.error("Error unmounting F1r3flyFS", e);
+        } catch (RuntimeException e) {
+            LOGGER.error("Runtime error during unmount: {}", e.getMessage(), e);
             throw e;
+        } catch (Throwable e) {
+            LOGGER.error("Error unmounting F1r3flyFS: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to unmount F1r3flyFS", e);
         }
     }
 

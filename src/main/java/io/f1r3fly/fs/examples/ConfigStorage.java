@@ -14,9 +14,6 @@ public class ConfigStorage {
         if (privateKeyHex == null || privateKeyHex.length == 0) {
             throw new IllegalArgumentException("Private key cannot be null or empty");
         }
-        if (ConfigStorage.privateKey != null) {
-            throw new IllegalArgumentException("Private key already set");
-        }
         ConfigStorage.privateKey = privateKeyHex;
     }
 
@@ -30,9 +27,6 @@ public class ConfigStorage {
     public static void setRevAddress(String revAddress) {
         if (revAddress == null || revAddress.isEmpty()) {
             throw new IllegalArgumentException("REV address cannot be null or empty");
-        }
-        if (ConfigStorage.revAddress != null) {
-            throw new IllegalArgumentException("REV address already set");
         }
         ConfigStorage.revAddress = revAddress;
     }

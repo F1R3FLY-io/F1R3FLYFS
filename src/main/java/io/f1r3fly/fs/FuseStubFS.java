@@ -29,228 +29,228 @@ public class FuseStubFS extends AbstractFuseFS {
 
     @Override
     public int getattr(String path, FileStat stat) {
-        LOGGER.debug("Called getattr for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called getattr for path: {}", path);
         return 0;
     }
 
     @Override
     public int readlink(String path, Pointer buf, @size_t long size) {
-        LOGGER.debug("Called readlink for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called readlink for path: {}", path);
         return 0;
     }
 
     @Override
     public int mknod(String path, @mode_t long mode, @dev_t long rdev) {
-        LOGGER.debug("Called mknod for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called mknod for path: {}", path);
         return create(path, mode, null);
     }
 
     @Override
     public int mkdir(String path, @mode_t long mode) {
-        LOGGER.debug("Called mkdir for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called mkdir for path: {}", path);
         return 0;
     }
 
     @Override
     public int unlink(String path) {
-        LOGGER.debug("Called unlink for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called unlink for path: {}", path);
         return 0;
     }
 
     @Override
     public int rmdir(String path) {
-        LOGGER.debug("Called rmdir for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called rmdir for path: {}", path);
         return 0;
     }
 
     @Override
     public int symlink(String oldpath, String newpath) {
-        LOGGER.debug("Called symlink for path: " + oldpath + " -> " + newpath);
+        LOGGER.trace("Called symlink for path: {} -> {}", oldpath, newpath);
         return 0;
     }
 
     @Override
     public int rename(String oldpath, String newpath) {
-        LOGGER.debug("Called rename for path: " + oldpath + " -> " + newpath);
+        LOGGER.trace("Called rename for path: {} -> {}", oldpath, newpath);
         return 0;
     }
 
     @Override
     public int link(String oldpath, String newpath) {
-        LOGGER.debug("Called link for path: " + oldpath + " -> " + newpath);
+        LOGGER.trace("Called link for path: {} -> {}", oldpath, newpath);
         return 0;
     }
 
     @Override
     public int chmod(String path, @mode_t long mode) {
-        LOGGER.debug("Called chmod for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called chmod for path: {}", path);
         return 0;
     }
 
     @Override
     public int chown(String path, @uid_t long uid, @gid_t long gid) {
-        LOGGER.debug("Called chown for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called chown for path: {}", path);
         return 0;
     }
 
     @Override
     public int truncate(String path, @off_t long size) {
-        LOGGER.debug("Called truncate for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called truncate for path: {}", path);
         return 0;
     }
 
     @Override
     public int open(String path, FuseFileInfo fi) {
-        LOGGER.debug("Called open for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called open for path: {}", path);
         return 0;
     }
 
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        LOGGER.debug("Called read for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called read for path: {}", path);
         return 0;
     }
 
     @Override
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        LOGGER.debug("Called write for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called write for path: {}", path);
         return 0;
     }
 
     @Override
     public int statfs(String path, Statvfs stbuf) {
-        LOGGER.debug("Called statfs for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called statfs for path: {}", path);
         return 0;
     }
 
     @Override
     public int flush(String path, FuseFileInfo fi) {
-        LOGGER.debug("Called flush for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called flush for path: {}", path);
         return 0;
     }
 
     @Override
     public int release(String path, FuseFileInfo fi) {
-        LOGGER.debug("Called release for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called release for path: {}", path);
         return 0;
     }
 
     @Override
     public int fsync(String path, int isdatasync, FuseFileInfo fi) {
-        LOGGER.debug("Called fsync for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called fsync for path: {}", path);
         return 0;
     }
 
     @Override
     public int setxattr(String path, String name, Pointer value, @size_t long size, int flags) {
-        LOGGER.debug("Called setxattr for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called setxattr for path: {}", path);
         return 0;
     }
 
     @Override
     public int getxattr(String path, String name, Pointer value, @size_t long size) {
-        LOGGER.debug("Called getxattr for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called getxattr for path: {}", path);
         return 0;
     }
 
     @Override
     public int listxattr(String path, Pointer list, @size_t long size) {
-        LOGGER.debug("Called listxattr for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called listxattr for path: {}", path);
         return 0;
     }
 
     @Override
     public int removexattr(String path, String name) {
-        LOGGER.debug("Called removexattr for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called removexattr for path: {}", path);
         return 0;
     }
 
     @Override
     public int opendir(String path, FuseFileInfo fi) {
-        LOGGER.debug("Called opendir for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called opendir for path: {}", path);
         return 0;
     }
 
     @Override
     public int readdir(String path, Pointer buf, FuseFillDir filter, @off_t long offset, FuseFileInfo fi) {
-        LOGGER.debug("Called readdir for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called readdir for path: {}", path);
         return 0;
     }
 
     @Override
     public int releasedir(String path, FuseFileInfo fi) {
-        LOGGER.debug("Called releasedir for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called releasedir for path: {}", path);
         return 0;
     }
 
     @Override
     public int fsyncdir(String path, FuseFileInfo fi) {
-        LOGGER.debug("Called fsyncdir for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called fsyncdir for path: {}", path);
         return 0;
     }
 
     @Override
     public Pointer init(Pointer conn) {
-        LOGGER.debug("Called init");
+        LOGGER.trace("Called init");
         return null;
     }
 
     @Override
     public void destroy(Pointer initResult) {
-        LOGGER.debug("Called destroy");
+        LOGGER.trace("Called destroy");
     }
 
     @Override
     public int access(String path, int mask) {
-        LOGGER.debug("Called access for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called access for path: {}", path);
         return 0;
     }
 
     @Override
     public int create(String path, @mode_t long mode, FuseFileInfo fi) {
-        LOGGER.debug("Called create for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called create for path: {}", path);
         return 0; //-ErrorCodes.ENOSYS();
     }
 
     @Override
     public int ftruncate(String path, @off_t long size, FuseFileInfo fi) {
-        LOGGER.debug("Called ftruncate for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called ftruncate for path: {}", path);
         return truncate(path, size);
     }
 
     @Override
     public int fgetattr(String path, FileStat stbuf, FuseFileInfo fi) {
-        LOGGER.debug("Called fgetattr for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called fgetattr for path: {}", path);
         return getattr(path, stbuf);
     }
 
     @Override
     public int lock(String path, FuseFileInfo fi, int cmd, Flock flock) {
-        LOGGER.debug("Called lock for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called lock for path: {}", path);
         return 0; // -ErrorCodes.ENOSYS();
     }
 
     @Override
     public int utimens(String path, Timespec[] timespec) {
-        LOGGER.debug("Called utimens for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called utimens for path: {}", path);
         return 0; // -ErrorCodes.ENOSYS();
     }
 
     @Override
     public int bmap(String path, @size_t long blocksize, long idx) {
-        LOGGER.debug("Called bmap for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called bmap for path: {}", path);
         return 0;
     }
 
     @Override
     public int ioctl(String path, int cmd, Pointer arg, FuseFileInfo fi, @u_int32_t long flags, Pointer data) {
-        LOGGER.debug("Called ioctl for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called ioctl for path: {}", path);
         return 0; // -ErrorCodes.ENOSYS();
     }
 
     @Override
     public int poll(String path, FuseFileInfo fi, FusePollhandle ph, Pointer reventsp) {
-        LOGGER.debug("Called poll for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called poll for path: {}", path);
         return 0; // -ErrorCodes.ENOSYS();
     }
 
@@ -296,7 +296,7 @@ public class FuseStubFS extends AbstractFuseFS {
 
     @Override
     public int read_buf(String path, Pointer bufp, @size_t long size, @off_t long off, FuseFileInfo fi) {
-        LOGGER.trace("Called read_buf for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called read_buf for path: {}", path);
         // should be implemented or null
         long vecmem = MemoryIO.getInstance().allocateMemory(Struct.size(new FuseBufvec(Runtime.getSystemRuntime())), false);
         if (vecmem == 0) {
@@ -321,13 +321,13 @@ public class FuseStubFS extends AbstractFuseFS {
 
     @Override
     public int flock(String path, FuseFileInfo fi, int op) {
-        LOGGER.debug("Called flock for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called flock for path: {}", path);
         return 0; // -ErrorCodes.ENOSYS();
     }
 
     @Override
     public int fallocate(String path, int mode, @off_t long off, @off_t long length, FuseFileInfo fi) {
-        LOGGER.debug("Called fallocate for path: " + mountPoint.toAbsolutePath() + path);
+        LOGGER.trace("Called fallocate for path: {}", path);
         return 0; // -ErrorCodes.ENOSYS();
     }
 }

@@ -277,6 +277,18 @@ public class RholangExpressionConstructor {
         List<RhoTypes.KeyValuePair> keyValues =
             par.getExprs(exprsCount).getEMapBody().getKvsList();
 
+        return buildChannelDataFromKeyValues(keyValues);
+    }
+
+    /**
+     * Processes a list of key-value pairs and converts them into ChannelData
+     * 
+     * @param keyValues List of key-value pairs from RhoTypes
+     * @return ChannelData extracted from the key-value pairs
+     * @throws IllegalArgumentException if required data is missing or invalid
+     */
+    private static @NotNull ChannelData buildChannelDataFromKeyValues(@NotNull List<RhoTypes.KeyValuePair> keyValues) 
+            throws IllegalArgumentException {
         String type = keyValues.stream().filter(kv -> kv.getKey().getExprs(0).getGString().equals(TYPE))
             .findFirst()
             .map(kv -> kv.getValue().getExprs(0).getGString())
@@ -417,5 +429,34 @@ public class RholangExpressionConstructor {
             .append("|")
             .append(currentTime())
             .toString();
+    }
+
+    public static String readFromChannel(String channelName) {
+        // output looks like: new return in { for (@v <<- @"path"){ return!(v) } }
+        return new StringBuilder()
+            .append("new return in {")
+            .append("for (@v <<- @\"")
+            .append(channelName)
+            .append("\"){")
+            .append("return!(v)")
+            .append("}")
+            .append("}")
+            .toString();
+    }
+    
+    /**
+     * Parse the result of an exploratory deploy directly into ChannelData
+     * 
+     * @param expr The result of an exploratory deploy
+     * @return ChannelData parsed from the exploratory deploy result
+     */
+    public static @NotNull ChannelData parseExploratoryDeployResult(@NotNull RhoTypes.Expr expr) throws IllegalArgumentException {
+        if (expr == null || !expr.hasEMapBody()) {
+            throw new IllegalArgumentException("Invalid exploratory deploy result: not an EMap");
+        }
+        
+        List<RhoTypes.KeyValuePair> keyValues = expr.getEMapBody().getKvsList();
+        
+        return buildChannelDataFromKeyValues(keyValues);
     }
 }

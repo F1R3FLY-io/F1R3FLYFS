@@ -1,9 +1,10 @@
 package io.f1r3fly.fs.utils;
 
 public class PathUtils {
+    final static String delimiter = System.getProperty("os.name").toLowerCase().contains("win") ? "\\" : "/";
 
     public static String getPathDelimiterBasedOnOS() {
-        return System.getProperty("os.name").toLowerCase().contains("win") ? "\\" : "/";
+        return delimiter;
     }
 
     public static String getParentPath(String path) {

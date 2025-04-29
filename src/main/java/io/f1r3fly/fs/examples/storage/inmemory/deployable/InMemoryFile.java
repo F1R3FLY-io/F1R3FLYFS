@@ -1,7 +1,11 @@
-package io.f1r3fly.fs.examples.storage.inmemory;
+package io.f1r3fly.fs.examples.storage.inmemory.deployable;
 
 import io.f1r3fly.fs.examples.datatransformer.AESCipher;
 import io.f1r3fly.fs.examples.storage.DeployDispatcher;
+import io.f1r3fly.fs.examples.storage.errors.OperationNotPermitted;
+import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
+import io.f1r3fly.fs.examples.storage.inmemory.common.IFile;
+import io.f1r3fly.fs.examples.storage.inmemory.common.IPath;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseContext;
@@ -15,14 +19,14 @@ import java.nio.file.Files;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class MemoryFile extends MemoryPath {
+public class InMemoryFile extends AbstractDeployablePath implements IFile {
 
-    private final Logger log = org.slf4j.LoggerFactory.getLogger(MemoryFile.class);
+    private final Logger log = org.slf4j.LoggerFactory.getLogger(InMemoryFile.class);
 
     // it should be a number that can be divisible by 16 because of AES block size
     private static final int MAX_FILE_CHUNK_SIZE = 16 * 10 * 1024 * 1024; // 160 mb
 
-    private RandomAccessFile rif;
+    protected RandomAccessFile rif;
     protected File cachedFile;
     protected long lastDeploymentOffset = 0;
     protected boolean isDirty = true;
@@ -33,10 +37,13 @@ public class MemoryFile extends MemoryPath {
     // In theory, it can't be used in filename, so it's safe to use it as a delimiter
     private static String delimiter = "/";
 
-    private boolean isOtherChunksDeployed = false;
-    private Map<Integer, String> otherChunks = new ConcurrentHashMap<>();
+    protected boolean isOtherChunksDeployed = false;
+    protected Map<Integer, String> otherChunks = new ConcurrentHashMap<>();
 
-    public MemoryFile(String prefix, String name, MemoryDirectory parent, DeployDispatcher deployDispatcher, boolean sendToShard) {
+    public InMemoryFile(String prefix, String name, IDirectory parent, DeployDispatcher deployDispatcher) {
+        this(prefix, name, parent, deployDispatcher, true);
+    }
+    protected InMemoryFile(String prefix, String name, IDirectory parent, DeployDispatcher deployDispatcher, boolean sendToShard) {
         super(prefix, name, parent, deployDispatcher);
         if (sendToShard) {
             enqueueCreatingFile();
@@ -53,13 +60,6 @@ public class MemoryFile extends MemoryPath {
         enqueueMutation(rholang);
     }
 
-    @Override
-    public void getattr(FileStat stat, FuseContext fuseContext) {
-        stat.st_mode.set(FileStat.S_IFREG | 0777);
-        stat.st_size.set(getSize());
-        stat.st_uid.set(fuseContext.uid.get());
-        stat.st_gid.set(fuseContext.gid.get());
-    }
 
     public int read(Pointer buffer, long size, long offset) throws IOException {
         open(); // make sure file is open
@@ -164,15 +164,19 @@ public class MemoryFile extends MemoryPath {
         lastDeploymentOffset = lastDeploymentOffset + size;
     }
 
-    public void open() throws IOException {
+    public void open() {
         try {
             if (rif == null) {
                 rif = createRIF();
             }
         } catch (FileNotFoundException e) {
             // TODO: if file not found, re-pull it from Node?
-            cachedFile = File.createTempFile(name, null);
-            rif = createRIF();
+            try {
+                cachedFile = File.createTempFile(name, null);
+                rif = createRIF();
+            } catch (IOException e1) {
+                log.warn("Failed to create file {} while creating RIT", cachedFile.getAbsolutePath(), e1);
+            }
         }
     }
 
@@ -204,7 +208,7 @@ public class MemoryFile extends MemoryPath {
         }
     }
 
-    long getSize() {
+    public long getSize() {
         if (size < 0) {
             size = cachedFile.length();
         }
@@ -248,7 +252,7 @@ public class MemoryFile extends MemoryPath {
     }
 
     @Override
-    public void rename(String newName, MemoryDirectory newParent, boolean sendToShard) throws IOException {
+    public void rename(String newName, IDirectory newParent) throws OperationNotPermitted {
 
         isDirty = true;
 
@@ -263,16 +267,19 @@ public class MemoryFile extends MemoryPath {
 
         if (needEncrypt || needDecrypt) {
             enqueueMutation(RholangExpressionConstructor.forgetChanel(getAbsolutePath())); // delete old
-            super.rename(newName, newParent, false); // skip event, chanel wil be re-created the below
+
+            this.name = newName;
+            this.parent = newParent;
+            // skip event, chanel wil be re-created the below
+
             redeployFileIntoChanel();
         } else {
-
-            super.rename(newName, newParent, sendToShard); // just rename the rholang chanel
+            super.rename(newName, newParent); // just rename the rholang chanel
         }
 
     }
 
-    private void redeployFileIntoChanel() throws IOException {
+    private void redeployFileIntoChanel() {
         enqueueCreatingFile(); // create new
 
         open(); // make sure file is open

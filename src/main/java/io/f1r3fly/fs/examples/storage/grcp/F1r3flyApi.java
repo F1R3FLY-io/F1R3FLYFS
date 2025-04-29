@@ -100,7 +100,6 @@ public class F1r3flyApi {
                 response = observerDeployService.lastFinalizedBlock(DeployServiceCommon.LastFinalizedBlockQuery.newBuilder().build()).get();
             } catch (InterruptedException | ExecutionException e) {
                 LOGGER.error("Error retrieving last finalized block", e);
-                Thread.currentThread().interrupt(); // Restore interrupted status
                 return null;
             }
 
@@ -115,7 +114,6 @@ public class F1r3flyApi {
                 ).get().getBlockInfo();
             } catch (InterruptedException | ExecutionException e) {
                 LOGGER.error("Error retrieving block information", e);
-                Thread.currentThread().interrupt(); // Restore interrupted status
                 return null;
             }
         }
@@ -140,8 +138,6 @@ public class F1r3flyApi {
             if (deployResponse.hasError()) {
                 LOGGER.debug("Exploratory deploy code {}. Error response {}", rhoCode, deployResponse.getError());
                 return null;
-            } else {
-                LOGGER.debug("Exploratory deploy code {}. Response {}", rhoCode, deployResponse.getResult());
             }
 
             return deployResponse.getResult().getPostBlockData(0).getExprs(0);
@@ -159,7 +155,7 @@ public class F1r3flyApi {
 
             long phloLimit = useBiggerRhloPrice ? 5_000_000_000L : 50_000L;
 
-            LOGGER.debug("Language parameter is skipped for now: {}. Using default language: {}", language, RHOLANG);
+            LOGGER.trace("Language parameter is skipped for now: {}. Using default language: {}", language, RHOLANG);
 
             // Make deployment
             CasperMessage.DeployDataProto deployment = CasperMessage.DeployDataProto.newBuilder()

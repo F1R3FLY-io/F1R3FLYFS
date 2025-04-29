@@ -135,5 +135,8 @@ public class DeployDispatcher {
         executorService.shutdown();
     }
 
+    public F1r3flyApi getF1R3FlyApi() {
+        return f1R3FlyApi;
+    }
 
 }
