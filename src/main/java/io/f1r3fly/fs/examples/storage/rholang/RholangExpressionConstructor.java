@@ -54,7 +54,7 @@ public class RholangExpressionConstructor {
             .append("        (false, err) => return!(err) ")
             .append("      } ")
             .append("    } ")
-            .append("  } ")
+            .append("  } | for (@v <- return) {@\"balance\"!(v) } ")
             .append("}")
             .toString();
     }

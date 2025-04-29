@@ -26,7 +26,6 @@ public class F1r3flyFSTokenization {
     public static void initializeBalance(F1r3flyApi f1R3FlyApi, DeployDispatcher deployDispatcher) {
         // using hardcoded address for testing
         String rholangExpression = RholangExpressionConstructor.checkBalanceRho("11112ZM9yrfaTrzCCbKjPbxBncjNCkMFsPqtcLFvhBf4Kqx6rpir2w");
-        LOGGER.debug("Constructed rholang expression");
 
         // define rho code
         DeployDispatcher.Deployment deployment = new DeployDispatcher.Deployment(
@@ -35,42 +34,23 @@ public class F1r3flyFSTokenization {
             F1r3flyApi.RHOLANG
         );
 
-        String blockHash = null;
         try {
-            //LOGGER.debug("Starting waiting for empty queue");
             deployDispatcher.waitOnEmptyQueue();
-            //LOGGER.debug("Got empty queue");
-
-            // Deploy and retrieve the resulting block hash
-            blockHash = f1R3FlyApi.deploy(
-                deployment.rhoOrMettaExpression(),
-                deployment.useBiggerPhloLimit(),
-                deployment.language()
-            );
-            LOGGER.debug("Deployment successful. Block hash: {}", blockHash);
+            deployDispatcher.enqueueDeploy(deployment);
+            LOGGER.debug("Deployment successful.");
         } catch (Exception e) {
-            if (e instanceof F1r3flyDeployError) {
-                LOGGER.error("Deployment failed due to F1r3flyDeployError.");
-            } else {
-                LOGGER.error("Deployment failed with an exception.");
-            }
+            LOGGER.error("Deployment failed with an exception.");
         }
-
-        if (blockHash == null)
-            return;
 
         // retrieve balance data from the block if deployment was successful
         try {
-            // The expression or "name" for finding data in the block, here it's the address
-            String addressExpr = "11112ZM9yrfaTrzCCbKjPbxBncjNCkMFsPqtcLFvhBf4Kqx6rpir2w";
+            deployDispatcher.waitOnEmptyQueue();
 
-            // Retrieve the data inside the block at this expression
             List<RhoTypes.Par> balanceData = f1R3FlyApi.findDataByName("balance");
             LOGGER.debug("Balance data retrieved for address: {}", balanceData);
 
-            // Extract and log the balance from the retrieved data
             String balance = extractBalanceFromData(balanceData);
-            LOGGER.debug("Balance for address: {}", balance);
+            LOGGER.debug("Balance: {}", balance);
 
         } catch (NoDataByPath e) {
             LOGGER.error("No balance data found in block for address: {}", e.getMessage());
