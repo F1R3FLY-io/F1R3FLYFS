@@ -2,6 +2,8 @@
 
 Prerequisites: [Environment set up](./README.md#installation).
 
+Running on Windows Subsystem for Linux (WSL)? See branch -> `wsl`
+
 1. Prepare `~/.rnode/genesis/wallet.txt` file with a key
 
 ```
@@ -76,7 +78,9 @@ Stop all processes and remove all files
 # or kill if stuck
 ps aux | grep java | grep -v grep | awk '{print $2}' | xargs kill -9
 
-# clean Node state:
+# clean Node state
+# Note: If you remove this directory, you will have to re-add the genesis files.
+# Use the command below to avoid this
 rm -rf ~/.rnode
 
 # clean Node state except for genesis files:

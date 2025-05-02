@@ -89,6 +89,8 @@ public class F1r3flyApi {
 
             long phloLimit = useBiggerRhloPrice ? 5_000_000_000L : 50_000L;
 
+            LOGGER.debug("Language parameter is skipped for now: {}. Using default language: {}", language, RHOLANG);
+
             // Make deployment
             CasperMessage.DeployDataProto deployment = CasperMessage.DeployDataProto.newBuilder()
                 .setTerm(rhoCode)
@@ -96,7 +98,7 @@ public class F1r3flyApi {
                 .setPhloPrice(1)
                 .setPhloLimit(phloLimit)
                 .setShardId("root")
-                .setLanguage(language)
+                // .setLanguage(language)
                 .build();
 
             // Sign deployment
