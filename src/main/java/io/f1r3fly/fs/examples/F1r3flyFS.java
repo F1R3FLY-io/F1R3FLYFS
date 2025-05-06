@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rhoapi.RhoTypes;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -44,13 +45,33 @@ public class F1r3flyFS extends FuseStubFS {
     private final String[] MOUNT_OPTIONS = {
         // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options
         "-o", "noappledouble",
-        "-o", "noapplexattr",
         "-o", "daemon_timeout=3600", // 1 hour timeout
-        "-o", "default_permissions" // permission is not supported that, this disables the permission check from Fuse side
+        "-o", "default_permissions", // permission is not supported that, this disables the permission check from Fuse side
+        "-o", "volname=F1r3flyFS", // volume name for the mounted filesystem
+        "-o", "allow_other", // allow other users (including Finder) to access the filesystem
+        "-o", "defer_permissions" // defer permission checks to the kernel
     };
     private DeployDispatcher deployDispatcher;
     private InMemoryDirectory rootDirectory;
 
+    // Constants for custom context menu
+    private static final String FINDER_INFO_ATTR = "com.apple.ResourceFork";
+    private static final String CUSTOM_MENU_ATTR = "io.f1r3fly.fs.contextmenu";
+    private static final String TOKEN_ACTION_MENU = "F1r3flyFS Token Action";
+    private static final String TOKEN_ACTION_MENU_NEW = "New Token Action";
+    // Apple-specific attribute used for services menu
+    private static final String APPLE_SERVICES_ATTR = "com.apple.FinderInfo";
+
+    // Add these new constants for action identifiers
+    private static final String ACTION_VERIFY_TOKEN = "verify";
+    private static final String ACTION_IMPORT_TOKEN = "import";
+    private static final String ACTION_NEW = "new";
+
+    // Constants for token action paths - this uses a special path pattern approach
+    private static final String TOKEN_ACTION_PREFIX = ".token-action-";
+    private static final String TOKEN_ACTION_VERIFY = TOKEN_ACTION_PREFIX + "verify-";
+    private static final String TOKEN_ACTION_IMPORT = TOKEN_ACTION_PREFIX + "import-";
+    private static final String TOKEN_ACTION_NEW = TOKEN_ACTION_PREFIX + "new-";
 
     public F1r3flyFS(F1r3flyApi f1R3FlyApi) {
         super(); // no need to call Fuse constructor
@@ -104,10 +125,26 @@ public class F1r3flyFS extends FuseStubFS {
                 LOGGER.debug("Rejecting Apple metadata file: {}", path);
                 return -ErrorCodes.ENOENT();
             }
+            
+            // Handle special token action paths
+            String filename = getLastComponent(path);
+            if (filename.startsWith(TOKEN_ACTION_PREFIX)) {
+                // These are virtual files that appear when showing context menu
+                populateStatForVirtualFile(stat);
+                return SuccessCodes.OK;
+            }
 
             IPath p = findPath(path);
             if (p != null) {
                 p.getAttr(stat, getContext());
+                
+                // For token files, set special flags to help with context menu recognition
+                if (path.endsWith(".token")) {
+                    LOGGER.debug("Setting special flags for token file: {}", path);
+                    // Set the sticky bit, which can be interpreted specially by Finder
+                    stat.st_mode.set(stat.st_mode.intValue() | 01000);
+                }
+                
                 return SuccessCodes.OK;
             }
             return -ErrorCodes.ENOENT();
@@ -115,6 +152,23 @@ public class F1r3flyFS extends FuseStubFS {
             LOGGER.error("Error getting attributes for {}", path, e);
             return -ErrorCodes.EIO();
         }
+    }
+
+    /**
+     * Populates a FileStat object with attributes for a virtual file.
+     * 
+     * @param stat The FileStat to populate
+     */
+    private void populateStatForVirtualFile(FileStat stat) {
+        stat.st_mode.set(FileStat.S_IFREG | 0444); // Regular file, read-only
+        stat.st_nlink.set(1);
+        stat.st_uid.set(getContext().uid.get());
+        stat.st_gid.set(getContext().gid.get());
+        stat.st_size.set(0);
+        long now = System.currentTimeMillis() / 1000;
+        stat.st_atim.tv_sec.set(now);
+        stat.st_mtim.tv_sec.set(now);
+        stat.st_ctim.tv_sec.set(now);
     }
 
     private String getLastComponent(String path) {
@@ -387,6 +441,12 @@ public class F1r3flyFS extends FuseStubFS {
                 return -ErrorCodes.ENOENT();
             }
             
+            // Check for token action paths
+            if (handleTokenActionPath(path)) {
+                // We've handled a token action request - return success
+                return SuccessCodes.OK;
+            }
+            
             IFile p = getFile(path);
             p.open();
             LOGGER.debug("Opened file {}", path);
@@ -630,5 +690,214 @@ public class F1r3flyFS extends FuseStubFS {
 
     private boolean isAppleMetadataFile(String path) {
         return path.contains(".DS_Store") || path.contains("._.");
+    }
+
+    @Override
+    public int getxattr(String path, String name, Pointer value, @size_t long size) {
+        LOGGER.debug("Called getxattr for path: {} with name: {} size: {}", path, name, size);
+        
+        try {
+            // Check if this is a .token file
+            if (path.endsWith(".token")) {
+                if (name.equals(CUSTOM_MENU_ATTR)) {
+                    LOGGER.info("Handling custom menu attribute for token file: {}", path);
+                    return handleTokenXAttr(value, size, path);
+                } else if (name.equals(FINDER_INFO_ATTR) || name.equals(APPLE_SERVICES_ATTR)) {
+                    // For Finder resource fork - needed for custom icon or context menu
+                    LOGGER.info("Handling Finder/Services info for token file: {}", path);
+                    return handleTokenFinderInfo(value, size);
+                }
+                
+                // For any other attribute on token files, pretend we have it
+                // This helps avoid permission errors with Finder
+                if (size == 0) {
+                    return 1; // Just say we have a 1-byte attribute
+                }
+                byte[] dummyData = new byte[] { 0 };
+                value.put(0, dummyData, 0, dummyData.length);
+                return dummyData.length;
+            }
+            
+            // Default behavior for other files/attributes
+            LOGGER.debug("No custom attributes for: {} with name: {}", path, name);
+            return -ErrorCodes.ENOATTR();
+        } catch (Throwable e) {
+            LOGGER.error("Error in getxattr for path: {}", path, e);
+            return -ErrorCodes.EIO();
+        }
+    }
+    
+    @Override
+    public int setxattr(String path, String name, Pointer value, @size_t long size, int flags) {
+        LOGGER.debug("Called setxattr for path: {} with name: {} size: {} flags: {}", path, name, size, flags);
+        // Allow setting custom attributes for token files
+        if (path.endsWith(".token")) {
+            LOGGER.info("Allowing setxattr for token file: {}", path);
+            return 0;  // Success, just pretend we set it
+        }
+        return super.setxattr(path, name, value, size, flags);
+    }
+    
+    @Override
+    public int listxattr(String path, Pointer list, @size_t long size) {
+        LOGGER.debug("Called listxattr for path: {} with size: {}", path, size);
+        
+        // Add custom attributes for token files
+        if (path.endsWith(".token")) {
+            String attrs = CUSTOM_MENU_ATTR + "\0" + FINDER_INFO_ATTR + "\0" + APPLE_SERVICES_ATTR + "\0";
+            byte[] bytes = attrs.getBytes(StandardCharsets.UTF_8);
+            
+            LOGGER.info("Listing attributes for token file: {}, total size: {}, requested size: {}", 
+                path, bytes.length, size);
+            
+            if (size == 0) {
+                LOGGER.debug("Size query only, returning length: {}", bytes.length);
+                return bytes.length;
+            }
+            
+            if (size < bytes.length) {
+                LOGGER.warn("Buffer too small for attributes. Need: {}, have: {}", bytes.length, size);
+                return -ErrorCodes.ERANGE();
+            }
+            
+            list.put(0, bytes, 0, bytes.length);
+            LOGGER.debug("Successfully wrote attributes to buffer");
+            return bytes.length;
+        }
+        
+        return super.listxattr(path, list, size);
+    }
+    
+    private int handleTokenXAttr(Pointer value, long size, String path) {
+        String filename = getLastComponent(path);
+        String parentPath = path.substring(0, path.lastIndexOf("/"));
+        
+        // Construct the action file paths that will appear in the context menu
+        String verifyAction = parentPath + "/" + TOKEN_ACTION_VERIFY + filename;
+        String importAction = parentPath + "/" + TOKEN_ACTION_IMPORT + filename;
+        String newAction = parentPath + "/" + TOKEN_ACTION_NEW + filename; 
+        
+        // Create menu content with action file paths
+        String menuContent = verifyAction + "\0" + importAction + "\0" + newAction + "\0";
+        byte[] bytes = menuContent.getBytes(StandardCharsets.UTF_8);
+        
+        LOGGER.info("Token menu content: '{}', size: {}, requested size: {}", 
+            menuContent.replace("\0", "<NUL>"), bytes.length, size);
+        
+        if (size == 0) {
+            LOGGER.debug("Size query only, returning length: {}", bytes.length);
+            return bytes.length;
+        }
+        
+        if (size < bytes.length) {
+            LOGGER.warn("Buffer too small for menu content. Need: {}, have: {}", bytes.length, size);
+            return -ErrorCodes.ERANGE();
+        }
+        
+        value.put(0, bytes, 0, bytes.length);
+        LOGGER.debug("Successfully wrote menu content to buffer");
+        return bytes.length;
+    }
+    
+    private int handleTokenFinderInfo(Pointer value, long size) {
+        // Create an Apple Finder Info buffer (32 bytes)
+        byte[] bytes = new byte[32];
+        Arrays.fill(bytes, (byte) 0);
+        
+        // Set bytes that indicate this file has custom menu items
+        // These magic values are based on Apple's Finder Info structure
+        bytes[8] = (byte) 0x40;  // kHasCustomIcon flag
+        bytes[9] = (byte) 0x80;  // kHasBundle flag
+        
+        LOGGER.info("Token Finder info size: {}, requested size: {}", bytes.length, size);
+        
+        if (size == 0) {
+            LOGGER.debug("Size query only, returning length: {}", bytes.length);
+            return bytes.length;
+        }
+        
+        if (size < bytes.length) {
+            LOGGER.warn("Buffer too small for Finder info. Need: {}, have: {}", bytes.length, size);
+            return -ErrorCodes.ERANGE();
+        }
+        
+        value.put(0, bytes, 0, bytes.length);
+        LOGGER.debug("Successfully wrote Finder info to buffer");
+        return bytes.length;
+    }
+
+    // New method to handle token actions
+    public void handleTokenMenuAction(String tokenPath, String action) {
+        LOGGER.info("Token menu action: {} on file {}", action, tokenPath);
+        
+        try {
+            IFile tokenFile = getFile(tokenPath);
+            
+            switch (action) {
+                case ACTION_VERIFY_TOKEN:
+                    LOGGER.info("Verifying token signature for {}", tokenPath);
+                    // Future implementation: verify the token's signature
+                    break;
+                case ACTION_IMPORT_TOKEN:
+                    LOGGER.info("Importing token {}", tokenPath);
+                    // Future implementation: import the token
+                    break;
+                case ACTION_NEW:
+                    LOGGER.info("New token action on {}", tokenPath);
+                    // Future implementation: new token action
+                    break;
+                default:
+                    LOGGER.warn("Unknown token action: {}", action);
+            }
+        } catch (PathNotFound | PathIsNotAFile e) {
+            LOGGER.error("Error handling token menu action for {}: {}", tokenPath, e.getMessage());
+        }
+    }
+
+    /**
+     * Handles special token action paths.
+     * These paths don't actually exist but are used to trigger actions when "opened".
+     * 
+     * @param path Path that might be a token action
+     * @return true if this was a token action path and was handled
+     */
+    private boolean handleTokenActionPath(String path) {
+        String filename = getLastComponent(path);
+        String parentPath = null;
+        
+        try {
+            parentPath = path.substring(0, path.lastIndexOf("/"));
+        } catch (Exception e) {
+            return false;
+        }
+        
+        // Check if this is a token action path
+        if (filename.startsWith(TOKEN_ACTION_PREFIX)) {
+            // Extract the original token filename from the path
+            String action = null;
+            String tokenFilename = null;
+            
+            if (filename.startsWith(TOKEN_ACTION_VERIFY)) {
+                action = ACTION_VERIFY_TOKEN;
+                tokenFilename = filename.substring(TOKEN_ACTION_VERIFY.length());
+            } else if (filename.startsWith(TOKEN_ACTION_IMPORT)) {
+                action = ACTION_IMPORT_TOKEN;
+                tokenFilename = filename.substring(TOKEN_ACTION_IMPORT.length());
+            } else if (filename.startsWith(TOKEN_ACTION_NEW)) {
+                action = ACTION_NEW;
+                tokenFilename = filename.substring(TOKEN_ACTION_NEW.length());
+            }
+            
+            if (action != null && tokenFilename != null && !tokenFilename.isEmpty()) {
+                String tokenPath = parentPath + "/" + tokenFilename;
+                LOGGER.info("Detected token action: {} on {}", action, tokenPath);
+                
+                // Process the action
+                handleTokenMenuAction(tokenPath, action);
+                return true;
+            }
+        }
+        
+        return false;
     }
 }

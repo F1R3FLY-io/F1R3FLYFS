@@ -14,7 +14,7 @@ public interface IFile extends IPath {
     void truncate(long offset) throws IOException;
 
     default long getSize() {
-        return 0;
+        return 1;
     }
 
     default void getAttr(FileStat stat, FuseContext fuseContext) {
