@@ -4,6 +4,7 @@ import io.f1r3fly.fs.ErrorCodes;
 import io.f1r3fly.fs.FuseFillDir;
 import io.f1r3fly.fs.FuseStubFS;
 import io.f1r3fly.fs.SuccessCodes;
+import io.f1r3fly.fs.contextmenu.ContextManuServiceServer;
 import io.f1r3fly.fs.examples.storage.DeployDispatcher;
 import io.f1r3fly.fs.examples.storage.errors.*;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
@@ -14,6 +15,8 @@ import io.f1r3fly.fs.examples.storage.inmemory.deployable.InMemoryDirectory;
 import io.f1r3fly.fs.examples.storage.inmemory.deployable.InMemoryFile;
 import io.f1r3fly.fs.examples.storage.inmemory.deployable.RemountedDirectory;
 import io.f1r3fly.fs.examples.storage.inmemory.deployable.RemountedFile;
+import io.f1r3fly.fs.examples.storage.inmemory.notdeployable.TokenDirectory;
+import io.f1r3fly.fs.examples.storage.inmemory.notdeployable.TokenFile;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseFileInfo;
@@ -34,6 +37,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
+import java.util.function.Consumer;
 
 
 public class F1r3flyFS extends FuseStubFS {
@@ -50,6 +54,7 @@ public class F1r3flyFS extends FuseStubFS {
     };
     private DeployDispatcher deployDispatcher;
     private InMemoryDirectory rootDirectory;
+    private ContextManuServiceServer contextManuServiceServer;
 
 
     public F1r3flyFS(F1r3flyApi f1R3FlyApi) {
@@ -549,11 +554,16 @@ public class F1r3flyFS extends FuseStubFS {
 
             this.deployDispatcher = new DeployDispatcher(f1R3FlyApi);
             this.rootDirectory = new InMemoryDirectory(this.mountName, "", null, this.deployDispatcher);
+            this.contextManuServiceServer = new ContextManuServiceServer(
+                this::handleExchange, 54000
+            );
 
             deployDispatcher.startBackgroundDeploy();
 
             F1r3flyFSTokenization.initializeTokenDirectory(rootDirectory, this.deployDispatcher);
             waitOnBackgroundThread();
+
+            contextManuServiceServer.start();
 
             super.mount(mountPoint, blocking, debug, allFuseOpts);
 
@@ -574,6 +584,7 @@ public class F1r3flyFS extends FuseStubFS {
             this.deployDispatcher.destroy();
             this.deployDispatcher = null;
             this.rootDirectory = null;
+            this.contextManuServiceServer.stop();
         }
     }
 
@@ -631,4 +642,19 @@ public class F1r3flyFS extends FuseStubFS {
     private boolean isAppleMetadataFile(String path) {
         return path.contains(".DS_Store") || path.contains("._.");
     }
+
+    private void handleExchange(String tokenFilePath) {
+        LOGGER.debug("Called onExchange for path: {}", tokenFilePath);
+        try {
+            String normilizedPath = tokenFilePath.substring(this.mountPoint.toFile().getAbsolutePath().length());
+            IPath p = getPath(normilizedPath);
+            if (p instanceof TokenFile) {
+                TokenFile tokenFile = (TokenFile) p;
+                ((TokenDirectory) p.getParent()).exchange(tokenFile);
+            }
+        } catch (Throwable e) {
+            LOGGER.error("Error onExchange for path: {}", tokenFilePath, e);
+        }
+    }
+
 }

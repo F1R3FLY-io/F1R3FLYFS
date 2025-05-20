@@ -1,6 +1,5 @@
 package io.f1r3fly.fs.examples.storage.inmemory.notdeployable;
 
-import io.f1r3fly.fs.FuseFillDir;
 import io.f1r3fly.fs.examples.ConfigStorage;
 import io.f1r3fly.fs.examples.storage.DeployDispatcher;
 import io.f1r3fly.fs.examples.storage.errors.F1r3flyFSError;
@@ -11,7 +10,6 @@ import io.f1r3fly.fs.examples.storage.inmemory.common.IPath;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseContext;
-import jnr.ffi.Pointer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rhoapi.RhoTypes;
@@ -74,27 +72,19 @@ public class TokenDirectory extends AbstractNotDeployablePath implements IDirect
         throw OperationNotPermitted.instance;
     }
 
-    @Override
-    public void read(Pointer buf, FuseFillDir filler) {
-        // delete all TokenFiles only
-        children.removeIf(child -> child instanceof TokenFile);
-        createTokenFiles(buf, filler);
+    public void recreateTokenFiles() {
+        children.removeIf(c -> c instanceof TokenFile);
 
-        IDirectory.super.read(buf, filler);
-    }
-
-    private void createTokenFiles(Pointer buf, FuseFillDir filler) {
         long balance;
         try {
             balance = checkBalance();
         } catch (F1r3flyFSError e) {
-            filler.apply(buf, "ERROR: " + e.getMessage(), null, 0);
             return;
         }
 
         Map<Long, Integer> tokenMap = splitBalance(balance);
 
-       for (Map.Entry<Long, Integer> entry : tokenMap.entrySet()) {
+        for (Map.Entry<Long, Integer> entry : tokenMap.entrySet()) {
             long denomination = entry.getKey();
             int amount = entry.getValue();
 
@@ -162,5 +152,48 @@ public class TokenDirectory extends AbstractNotDeployablePath implements IDirect
         stat.st_uid.set(fuseContext.uid.get());
         stat.st_gid.set(fuseContext.gid.get());
         stat.st_nlink.set(1);
+    }
+
+    /**
+     * Exchange the token file into smaller token files and add them to the children
+     *
+     * @param tokenFile the token file to exchange
+     *                  <p>
+     *                  Example: 1000 -> 100, 100, 100, 100, 100, 100, 100, 100, 100, 100
+     *                  or 14 -> 10, 4
+     *                  or 10 -> 10
+     *                  or 9 -> 9
+     *                  or 99 -> 10, 10, 10, 10, 10, 10, 10, 10, 10, 9
+     */
+    public void exchange(TokenFile tokenFile) {
+        long amount = tokenFile.value;
+        this.deleteChild(tokenFile);
+
+        // Extract original denomination from token name
+        String originalName = tokenFile.getName();
+        String originalDenomination = originalName.split(".token")[0];
+
+        // Find the largest denomination that divides the amount
+        long denomination = 1;
+        while (amount > denomination) {
+            denomination *= 10;
+        }
+        denomination /= 10;
+
+        // Break down the amount into smaller denominations
+        int i = 0;
+        while (amount > 0) {
+            if (amount >= denomination) {
+                // Create a token of the current denomination
+                String tokenName = denomination + "-REV.exchanged-" + originalDenomination + "." + i++ + ".token";
+                LOGGER.info("Creating token " + tokenName + " with value " + denomination);
+                TokenFile newTokenFile = new TokenFile(this.prefix, tokenName, this, denomination);
+                this.addChild(newTokenFile);
+                amount -= denomination;
+            } else {
+                // Move to next smaller denomination
+                denomination /= 10;
+            }
+        }
     }
 }

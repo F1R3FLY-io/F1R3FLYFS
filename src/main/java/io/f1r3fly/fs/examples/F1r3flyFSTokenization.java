@@ -18,6 +18,7 @@ public class F1r3flyFSTokenization {
 
         TokenDirectory tokenDirectory = new TokenDirectory(rootDirectory.getPrefix(), rootDirectory, deployDispatcher.getF1R3FlyApi());
         rootDirectory.addChild(tokenDirectory);
+        tokenDirectory.recreateTokenFiles();
         LOGGER.debug("Created tokens folder");
 
         createRavAddressDirectories(ConfigStorage.getRevAddress(), tokenDirectory, deployDispatcher);

@@ -45,6 +45,10 @@ sourceSets {
             srcDir '../f1r3fly/node/target/protobuf_external'
             srcDir '../f1r3fly/models/src/main/protobuf'
             srcDir '../f1r3fly/node/target/protobuf_external/scalapb'
+
+
+            // integration with Finder Sync Extension
+            srcDir 'src/main/proto'
         }
 
         java {
@@ -215,4 +219,8 @@ signing {
             it.name == 'publishToSonatype'
         }
     }
+}
+
+tasks.named('processResources') {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE // or EXCLUDE, depending on desired behavior
 }
