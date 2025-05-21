@@ -249,9 +249,9 @@ public abstract class AbstractFuseFS implements FuseFS {
             mountPointStr = mountPointStr.substring(0, mountPointStr.length() - 1);
         }
         if (!debug) {
-            arg = new String[]{this.mountName, "-o", "fsname=" + this.mountName, "-f", mountPointStr};
+            arg = new String[]{this.mountName, "-o", "volname=f1r3fly", "-o", "fsname=" + this.mountName, "-f", mountPointStr};
         } else {
-            arg = new String[]{this.mountName, "-o", "fsname=" + this.mountName, "-f", "-d", mountPointStr};
+            arg = new String[]{this.mountName, "-o", "volname=f1r3fly", "-o", "fsname=" + this.mountName, "-f", "-d", mountPointStr};
         }
         if (fuseOpts.length != 0) {
             int argLen = arg.length;
