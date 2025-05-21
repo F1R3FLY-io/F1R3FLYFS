@@ -48,7 +48,6 @@ public class F1r3flyFS extends FuseStubFS {
     private final String[] MOUNT_OPTIONS = {
         // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options
         "-o", "noappledouble",
-        "-o", "noapplexattr",
         "-o", "daemon_timeout=3600", // 1 hour timeout
         "-o", "default_permissions" // permission is not supported that, this disables the permission check from Fuse side
     };
