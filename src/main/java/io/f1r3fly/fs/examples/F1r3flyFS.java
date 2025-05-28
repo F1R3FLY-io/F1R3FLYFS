@@ -4,7 +4,7 @@ import io.f1r3fly.fs.ErrorCodes;
 import io.f1r3fly.fs.FuseFillDir;
 import io.f1r3fly.fs.FuseStubFS;
 import io.f1r3fly.fs.SuccessCodes;
-import io.f1r3fly.fs.contextmenu.ContextManuServiceServer;
+import io.f1r3fly.fs.contextmenu.FinderSyncExtensionServiceServer;
 import io.f1r3fly.fs.examples.storage.DeployDispatcher;
 import io.f1r3fly.fs.examples.storage.errors.*;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
@@ -53,7 +53,7 @@ public class F1r3flyFS extends FuseStubFS {
     };
     private DeployDispatcher deployDispatcher;
     private InMemoryDirectory rootDirectory;
-    private ContextManuServiceServer contextManuServiceServer;
+    private FinderSyncExtensionServiceServer finderSyncExtensionServiceServer;
 
 
     public F1r3flyFS(F1r3flyApi f1R3FlyApi) {
@@ -553,7 +553,7 @@ public class F1r3flyFS extends FuseStubFS {
 
             this.deployDispatcher = new DeployDispatcher(f1R3FlyApi);
             this.rootDirectory = new InMemoryDirectory(this.mountName, "", null, this.deployDispatcher);
-            this.contextManuServiceServer = new ContextManuServiceServer(
+            this.finderSyncExtensionServiceServer = new FinderSyncExtensionServiceServer(
                 this::handleExchange, 54000
             );
 
@@ -562,7 +562,7 @@ public class F1r3flyFS extends FuseStubFS {
             F1r3flyFSTokenization.initializeTokenDirectory(rootDirectory, this.deployDispatcher);
             waitOnBackgroundThread();
 
-            contextManuServiceServer.start();
+            finderSyncExtensionServiceServer.start();
 
             super.mount(mountPoint, blocking, debug, allFuseOpts);
 
@@ -583,7 +583,7 @@ public class F1r3flyFS extends FuseStubFS {
             this.deployDispatcher.destroy();
             this.deployDispatcher = null;
             this.rootDirectory = null;
-            this.contextManuServiceServer.stop();
+            this.finderSyncExtensionServiceServer.stop();
         }
     }
 

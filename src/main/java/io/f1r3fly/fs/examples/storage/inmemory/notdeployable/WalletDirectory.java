@@ -19,6 +19,7 @@ import java.util.Set;
 public class WalletDirectory extends AbstractNotDeployablePath implements IDirectory {
     private final String revAddress;
     private final DeployDispatcher deployDispatcher;
+    private final boolean isLocked = true;
 
     public WalletDirectory(String prefix, String name, TokenDirectory parent, String revAddress, DeployDispatcher dispatcher) {
         super(prefix, name, parent);
@@ -69,4 +70,12 @@ public class WalletDirectory extends AbstractNotDeployablePath implements IDirec
         return Set.of();
     }
 
+    @Override
+    public String getName() {
+        if (isLocked) {
+            return "LOCKED-REMOTE-REV-" + super.getName();
+        } else {
+            return super.getName();
+        }
+    }
 }
