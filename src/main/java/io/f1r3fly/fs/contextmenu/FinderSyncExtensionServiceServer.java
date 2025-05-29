@@ -31,14 +31,13 @@ public class FinderSyncExtensionServiceServer {
     }
 
     public void stop() {
-        if (server != null) {
+        logger.info("Shutting down gRPC server");
+        if (server != null && !server.isTerminated()) {
+            logger.info("Stopping gRPC server");
             server.shutdown();
-        }
-    }
-
-    private void blockUntilShutdown() throws InterruptedException {
-        if (server != null) {
-            server.awaitTermination();
+            logger.info("GRPC server shut down");
+        } else {
+            logger.info("GRPC server is already shut down");
         }
     }
 

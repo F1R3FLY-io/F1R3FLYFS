@@ -8,8 +8,8 @@ import io.f1r3fly.fs.contextmenu.FinderSyncExtensionServiceServer;
 import io.f1r3fly.fs.examples.storage.DeployDispatcher;
 import io.f1r3fly.fs.examples.storage.errors.*;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
+import io.f1r3fly.fs.examples.storage.inmemory.InMemoryFileSystem;
 import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IFile;
 import io.f1r3fly.fs.examples.storage.inmemory.common.IPath;
 import io.f1r3fly.fs.examples.storage.inmemory.deployable.InMemoryDirectory;
 import io.f1r3fly.fs.examples.storage.inmemory.deployable.InMemoryFile;
@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rhoapi.RhoTypes;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -52,6 +53,7 @@ public class F1r3flyFS extends FuseStubFS {
         "-o", "default_permissions" // permission is not supported that, this disables the permission check from Fuse side
     };
     private DeployDispatcher deployDispatcher;
+    private InMemoryFileSystem fileSystem;
     private InMemoryDirectory rootDirectory;
     private FinderSyncExtensionServiceServer finderSyncExtensionServiceServer;
 
@@ -62,388 +64,225 @@ public class F1r3flyFS extends FuseStubFS {
         this.f1R3FlyApi = f1R3FlyApi;
     }
 
-    @Override
-    public int create(String path, @mode_t long mode, FuseFileInfo fi) {
-        LOGGER.debug("Called Create file {}", path);
+    /**
+     * Common error handling for FUSE operations
+     */
+    @FunctionalInterface
+    private interface FuseOperation {
+        int execute() throws Exception;
+    }
+
+    private int executeWithErrorHandling(String operationName, String path, FuseOperation operation) {
         try {
-            // Reject creation of Apple metadata files
-            if (isAppleMetadataFile(path)) {
-                LOGGER.debug("Rejecting creation of Apple metadata file: {}", path);
-                return -ErrorCodes.EACCES();
-            }
-
-            IPath maybeExist = findPath(path);
-
-            if (maybeExist != null) {
-                // already exists
-                return -ErrorCodes.EEXIST();
-            }
-
-            IDirectory parent = getParentPath(path); // fail if not found
-
-            parent.mkfile(getLastComponent(path));
-
-            return SuccessCodes.OK;
-
+            return operation.execute();
+        } catch (FileAlreadyExists e) {
+            LOGGER.warn("{} - File/Directory already exists: {}", operationName, path, e);
+            return -ErrorCodes.EEXIST();
         } catch (PathNotFound e) {
-            LOGGER.warn("Parent path not found for {}", path, e);
+            LOGGER.warn("{} - Path not found: {}", operationName, path, e);
             return -ErrorCodes.ENOENT();
+        } catch (OperationNotPermitted e) {
+            LOGGER.warn("{} - Operation not permitted: {}", operationName, path, e);
+            return -ErrorCodes.EPERM();
+        } catch (PathIsNotAFile e) {
+            LOGGER.warn("{} - Path {} is not a file", operationName, path, e);
+            return -ErrorCodes.EISDIR();
+        } catch (PathIsNotADirectory e) {
+            LOGGER.warn("{} - Path {} is not a directory", operationName, path, e);
+            return -ErrorCodes.ENOTDIR();
+        } catch (DirectoryNotEmpty e) {
+            LOGGER.debug("{} - Directory {} is not empty", operationName, path);
+            return -ErrorCodes.ENOTEMPTY();
+        } catch (IOException e) {
+            LOGGER.warn("{} - IO error for path {}", operationName, path, e);
+            return -ErrorCodes.EIO();
         } catch (Throwable e) {
-            LOGGER.error("Error creating file {}", path, e);
+            LOGGER.error("{} - Unexpected error for path {}", operationName, path, e);
             return -ErrorCodes.EIO();
         }
     }
 
+    @Override
+    public int create(String path, @mode_t long mode, FuseFileInfo fi) {
+        LOGGER.debug("Called Create file {}", path);
+        return executeWithErrorHandling("Create", path, () -> {
+            if (!isMounted()) {
+                LOGGER.warn("Create - FileSystem not mounted for path: {}", path);
+                return -ErrorCodes.EIO();
+            }
+            // Reject creation of Apple metadata files
+            if (fileSystem.isAppleMetadataFile(path)) {
+                LOGGER.debug("Rejecting creation of Apple metadata file: {}", path);
+                return -ErrorCodes.EACCES();
+            }
+            fileSystem.createFile(path, mode);
+            return SuccessCodes.OK;
+        });
+    }
 
     @Override
     public int getattr(String path, FileStat stat) {
         LOGGER.trace("Called Getattr {}", path);
-        try {
+        return executeWithErrorHandling("Getattr", path, () -> {
             if (!isMounted()) {
+                LOGGER.warn("Getattr - FileSystem not mounted for path: {}", path);
                 return -ErrorCodes.ENOENT();
             }
-
             // Explicitly reject Apple metadata files
-            if (isAppleMetadataFile(path)) {
+            if (fileSystem.isAppleMetadataFile(path)) {
                 LOGGER.debug("Rejecting Apple metadata file: {}", path);
                 return -ErrorCodes.ENOENT();
             }
-
-            IPath p = findPath(path);
-            if (p != null) {
-                p.getAttr(stat, getContext());
-                return SuccessCodes.OK;
-            }
-            return -ErrorCodes.ENOENT();
-        } catch (Throwable e) {
-            LOGGER.error("Error getting attributes for {}", path, e);
-            return -ErrorCodes.EIO();
-        }
+            fileSystem.getAttributes(path, stat, getContext());
+            return SuccessCodes.OK;
+        });
     }
-
-    private String getLastComponent(String path) {
-        while (path.endsWith(PathUtils.getPathDelimiterBasedOnOS())) {
-            path = path.substring(0, path.length() - 1);
-        }
-        if (path.isEmpty()) {
-            return "";
-        }
-        return path.substring(path.lastIndexOf(PathUtils.getPathDelimiterBasedOnOS()) + 1);
-    }
-
-    private IDirectory getParentPath(String path) throws PathNotFound {
-        String parentPath = path.substring(0, path.lastIndexOf("/"));
-
-        IPath parent = getPath(parentPath);
-
-        if (!(parent instanceof IDirectory)) {
-            throw new IllegalArgumentException("Parent path is not a directory: " + parentPath);
-        }
-        return (IDirectory) parent;
-    }
-
-    private IPath findPath(String path) {
-        return rootDirectory.find(path);
-    }
-    private IPath getPath(String path) throws PathNotFound {
-        IPath element = findPath(path);
-
-        if (element == null) {
-            throw new PathNotFound(path);
-        }
-
-        return element;
-    }
-
-    private IDirectory getDirectory(String path) throws PathNotFound, PathIsNotADirectory {
-        IPath element = findPath(path);
-
-        if (element == null) {
-            throw new PathNotFound(path);
-        }
-
-        if (!(element instanceof IDirectory)) {
-            throw new PathIsNotADirectory(path);
-        }
-
-        return (IDirectory) element;
-    }
-
-    private IFile getFile(String path) throws PathNotFound, PathIsNotAFile {
-        IPath element = findPath(path);
-
-        if (element == null) {
-            throw new PathNotFound(path);
-        }
-
-        if (!(element instanceof IFile)) {
-            throw new PathIsNotAFile(path);
-        }
-
-        return (IFile) element;
-    }
-
 
     @Override
     public int mkdir(String path, @mode_t long mode) {
-        try {
-            LOGGER.debug("Called Mkdir {}", path);
-
-            IPath maybeExist = findPath(path);
-            if (maybeExist != null) {
-                // already exists
-                return -ErrorCodes.EEXIST();
+        LOGGER.debug("Called Mkdir {}", path);
+        return executeWithErrorHandling("Mkdir", path, () -> {
+            if (!isMounted()) {
+                LOGGER.warn("Mkdir - FileSystem not mounted for path: {}", path);
+                return -ErrorCodes.EIO();
             }
-
-            IDirectory parent = getParentPath(path);
-            parent.mkdir(getLastComponent(path));
-
+            fileSystem.makeDirectory(path, mode);
             return SuccessCodes.OK;
-        } catch (OperationNotPermitted e) {
-            LOGGER.warn("Mkdir not permitted {}", path, e);
-            return -ErrorCodes.EPERM();
-        } catch (PathNotFound e) {
-            LOGGER.warn("Path not found {}", path, e);
-            return -ErrorCodes.ENOENT();
-        } catch (Throwable e) {
-            LOGGER.error("Error creating directory {}", path, e);
-            return -ErrorCodes.EIO();
-        }
+        });
     }
-
 
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
         LOGGER.trace("Called Read file {} with buffer size {} and offset {}", path, size, offset);
-        try {
-            IFile file = getFile(path);
-
-            return file.read(buf, size, offset);
-        } catch (PathIsNotAFile e) {
-            LOGGER.warn("Path {} is not a file", path, e);
-            return -ErrorCodes.EISDIR();
-        } catch (PathNotFound e) {
-            LOGGER.warn("Path {} not found", path, e);
-            return -ErrorCodes.ENOENT();
-        } catch (Throwable e) {
-            LOGGER.warn("Error reading file {}", path, e);
-            return -ErrorCodes.EIO();
-        }
+        return executeWithErrorHandling("Read", path, () -> {
+            if (!isMounted()) {
+                LOGGER.warn("Read - FileSystem not mounted for path: {}", path);
+                return -ErrorCodes.EIO();
+            }
+            return fileSystem.readFile(path, buf, size, offset);
+        });
     }
 
     @Override
     public int readdir(String path, Pointer buf, FuseFillDir filter, @off_t long offset, FuseFileInfo fi) {
         LOGGER.debug("Called Readdir {}", path);
-        try {
-            IDirectory p = getDirectory(path);
-            p.read(buf, filter);
-
+        return executeWithErrorHandling("Readdir", path, () -> {
+            if (!isMounted()) {
+                LOGGER.warn("Readdir - FileSystem not mounted for path: {}", path);
+                return -ErrorCodes.EIO();
+            }
+            fileSystem.readDirectory(path, buf, filter);
             return SuccessCodes.OK;
-        } catch (PathIsNotADirectory e) {
-            LOGGER.warn("Path {} is not a directory", path, e);
-            return -ErrorCodes.ENOTDIR();
-        } catch (PathNotFound e) {
-            LOGGER.warn("Path {} not found", path, e);
-            return -ErrorCodes.ENOENT();
-        } catch (Throwable e) {
-            LOGGER.error("Error reading directory {}", path, e);
-            return -ErrorCodes.EIO();
-        }
+        });
     }
-
 
     @Override
     public int statfs(String path, Statvfs stbuf) {
         LOGGER.trace("Called Statfs {}", path);
-        try {
-            // UI checks free space before writing a file
-            // letting Fuse know that we have 100GB free space
-            if ("/".equals(path)) {
-                int BLOCKSIZE = 4096;
-                int FUSE_NAME_MAX = 255;
-
-                long totalSpace = 100L * 1024 * 1024 * 1024;
-                long UsableSpace = totalSpace; // TODO: fix it later
-                long tBlocks = totalSpace / BLOCKSIZE;
-                long aBlocks = UsableSpace / BLOCKSIZE;
-                stbuf.f_bsize.set(BLOCKSIZE);
-                stbuf.f_frsize.set(BLOCKSIZE);
-                stbuf.f_blocks.set(tBlocks);
-                stbuf.f_bavail.set(aBlocks);
-                stbuf.f_bfree.set(aBlocks);
-                stbuf.f_namemax.set(FUSE_NAME_MAX);
+        return executeWithErrorHandling("Statfs", path, () -> {
+            if (!isMounted()) {
+                LOGGER.warn("Statfs - FileSystem not mounted for path: {}", path);
+                return -ErrorCodes.EIO();
             }
-
+            fileSystem.getFileSystemStats(path, stbuf);
             return super.statfs(path, stbuf);
-        } catch (Throwable e) {
-            LOGGER.error("Error getting filesystem stats for path {}", path, e);
-            return -ErrorCodes.EIO();
-        }
+        });
     }
 
     @Override
     public int rename(String path, String newName) {
         LOGGER.debug("Called Rename {} to {}", path, newName);
-        try {
-            IPath p = getPath(path); // fail if not found
-            IDirectory newParent = getParentPath(newName); // fail if not found
-
-            IDirectory oldParent = p.getParent();
-            p.rename(newName.substring(newName.lastIndexOf(PathUtils.getPathDelimiterBasedOnOS()) + 1), newParent);
-
-            if (oldParent != newParent) {
-                newParent.addChild(p);
-                oldParent.deleteChild(p);
-            } else {
-                newParent.addChild(p); // re-add to force update children list at the shard
+        return executeWithErrorHandling("Rename", path, () -> {
+            if (!isMounted()) {
+                LOGGER.warn("Rename - FileSystem not mounted for path: {}", path);
+                return -ErrorCodes.EIO();
             }
-
-
-            if (p instanceof InMemoryFile)
-                ((InMemoryFile) p).onChange();
-
+            fileSystem.renameFile(path, newName);
             return SuccessCodes.OK;
-        } catch (PathNotFound e) {
-            LOGGER.warn("Path not found during rename: {}", e.getMessage());
-            return -ErrorCodes.ENOENT();
-        } catch (Throwable e) {
-            LOGGER.error("Error renaming file {} to {}", path, newName, e);
-            return -ErrorCodes.EIO();
-        }
+        });
     }
 
     @Override
     public int rmdir(String path) {
         LOGGER.debug("Called Rmdir {}", path);
-        try {
-            IDirectory p = getDirectory(path);
-            if (!p.isEmpty()) {
-                LOGGER.debug("Directory {} is not empty", path);
-                return -ErrorCodes.ENOTEMPTY();
+        return executeWithErrorHandling("Rmdir", path, () -> {
+            if (!isMounted()) {
+                LOGGER.warn("Rmdir - FileSystem not mounted for path: {}", path);
+                return -ErrorCodes.EIO();
             }
-            p.delete();
-            IDirectory parent = p.getParent();
-            if (parent != null) {
-                parent.deleteChild(p);
-            }
+            fileSystem.removeDirectory(path);
             return SuccessCodes.OK;
-        } catch (OperationNotPermitted e) {
-            LOGGER.warn("rmdir not permitted {}", path, e);
-            return -ErrorCodes.EPERM();
-        } catch (PathNotFound e) {
-            LOGGER.warn("Path {} not found", path, e);
-            return -ErrorCodes.ENOENT();
-        } catch (Throwable e) {
-            LOGGER.error("Error removing directory {}", path, e);
-            return -ErrorCodes.EIO();
-        }
+        });
     }
 
     @Override
     public int truncate(String path, long offset) {
         LOGGER.debug("Called Truncate file {}", path);
-        try {
-            IFile p = getFile(path);
-            p.truncate(offset);
+        return executeWithErrorHandling("Truncate", path, () -> {
+            if (!isMounted()) {
+                LOGGER.warn("Truncate - FileSystem not mounted for path: {}", path);
+                return -ErrorCodes.EIO();
+            }
+            fileSystem.truncateFile(path, offset);
             return SuccessCodes.OK;
-        } catch (PathIsNotAFile e) {
-            LOGGER.warn("Path {} is not a file", path, e);
-            return -ErrorCodes.EISDIR();
-        } catch (PathNotFound e) {
-            LOGGER.warn("Path {} not found", path, e);
-            return -ErrorCodes.ENOENT();
-        } catch (Throwable e) {
-            LOGGER.error("Error truncating file {}", path, e);
-            return -ErrorCodes.EIO();
-        }
+        });
     }
 
     @Override
     public int unlink(String path) {
         LOGGER.debug("Called Unlink {}", path);
-        try {
-            IPath p = getPath(path);
-            p.delete();
-            IDirectory parent = p.getParent();
-            if (parent != null) {
-                parent.deleteChild(p);
+        return executeWithErrorHandling("Unlink", path, () -> {
+            if (!isMounted()) {
+                LOGGER.warn("Unlink - FileSystem not mounted for path: {}", path);
+                return -ErrorCodes.EIO();
             }
+            fileSystem.unlinkFile(path);
             return SuccessCodes.OK;
-        } catch (OperationNotPermitted e) {
-            LOGGER.warn("Unlink not permitted {}", path, e);
-            return -ErrorCodes.EPERM();
-        } catch (PathNotFound e) {
-            LOGGER.warn("Path {} not found", path, e);
-            return -ErrorCodes.ENOENT();
-        } catch (Throwable e) {
-            LOGGER.error("Error unlinking file {}", path, e);
-            return -ErrorCodes.EIO();
-        }
+        });
     }
 
     @Override
     public int open(String path, FuseFileInfo fi) {
         LOGGER.debug("Called Open file {}", path);
-        try {
+        return executeWithErrorHandling("Open", path, () -> {
+            if (!isMounted()) {
+                LOGGER.warn("Open - FileSystem not mounted for path: {}", path);
+                return -ErrorCodes.EIO();
+            }
             // Reject opening Apple metadata files
-            if (isAppleMetadataFile(path)) {
+            if (fileSystem.isAppleMetadataFile(path)) {
                 LOGGER.debug("Rejecting open of Apple metadata file: {}", path);
                 return -ErrorCodes.ENOENT();
             }
-            
-            IFile p = getFile(path);
-            p.open();
+            fileSystem.openFile(path);
             LOGGER.debug("Opened file {}", path);
             return SuccessCodes.OK;
-        } catch (PathNotFound e) {
-            LOGGER.warn("Path {} not found", path, e);
-            return -ErrorCodes.ENOENT();
-        } catch (PathIsNotAFile e) {
-            LOGGER.warn("Path {} is not a file", path, e);
-            return -ErrorCodes.EISDIR();
-        } catch (Throwable e) {
-            LOGGER.warn("Error opening file", e);
-            return -ErrorCodes.EIO();
-        }
+        });
     }
 
     @Override
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
         LOGGER.trace("Called Write file {} with buffer size {} and offset {}", path, size, offset);
-        try {
-            IFile file = getFile(path);
-            return file.write(buf, size, offset);
-        } catch (PathIsNotAFile e) {
-            LOGGER.warn("Path {} is not a file", path, e);
-            return -ErrorCodes.EISDIR();
-        } catch (PathNotFound e) {
-            LOGGER.warn("Path {} not found", path, e);
-            return -ErrorCodes.ENOENT();
-        } catch (Throwable e) {
-            LOGGER.error("Error writing to file {}", path, e);
-            return -ErrorCodes.EIO();
-        }
+        return executeWithErrorHandling("Write", path, () -> {
+            if (!isMounted()) {
+                LOGGER.warn("Write - FileSystem not mounted for path: {}", path);
+                return -ErrorCodes.EIO();
+            }
+            return fileSystem.writeFile(path, buf, size, offset);
+        });
     }
 
     @Override
     public int flush(String path, FuseFileInfo fi) {
         LOGGER.debug("Called Flush file {}", path);
-        try {
-            IFile file = getFile(path);
-
-            file.close();
-
+        return executeWithErrorHandling("Flush", path, () -> {
+            if (!isMounted()) {
+                LOGGER.warn("Flush - FileSystem not mounted for path: {}", path);
+                return -ErrorCodes.EIO();
+            }
+            fileSystem.flushFile(path);
             return SuccessCodes.OK;
-        } catch (PathIsNotAFile e) {
-            LOGGER.warn("Path {} is not a file", path, e);
-            return -ErrorCodes.EISDIR();
-        } catch (PathNotFound e) {
-            LOGGER.warn("Path {} not found", path, e);
-            return -ErrorCodes.ENOENT();
-        } catch (Throwable e) {
-            LOGGER.error("Error flushing file {}", path, e);
-            return -ErrorCodes.EIO();
-        }
+        });
     }
 
 
@@ -458,11 +297,13 @@ public class F1r3flyFS extends FuseStubFS {
             this.mountName = mountName;
 
             this.deployDispatcher = new DeployDispatcher(f1R3FlyApi);
+            this.fileSystem = new InMemoryFileSystem(null, this.deployDispatcher, this.f1R3FlyApi, this.mountName);
 
-            IPath root = fetchDirectoryFromShard(this.mountName, "", null);
+            IPath root = fileSystem.fetchDirectoryFromShard(this.mountName, "", null);
 
             if (root instanceof InMemoryDirectory) {
                 this.rootDirectory = (InMemoryDirectory) root;
+                this.fileSystem.setRootDirectory(this.rootDirectory);
             } else {
                 throw new PathIsNotADirectory("Root path " + root.getAbsolutePath() + " is not a directory");
             }
@@ -483,63 +324,6 @@ public class F1r3flyFS extends FuseStubFS {
         }
     }
 
-    private IPath fetchDirectoryFromShard(String absolutePath, String name, InMemoryDirectory parent) throws NoDataByPath {
-        try {
-            List<RhoTypes.Par> pars = f1R3FlyApi.findDataByName(absolutePath);
-
-            RholangExpressionConstructor.ChannelData fileOrDir = RholangExpressionConstructor.parseChannelData(pars);
-
-            if (fileOrDir.isDir()) {
-                RemountedDirectory dir =
-                    new RemountedDirectory(this.mountName, name, parent, this.deployDispatcher);
-
-                Set<IPath> children = fileOrDir.children().stream().map((childName) -> {
-                    try {
-                        return fetchDirectoryFromShard(absolutePath + PathUtils.getPathDelimiterBasedOnOS() + childName, childName, dir);
-                    } catch (NoDataByPath e) {
-                        LOGGER.error("Error fetching child directory from shard for path: {}",
-                            absolutePath + PathUtils.getPathDelimiterBasedOnOS() + childName, e);
-                        // skip for now
-                        return null;
-                    }
-                }).filter(Objects::nonNull).collect(Collectors.toSet());
-
-                dir.setChildren(children);
-
-                return dir;
-
-            } else {
-                RemountedFile file = new RemountedFile(this.mountName, PathUtils.getFileName(absolutePath), parent, this.deployDispatcher);
-                long offset = 0;
-                offset = file.initFromBytes(fileOrDir.firstChunk(), offset);
-
-                if (!fileOrDir.otherChunks().isEmpty()) {
-                    Set<Integer> chunkNumbers = fileOrDir.otherChunks().keySet();
-                    Integer[] sortedChunkNumbers = chunkNumbers.stream().sorted().toArray(Integer[]::new);
-
-                    for (Integer chunkNumber : sortedChunkNumbers) {
-                        String subChannel = fileOrDir.otherChunks().get(chunkNumber);
-                        List<RhoTypes.Par> subChannelPars = f1R3FlyApi.findDataByName(subChannel);
-                        byte[] data = RholangExpressionConstructor.parseBytes(subChannelPars);
-
-                        offset = offset + file.initFromBytes(data, offset);
-                    }
-                }
-
-                file.initSubChannels(fileOrDir.otherChunks());
-
-                return file;
-            }
-
-        } catch (NoDataByPath e) {
-            LOGGER.warn("No data found for path: {}", absolutePath, e);
-            throw e;
-        } catch (Throwable e) {
-            LOGGER.error("Error fetching directory from shard for path: {}", absolutePath, e);
-            throw new RuntimeException("Failed to fetch directory data for " + absolutePath, e);
-        }
-    }
-
     @Override
     public void mount(Path mountPoint, boolean blocking, boolean debug, String[] fuseOpts) {
         LOGGER.debug("Called Mounting F1r3flyFS on {} with opts {}", mountPoint, Arrays.toString(fuseOpts));
@@ -553,6 +337,7 @@ public class F1r3flyFS extends FuseStubFS {
 
             this.deployDispatcher = new DeployDispatcher(f1R3FlyApi);
             this.rootDirectory = new InMemoryDirectory(this.mountName, "", null, this.deployDispatcher);
+            this.fileSystem = new InMemoryFileSystem(this.rootDirectory, this.deployDispatcher, this.f1R3FlyApi, this.mountName);
             this.finderSyncExtensionServiceServer = new FinderSyncExtensionServiceServer(
                 this::handleExchange, 54000
             );
@@ -583,6 +368,9 @@ public class F1r3flyFS extends FuseStubFS {
             this.deployDispatcher.destroy();
             this.deployDispatcher = null;
             this.rootDirectory = null;
+            this.fileSystem = null;
+        }
+        if (this.finderSyncExtensionServiceServer != null) {
             this.finderSyncExtensionServiceServer.stop();
         }
     }
@@ -605,11 +393,7 @@ public class F1r3flyFS extends FuseStubFS {
         LOGGER.debug("Called Umounting F1r3flyFS");
         try {
             waitOnBackgroundThread();
-            if (this.deployDispatcher != null) {
-                this.deployDispatcher.destroy();
-            }
-            this.deployDispatcher = null;
-            this.rootDirectory = null;
+            cleanupResources();
             super.umount();
         } catch (RuntimeException e) {
             LOGGER.error("Runtime error during unmount: {}", e.getMessage(), e);
@@ -622,8 +406,11 @@ public class F1r3flyFS extends FuseStubFS {
 
     // public because of this method is used in tests
     public String prependMountName(String path) {
-        // example: f1r3flyfs-123123123/path-to-file
-        return this.mountName + path;
+        if (!isMounted()) {
+            LOGGER.warn("prependMountName - FileSystem not mounted, returning original path: {}", path);
+            return path;
+        }
+        return fileSystem.prependMountName(path);
     }
 
     public String getMountName() {
@@ -635,18 +422,18 @@ public class F1r3flyFS extends FuseStubFS {
     }
 
     protected boolean isMounted() {
-        return this.rootDirectory != null;
-    }
-
-    private boolean isAppleMetadataFile(String path) {
-        return path.contains(".DS_Store") || path.contains("._.");
+        return fileSystem != null && fileSystem.isMounted();
     }
 
     private void handleExchange(String tokenFilePath) {
         LOGGER.debug("Called onExchange for path: {}", tokenFilePath);
         try {
+            if (!isMounted()) {
+                LOGGER.warn("handleExchange - FileSystem not mounted for path: {}", tokenFilePath);
+                return;
+            }
             String normilizedPath = tokenFilePath.substring(this.mountPoint.toFile().getAbsolutePath().length());
-            IPath p = getPath(normilizedPath);
+            IPath p = fileSystem.getPath(normilizedPath);
             if (p instanceof TokenFile) {
                 TokenFile tokenFile = (TokenFile) p;
                 ((TokenDirectory) p.getParent()).exchange(tokenFile);

@@ -160,9 +160,9 @@ public class F1r3flyFSTestFixture {
 
     protected static void forceUmountAndCleanup() {
         try { // try to unmount
+            f1r3flyFS.umount();
             MountUtils.umount(MOUNT_POINT);
             MOUNT_POINT.toFile().delete();
-            f1r3flyFS.umount();
         } catch (Throwable e) {
             e.printStackTrace();
         }
