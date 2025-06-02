@@ -1,17 +1,12 @@
-package io.f1r3fly.fs.examples.storage.inmemory.notdeployable;
+package io.f1r3fly.fs.examples.storage.filesystem.local;
 
-import io.f1r3fly.fs.examples.ConfigStorage;
 import io.f1r3fly.fs.examples.storage.errors.OperationNotPermitted;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IFile;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IPath;
-import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
-import io.f1r3fly.fs.struct.FileStat;
-import io.f1r3fly.fs.struct.FuseContext;
-import io.f1r3fly.fs.utils.PathUtils;
+import io.f1r3fly.fs.examples.storage.filesystem.common.Directory;
+import io.f1r3fly.fs.examples.storage.filesystem.common.File;
+import io.f1r3fly.fs.examples.storage.filesystem.deployable.UnlockedWalletDirectory;
 import jnr.ffi.Pointer;
 
-public class TokenFile extends AbstractNotDeployablePath implements IFile {
+public class TokenFile extends AbstractLocalPath implements File {
 
     final long value;
 
@@ -32,14 +27,14 @@ public class TokenFile extends AbstractNotDeployablePath implements IFile {
     public void close() {}
 
     @Override
-    public void rename(String newName, IDirectory newParent) throws OperationNotPermitted {
+    public void rename(String newName, Directory newParent) throws OperationNotPermitted {
         if (!this.name.equals(newName)) {
             System.out.println("Renaming " + name + " to " + newName);
             throw OperationNotPermitted.instance;
         }
 
-        // allow to move TokenFile inside WalletDirectory only
-        if (!(newParent instanceof WalletDirectory)) {
+        // allow to move TokenFile inside Wallet Directory only
+        if (!(newParent instanceof LockedRemoteDirectory) && !(newParent instanceof UnlockedWalletDirectory)) {
             throw OperationNotPermitted.instance;
         }
 

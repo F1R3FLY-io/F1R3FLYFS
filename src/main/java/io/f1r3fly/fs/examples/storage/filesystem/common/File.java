@@ -1,4 +1,4 @@
-package io.f1r3fly.fs.examples.storage.inmemory.common;
+package io.f1r3fly.fs.examples.storage.filesystem.common;
 
 import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseContext;
@@ -6,7 +6,7 @@ import jnr.ffi.Pointer;
 
 import java.io.IOException;
 
-public interface IFile extends IPath {
+public interface File extends Path {
     int read(Pointer buffer, long size, long offset) throws IOException;
 
     int write(Pointer buffer, long bufSize, long writeOffset) throws IOException, UnsupportedOperationException;

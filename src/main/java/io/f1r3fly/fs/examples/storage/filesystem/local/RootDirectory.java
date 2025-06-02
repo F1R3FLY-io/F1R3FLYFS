@@ -1,17 +1,17 @@
-package io.f1r3fly.fs.examples.storage.inmemory.notdeployable;
+package io.f1r3fly.fs.examples.storage.filesystem.local;
 
 import java.util.Set;
 
 import io.f1r3fly.fs.examples.storage.errors.OperationNotPermitted;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IPath;
+import io.f1r3fly.fs.examples.storage.filesystem.common.Directory;
+import io.f1r3fly.fs.examples.storage.filesystem.common.Path;
 import org.jetbrains.annotations.NotNull;
 
-public class RootDirectory extends AbstractNotDeployablePath implements IDirectory {
+public class RootDirectory extends AbstractLocalPath implements Directory {
 
-    private Set<IPath> children;
+    private Set<Path> children;
 
-    public RootDirectory(Set<IPath> children) {
+    public RootDirectory(Set<Path> children) {
         super("/", null);
         this.children = children;
     }
@@ -23,7 +23,7 @@ public class RootDirectory extends AbstractNotDeployablePath implements IDirecto
 
     // Special find method for root directory to handle absolute paths
     @Override
-    public IPath find(String path) {
+    public Path find(String path) {
         // For root directory, handle absolute paths specially
         if (path.startsWith(separator())) {
             // Remove leading separator and search in children
@@ -45,21 +45,21 @@ public class RootDirectory extends AbstractNotDeployablePath implements IDirecto
             String remainingPath = path.substring(separatorIndex);
             
             // Find the first component child and recursively search in it
-            IPath child = findDirectChild(firstComponent);
+            Path child = findDirectChild(firstComponent);
             return child != null ? child.find(remainingPath) : null;
         }
         
         // For non-absolute paths, use the default logic
-        return IDirectory.super.find(path);
+        return Directory.super.find(path);
     }
 
     @Override
-    public void addChild(IPath child) throws OperationNotPermitted {
+    public void addChild(Path child) throws OperationNotPermitted {
         children.add(child);
     }
 
     @Override
-    public void deleteChild(IPath child) throws OperationNotPermitted {
+    public void deleteChild(Path child) throws OperationNotPermitted {
         children.remove(child);
     }
 
@@ -74,7 +74,7 @@ public class RootDirectory extends AbstractNotDeployablePath implements IDirecto
     }
 
     @Override
-    public Set<IPath> getChildren() {
+    public Set<Path> getChildren() {
         return children;
     }
 }

@@ -1,16 +1,15 @@
-package io.f1r3fly.fs.examples.storage.inmemory.deployable;
+package io.f1r3fly.fs.examples.storage.filesystem.deployable;
 
 import io.f1r3fly.fs.examples.storage.DeployDispatcher;
 import io.f1r3fly.fs.examples.storage.errors.OperationNotPermitted;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
-import io.f1r3fly.fs.examples.storage.inmemory.common.AbstractPath;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
+import io.f1r3fly.fs.examples.storage.filesystem.common.AbstractPath;
+import io.f1r3fly.fs.examples.storage.filesystem.common.Directory;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
-import org.jetbrains.annotations.Nullable;
 
 public abstract class AbstractDeployablePath extends AbstractPath {
 
-    public AbstractDeployablePath(String name, IDirectory parent) {
+    public AbstractDeployablePath(String name, Directory parent) {
         super(name, parent);
     }
 
@@ -34,7 +33,7 @@ public abstract class AbstractDeployablePath extends AbstractPath {
     }
 
     @Override
-    public void rename(String newName, IDirectory newParent) throws OperationNotPermitted {
+    public void rename(String newName, Directory newParent) throws OperationNotPermitted {
         String oldPath = getAbsolutePath();
         super.rename(newName, newParent);
         String newPath = getAbsolutePath();

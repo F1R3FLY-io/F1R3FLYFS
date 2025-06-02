@@ -1,23 +1,22 @@
-package io.f1r3fly.fs.examples.storage.inmemory.deployable;
+package io.f1r3fly.fs.examples.storage.filesystem.deployable;
 
 import io.f1r3fly.fs.examples.storage.DeployDispatcher;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IPath;
-import io.f1r3fly.fs.examples.storage.inmemory.notdeployable.WalletDirectory;
+import io.f1r3fly.fs.examples.storage.filesystem.common.Directory;
+import io.f1r3fly.fs.examples.storage.filesystem.common.Path;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class InMemoryDirectory extends AbstractDeployablePath implements IDirectory {
-    protected Set<IPath> children = new HashSet<>();
+public class BlockchainDirectory extends AbstractDeployablePath implements Directory {
+    protected Set<Path> children = new HashSet<>();
 
-    public InMemoryDirectory(String name, InMemoryDirectory parent) {
+    public BlockchainDirectory(String name, BlockchainDirectory parent) {
         this(name, parent, true);
     }
 
-    protected InMemoryDirectory(String name, InMemoryDirectory parent, boolean sendToShard) {
+    protected BlockchainDirectory(String name, BlockchainDirectory parent, boolean sendToShard) {
         super(name, parent);
         if (sendToShard) {
             String rholang = RholangExpressionConstructor.sendDirectoryIntoNewChannel(getAbsolutePath(), Set.of());
@@ -26,7 +25,7 @@ public class InMemoryDirectory extends AbstractDeployablePath implements IDirect
     }
 
     @Override
-    public synchronized void addChild(IPath p) {
+    public synchronized void addChild(Path p) {
         boolean added = children.add(p);
 
         if (added) {
@@ -38,7 +37,7 @@ public class InMemoryDirectory extends AbstractDeployablePath implements IDirect
         Set<String> newChildren =
             children.stream()
                 .filter((x) -> x instanceof AbstractDeployablePath)
-                .map(IPath::getName)
+                .map(Path::getName)
                 .collect(Collectors.toSet());
         String rholang = RholangExpressionConstructor.updateChildren(
             getAbsolutePath(),
@@ -49,7 +48,7 @@ public class InMemoryDirectory extends AbstractDeployablePath implements IDirect
     }
 
     @Override
-    public synchronized void deleteChild(IPath child) {
+    public synchronized void deleteChild(Path child) {
         children.remove(child);
 
         enqueueUpdatingChildrenList();
@@ -57,27 +56,27 @@ public class InMemoryDirectory extends AbstractDeployablePath implements IDirect
 
     @Override
     public synchronized void mkdir(String lastComponent) {
-        InMemoryDirectory newDir = new InMemoryDirectory(lastComponent, this, true);
+        BlockchainDirectory newDir = new BlockchainDirectory(lastComponent, this, true);
         addChild(newDir);
     }
 
     @Override
     public synchronized void mkfile(String lastComponent) {
-        InMemoryFile memoryFile = new InMemoryFile(lastComponent, this);
+        BlockchainFile memoryFile = new BlockchainFile(lastComponent, this);
         addChild(memoryFile);
     }
 
     @Override
-    public Set<IPath> getChildren() {
+    public Set<Path> getChildren() {
         return children; //TODO: return immutable set?
     }
 
     //TODO: DRY
     @Override
     public DeployDispatcher getDeployDispatcher() {
-        IDirectory parent = getParent();
-        if (parent instanceof InMemoryDirectory) {
-            return ((InMemoryDirectory) parent).getDeployDispatcher();
+        Directory parent = getParent();
+        if (parent instanceof BlockchainDirectory) {
+            return ((BlockchainDirectory) parent).getDeployDispatcher();
         } else if (parent == null) {
             throw new IllegalStateException("Parent is null");
         } else {
@@ -87,9 +86,9 @@ public class InMemoryDirectory extends AbstractDeployablePath implements IDirect
 
     @Override
     public byte[] getSigningKey() {
-        IDirectory parent = getParent();
-        if (parent instanceof InMemoryDirectory) {
-            return ((InMemoryDirectory) parent).getSigningKey();
+        Directory parent = getParent();
+        if (parent instanceof BlockchainDirectory) {
+            return ((BlockchainDirectory) parent).getSigningKey();
         } else if (parent == null) {
             throw new IllegalStateException("Parent is null");
         } else {

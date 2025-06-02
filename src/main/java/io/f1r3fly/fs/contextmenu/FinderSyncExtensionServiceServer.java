@@ -2,7 +2,7 @@ package io.f1r3fly.fs.contextmenu;
 
 import generic.FinderSyncExtensionServiceGrpc;
 import generic.FinderSyncExtensionServiceOuterClass;
-import io.f1r3fly.fs.examples.storage.inmemory.notdeployable.LockedRemoteDirectory;
+import io.f1r3fly.fs.examples.storage.filesystem.local.LockedRemoteDirectory;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;

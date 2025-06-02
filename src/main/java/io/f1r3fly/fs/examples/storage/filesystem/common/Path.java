@@ -1,4 +1,4 @@
-package io.f1r3fly.fs.examples.storage.inmemory.common;
+package io.f1r3fly.fs.examples.storage.filesystem.common;
 
 import io.f1r3fly.fs.examples.storage.errors.OperationNotPermitted;
 import io.f1r3fly.fs.struct.FileStat;
@@ -8,7 +8,7 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nullable;
 
-public interface IPath {
+public interface Path {
     void getAttr(FileStat stat, FuseContext fuseContext);
 
     // Helper method to get path separator
@@ -25,7 +25,7 @@ public interface IPath {
     }
 
     // Simplified find method - only handles current path matching
-    default IPath find(String path) {
+    default Path find(String path) {
         path = normalizePath(path);
         if (path.equals(getName()) || path.isEmpty()) {
             return this;
@@ -38,11 +38,11 @@ public interface IPath {
     @NotNull String getAbsolutePath();
 
     @Nullable
-    IDirectory getParent();
+    Directory getParent();
 
     void delete() throws OperationNotPermitted;
 
-    void rename(String newName, IDirectory newParent) throws OperationNotPermitted;
+    void rename(String newName, Directory newParent) throws OperationNotPermitted;
 
     default void cleanLocalCache() {};
 }

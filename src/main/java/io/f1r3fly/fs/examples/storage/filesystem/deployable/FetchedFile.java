@@ -1,16 +1,14 @@
-package io.f1r3fly.fs.examples.storage.inmemory.deployable;
+package io.f1r3fly.fs.examples.storage.filesystem.deployable;
 
-import io.f1r3fly.fs.examples.storage.DeployDispatcher;
-import io.f1r3fly.fs.examples.storage.inmemory.deployable.InMemoryFile;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
+import io.f1r3fly.fs.examples.storage.filesystem.common.Directory;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class RemountedFile extends InMemoryFile {
+public class FetchedFile extends BlockchainFile {
 
-  public RemountedFile(String name, IDirectory parent) {
+  public FetchedFile(String name, Directory parent) {
         super(name, parent, false);
     }
 

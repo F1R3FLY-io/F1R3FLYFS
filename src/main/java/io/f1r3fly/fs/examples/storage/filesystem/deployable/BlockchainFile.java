@@ -1,14 +1,11 @@
-package io.f1r3fly.fs.examples.storage.inmemory.deployable;
+package io.f1r3fly.fs.examples.storage.filesystem.deployable;
 
 import io.f1r3fly.fs.examples.datatransformer.AESCipher;
 import io.f1r3fly.fs.examples.storage.DeployDispatcher;
 import io.f1r3fly.fs.examples.storage.errors.OperationNotPermitted;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IFile;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IPath;
+import io.f1r3fly.fs.examples.storage.filesystem.common.Directory;
+import io.f1r3fly.fs.examples.storage.filesystem.common.File;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
-import io.f1r3fly.fs.struct.FileStat;
-import io.f1r3fly.fs.struct.FuseContext;
 import io.f1r3fly.fs.utils.PathUtils;
 import jnr.ffi.Pointer;
 import org.jetbrains.annotations.NotNull;
@@ -19,15 +16,15 @@ import java.nio.file.Files;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class InMemoryFile extends AbstractDeployablePath implements IFile {
+public class BlockchainFile extends AbstractDeployablePath implements File {
 
-    private final Logger log = org.slf4j.LoggerFactory.getLogger(InMemoryFile.class);
+    private final Logger log = org.slf4j.LoggerFactory.getLogger(BlockchainFile.class);
 
     // it should be a number that can be divisible by 16 because of AES block size
     private static final int MAX_FILE_CHUNK_SIZE = 16 * 10 * 1024 * 1024; // 160 mb
 
     protected RandomAccessFile rif;
-    protected File cachedFile;
+    protected java.io.File cachedFile;
     protected long lastDeploymentOffset = 0;
     protected boolean isDirty = true;
     // cached file size; avoid IO operations at getattr
@@ -40,17 +37,17 @@ public class InMemoryFile extends AbstractDeployablePath implements IFile {
     protected boolean isOtherChunksDeployed = false;
     protected Map<Integer, String> otherChunks = new ConcurrentHashMap<>();
 
-    public InMemoryFile(String name, IDirectory parent) {
+    public BlockchainFile(String name, Directory parent) {
         this(name, parent, true);
     }
 
-    protected InMemoryFile(String name, @NotNull IDirectory parent, boolean sendToShard) {
+    protected BlockchainFile(String name, @NotNull Directory parent, boolean sendToShard) {
         super(name, parent);
         if (sendToShard) {
             enqueueCreatingFile();
         }
         try {
-            cachedFile = File.createTempFile(name, null);
+            cachedFile = java.io.File.createTempFile(name, null);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -173,7 +170,7 @@ public class InMemoryFile extends AbstractDeployablePath implements IFile {
         } catch (FileNotFoundException e) {
             // TODO: if file not found, re-pull it from Node?
             try {
-                cachedFile = File.createTempFile(name, null);
+                cachedFile = java.io.File.createTempFile(name, null);
                 rif = createRIF();
             } catch (IOException e1) {
                 log.warn("Failed to create file {} while creating RIT", cachedFile.getAbsolutePath(), e1);
@@ -253,7 +250,7 @@ public class InMemoryFile extends AbstractDeployablePath implements IFile {
     }
 
     @Override
-    public void rename(String newName, IDirectory newParent) throws OperationNotPermitted {
+    public void rename(String newName, Directory newParent) throws OperationNotPermitted {
 
         isDirty = true;
 
@@ -303,9 +300,9 @@ public class InMemoryFile extends AbstractDeployablePath implements IFile {
 
     @Override
     public DeployDispatcher getDeployDispatcher() {
-        IDirectory parent = getParent();
-        if (parent instanceof InMemoryDirectory) {
-            return ((InMemoryDirectory) parent).getDeployDispatcher();
+        Directory parent = getParent();
+        if (parent instanceof BlockchainDirectory) {
+            return ((BlockchainDirectory) parent).getDeployDispatcher();
         } else if (parent == null) {
             throw new IllegalStateException("Parent is null");
         } else {
@@ -315,9 +312,9 @@ public class InMemoryFile extends AbstractDeployablePath implements IFile {
 
     @Override
     public byte[] getSigningKey() {
-        IDirectory parent = getParent();
-        if (parent instanceof InMemoryDirectory) {
-            return ((InMemoryDirectory) parent).getSigningKey();
+        Directory parent = getParent();
+        if (parent instanceof BlockchainDirectory) {
+            return ((BlockchainDirectory) parent).getSigningKey();
         } else if (parent == null) {
             throw new IllegalStateException("Parent is null");
         } else {

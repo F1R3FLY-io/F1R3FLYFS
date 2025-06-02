@@ -1,4 +1,4 @@
-package io.f1r3fly.fs.examples.storage.inmemory;
+package io.f1r3fly.fs.examples.storage.filesystem;
 
 import casper.DeployServiceCommon;
 import io.f1r3fly.fs.FuseFillDir;
@@ -6,15 +6,15 @@ import io.f1r3fly.fs.examples.storage.DeployDispatcher;
 import io.f1r3fly.fs.examples.storage.FileSystem;
 import io.f1r3fly.fs.examples.storage.errors.*;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IFile;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IPath;
-import io.f1r3fly.fs.examples.storage.inmemory.deployable.InMemoryFile;
-import io.f1r3fly.fs.examples.storage.inmemory.deployable.UnlockedRemoteDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.notdeployable.LockedRemoteDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.notdeployable.RootDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.notdeployable.TokenDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.notdeployable.TokenFile;
+import io.f1r3fly.fs.examples.storage.filesystem.common.Directory;
+import io.f1r3fly.fs.examples.storage.filesystem.common.File;
+import io.f1r3fly.fs.examples.storage.filesystem.common.Path;
+import io.f1r3fly.fs.examples.storage.filesystem.deployable.BlockchainFile;
+import io.f1r3fly.fs.examples.storage.filesystem.deployable.UnlockedWalletDirectory;
+import io.f1r3fly.fs.examples.storage.filesystem.local.LockedRemoteDirectory;
+import io.f1r3fly.fs.examples.storage.filesystem.local.RootDirectory;
+import io.f1r3fly.fs.examples.storage.filesystem.local.TokenDirectory;
+import io.f1r3fly.fs.examples.storage.filesystem.local.TokenFile;
 import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseContext;
 import io.f1r3fly.fs.struct.Statvfs;
@@ -44,7 +44,7 @@ public class InMemoryFileSystem implements FileSystem {
 
     public InMemoryFileSystem(F1r3flyApi f1r3flyApi) {
         this.deployDispatcher = new DeployDispatcher(f1r3flyApi);
-        Set<IPath> lockedRemoteDirectories = createRavAddressDirectories(this.deployDispatcher);
+        Set<Path> lockedRemoteDirectories = createRavAddressDirectories(this.deployDispatcher);
         this.rootDirectory = new RootDirectory(lockedRemoteDirectories);
     }
 
@@ -68,42 +68,42 @@ public class InMemoryFileSystem implements FileSystem {
         return lastSeparatorIndex == -1 ? path : path.substring(lastSeparatorIndex + 1);
     }
 
-    public IDirectory getParentDirectory(String path) {
+    public Directory getParentDirectory(String path) {
         String parentPath = getParentPath(path);
         if (parentPath == null) {
             return null;
         }
 
         try {
-            IPath parent = getPath(parentPath);
-            if (!(parent instanceof IDirectory)) {
+            Path parent = getPath(parentPath);
+            if (!(parent instanceof Directory)) {
                 throw new IllegalArgumentException("Parent path is not a directory: " + parentPath);
             }
-            return (IDirectory) parent;
+            return (Directory) parent;
         } catch (PathNotFound e) {
             return null;
         }
     }
 
-    private IDirectory getParentDirectoryInternal(String path) throws PathNotFound {
+    private Directory getParentDirectoryInternal(String path) throws PathNotFound {
         String parentPath = getParentPath(path);
         if (parentPath == null) {
             throw new PathNotFound("No parent for root path: " + path);
         }
 
-        IPath parent = getPath(parentPath);
-        if (!(parent instanceof IDirectory)) {
+        Path parent = getPath(parentPath);
+        if (!(parent instanceof Directory)) {
             throw new IllegalArgumentException("Parent path is not a directory: " + parentPath);
         }
-        return (IDirectory) parent;
+        return (Directory) parent;
     }
 
-    public IPath findPath(String path) {
+    public Path findPath(String path) {
         return this.rootDirectory.find(path);
     }
 
-    public IPath getPath(String path) throws PathNotFound {
-        IPath element = findPath(path);
+    public Path getPath(String path) throws PathNotFound {
+        Path element = findPath(path);
 
         if (element == null) {
             throw new PathNotFound(path);
@@ -112,49 +112,49 @@ public class InMemoryFileSystem implements FileSystem {
         return element;
     }
 
-    public IDirectory getDirectoryByPath(String path) throws PathNotFound, PathIsNotADirectory {
-        IPath element = findPath(path);
+    public Directory getDirectoryByPath(String path) throws PathNotFound, PathIsNotADirectory {
+        Path element = findPath(path);
 
         if (element == null) {
             throw new PathNotFound(path);
         }
 
-        if (!(element instanceof IDirectory)) {
+        if (!(element instanceof Directory)) {
             throw new PathIsNotADirectory(path);
         }
 
-        return (IDirectory) element;
+        return (Directory) element;
     }
 
-    public IFile getFileByPath(String path) throws PathNotFound, PathIsNotAFile {
-        IPath element = findPath(path);
+    public File getFileByPath(String path) throws PathNotFound, PathIsNotAFile {
+        Path element = findPath(path);
 
         if (element == null) {
             throw new PathNotFound(path);
         }
 
-        if (!(element instanceof IFile)) {
+        if (!(element instanceof File)) {
             throw new PathIsNotAFile(path);
         }
 
-        return (IFile) element;
+        return (File) element;
     }
 
     // Core file system operations
     public void createFile(String path, @mode_t long mode)
             throws PathNotFound, FileAlreadyExists, OperationNotPermitted {
-        IPath maybeExist = findPath(path);
+        Path maybeExist = findPath(path);
 
         if (maybeExist != null) {
             throw new FileAlreadyExists(path);
         }
 
-        IDirectory parent = getParentDirectoryInternal(path);
+        Directory parent = getParentDirectoryInternal(path);
         parent.mkfile(getLastComponent(path));
     }
 
     public void getAttributes(String path, FileStat stat, FuseContext fuseContext) throws PathNotFound {
-        IPath p = findPath(path);
+        Path p = findPath(path);
         if (p == null) {
             throw new PathNotFound(path);
         }
@@ -163,23 +163,23 @@ public class InMemoryFileSystem implements FileSystem {
 
     public void makeDirectory(String path, @mode_t long mode)
             throws PathNotFound, FileAlreadyExists, OperationNotPermitted {
-        IPath maybeExist = findPath(path);
+        Path maybeExist = findPath(path);
         if (maybeExist != null) {
             throw new FileAlreadyExists(path);
         }
 
-        IDirectory parent = getParentDirectoryInternal(path);
+        Directory parent = getParentDirectoryInternal(path);
         parent.mkdir(getLastComponent(path));
     }
 
     public int readFile(String path, Pointer buf, @size_t long size, @off_t long offset)
             throws PathNotFound, PathIsNotAFile, IOException {
-        IFile file = getFileByPath(path);
+        File file = getFileByPath(path);
         return file.read(buf, size, offset);
     }
 
     public void readDirectory(String path, Pointer buf, FuseFillDir filter) throws PathNotFound, PathIsNotADirectory {
-        IDirectory directory = getDirectoryByPath(path);
+        Directory directory = getDirectoryByPath(path);
         directory.read(buf, filter);
     }
 
@@ -202,10 +202,10 @@ public class InMemoryFileSystem implements FileSystem {
     }
 
     public void renameFile(String path, String newName) throws PathNotFound, OperationNotPermitted {
-        IPath p = getPath(path);
-        IDirectory newParent = getParentDirectoryInternal(newName);
+        Path p = getPath(path);
+        Directory newParent = getParentDirectoryInternal(newName);
 
-        IDirectory oldParent = p.getParent();
+        Directory oldParent = p.getParent();
         p.rename(getLastComponent(newName), newParent);
 
         if (oldParent != newParent) {
@@ -215,57 +215,57 @@ public class InMemoryFileSystem implements FileSystem {
             newParent.addChild(p);
         }
 
-        if (p instanceof InMemoryFile) {
-            ((InMemoryFile) p).onChange();
+        if (p instanceof BlockchainFile) {
+            ((BlockchainFile) p).onChange();
         }
     }
 
     public void removeDirectory(String path)
             throws PathNotFound, PathIsNotADirectory, DirectoryNotEmpty, OperationNotPermitted {
-        IDirectory directory = getDirectoryByPath(path);
+        Directory directory = getDirectoryByPath(path);
         if (!directory.isEmpty()) {
             throw new DirectoryNotEmpty(path);
         }
         directory.delete();
-        IDirectory parent = directory.getParent();
+        Directory parent = directory.getParent();
         if (parent != null) {
             parent.deleteChild(directory);
         }
     }
 
     public void truncateFile(String path, long offset) throws PathNotFound, PathIsNotAFile, IOException {
-        IFile file = getFileByPath(path);
+        File file = getFileByPath(path);
         file.truncate(offset);
     }
 
     public void unlinkFile(String path) throws PathNotFound, OperationNotPermitted {
-        IPath p = getPath(path);
+        Path p = getPath(path);
         p.delete();
-        IDirectory parent = p.getParent();
+        Directory parent = p.getParent();
         if (parent != null) {
             parent.deleteChild(p);
         }
     }
 
     public void openFile(String path) throws PathNotFound, PathIsNotAFile, IOException {
-        IFile file = getFileByPath(path);
+        File file = getFileByPath(path);
         file.open();
     }
 
     public int writeFile(String path, Pointer buf, @size_t long size, @off_t long offset)
             throws PathNotFound, PathIsNotAFile, IOException {
-        IFile file = getFileByPath(path);
+        File file = getFileByPath(path);
         return file.write(buf, size, offset);
     }
 
     public void flushFile(String path) throws PathNotFound, PathIsNotAFile {
-        IFile file = getFileByPath(path);
+        File file = getFileByPath(path);
         file.close();
     }
 
     // Utility methods
     @Override
-    public IFile getFile(String path) {
+    public File getFile(String path) {
         try {
             return getFileByPath(path);
         } catch (PathNotFound | PathIsNotAFile e) {
@@ -274,7 +274,7 @@ public class InMemoryFileSystem implements FileSystem {
     }
 
     @Override
-    public IDirectory getDirectory(String path) {
+    public Directory getDirectory(String path) {
         try {
             return getDirectoryByPath(path);
         } catch (PathNotFound | PathIsNotADirectory e) {
@@ -319,12 +319,12 @@ public class InMemoryFileSystem implements FileSystem {
         return ravAddresses;
     }
 
-    private Set<IPath> createRavAddressDirectories(DeployDispatcher deployDispatcher) {
+    private Set<Path> createRavAddressDirectories(DeployDispatcher deployDispatcher) {
         List<String> ravAddresses = parseRavAddressesFromGenesisBlock(deployDispatcher.getF1R3FlyApi());
 
         logger.debug("Addresses found in genesis block: {}", ravAddresses);
 
-        Set<IPath> children = new HashSet<>();
+        Set<Path> children = new HashSet<>();
 
         for (String address : ravAddresses) {
             children.add(new LockedRemoteDirectory(address));
@@ -338,14 +338,14 @@ public class InMemoryFileSystem implements FileSystem {
         logger.debug("Attempting to unlock root directory with path: {}", searchPath);
         logger.debug("Root directory children: {}", 
             rootDirectory.getChildren().stream()
-                .map(IPath::getName)
+                .map(Path::getName)
                 .collect(java.util.stream.Collectors.toList()));
         
-        IPath lockedRoot = getDirectory(searchPath);
+        Path lockedRoot = getDirectory(searchPath);
 
         if (lockedRoot instanceof LockedRemoteDirectory) {
             try {
-                UnlockedRemoteDirectory unlockedRoot = ((LockedRemoteDirectory) lockedRoot).unlock(privateKey,
+                UnlockedWalletDirectory unlockedRoot = ((LockedRemoteDirectory) lockedRoot).unlock(privateKey,
                         deployDispatcher);
 
                 this.rootDirectory.deleteChild(lockedRoot);
@@ -369,7 +369,7 @@ public class InMemoryFileSystem implements FileSystem {
 
     @Override
     public void exchangeTokenFile(String filePath) throws NoDataByPath {
-        IFile file = getFile(filePath);
+        File file = getFile(filePath);
         if (file == null) {
             throw new NoDataByPath(filePath);
         }
@@ -379,7 +379,7 @@ public class InMemoryFileSystem implements FileSystem {
         }
 
         TokenFile tokenFile = (TokenFile) file;
-        IDirectory tokenDirectory = tokenFile.getParent();
+        Directory tokenDirectory = tokenFile.getParent();
 
         if (tokenDirectory == null) {
             throw new RuntimeException("Token directory is null: " + filePath);

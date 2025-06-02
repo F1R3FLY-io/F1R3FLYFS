@@ -1,25 +1,24 @@
-package io.f1r3fly.fs.examples.storage.inmemory.common;
+package io.f1r3fly.fs.examples.storage.filesystem.common;
 
 import io.f1r3fly.fs.FuseFillDir;
 import io.f1r3fly.fs.examples.storage.errors.OperationNotPermitted;
 import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseContext;
-import io.f1r3fly.fs.utils.PathUtils;
 import jnr.ffi.Pointer;
 
 import java.util.Set;
 
 
-public interface IDirectory extends IPath {
+public interface Directory extends Path {
     void mkdir(String lastComponent) throws OperationNotPermitted;
 
     void mkfile(String lastComponent) throws OperationNotPermitted;
 
-    Set<IPath> getChildren();
+    Set<Path> getChildren();
 
     // Simplified find method for directories
     @Override
-    default IPath find(String path) {
+    default Path find(String path) {
         path = normalizePath(path);
         
         // If path is empty or matches this directory name, return this directory
@@ -38,13 +37,13 @@ public interface IDirectory extends IPath {
         String remainingPath = path.substring(separatorIndex);
         
         // Find the first component child and recursively search in it
-        IPath child = findDirectChild(firstComponent);
+        Path child = findDirectChild(firstComponent);
         return child != null ? child.find(remainingPath) : null;
     }
 
     // Helper method to find direct child by name
-    default IPath findDirectChild(String name) {
-        for (IPath child : getChildren()) {
+    default Path findDirectChild(String name) {
+        for (Path child : getChildren()) {
             if (child.getName().equals(name)) {
                 return child;
             }
@@ -53,7 +52,7 @@ public interface IDirectory extends IPath {
     }
 
     default void read(Pointer buf, FuseFillDir filler) {
-        for (IPath child : getChildren()) {
+        for (Path child : getChildren()) {
             filler.apply(buf, child.getName(), null, 0);
         }
     }
@@ -68,11 +67,11 @@ public interface IDirectory extends IPath {
         return getChildren().isEmpty();
     }
 
-    void addChild(IPath child) throws OperationNotPermitted;
+    void addChild(Path child) throws OperationNotPermitted;
 
-    void deleteChild(IPath child) throws OperationNotPermitted;
+    void deleteChild(Path child) throws OperationNotPermitted;
 
     default void cleanLocalCache() {
-        getChildren().forEach(IPath::cleanLocalCache);
+        getChildren().forEach(Path::cleanLocalCache);
     }
 }

@@ -2,8 +2,8 @@ package io.f1r3fly.fs.examples.storage;
 
 import io.f1r3fly.fs.FuseFillDir;
 import io.f1r3fly.fs.examples.storage.errors.*;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IFile;
+import io.f1r3fly.fs.examples.storage.filesystem.common.Directory;
+import io.f1r3fly.fs.examples.storage.filesystem.common.File;
 import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseContext;
 import io.f1r3fly.fs.struct.Statvfs;
@@ -17,14 +17,14 @@ import java.io.IOException;
 
 public interface FileSystem {
 
-    IFile getFile(String path);
-    IDirectory getDirectory(String path);
+    File getFile(String path);
+    Directory getDirectory(String path);
 
     boolean isRootPath(String path);
 
 
     @Nullable
-    default IDirectory getParentDirectory(String path) {
+    default Directory getParentDirectory(String path) {
 
         if (isRootPath(path)) {
             return null;

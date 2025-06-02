@@ -1,15 +1,15 @@
-package io.f1r3fly.fs.examples.storage.inmemory.notdeployable;
+package io.f1r3fly.fs.examples.storage.filesystem.local;
 
 import fr.acinq.secp256k1.Hex;
 import io.f1r3fly.fs.examples.storage.DeployDispatcher;
 import io.f1r3fly.fs.examples.storage.errors.NoDataByPath;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IPath;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IReadOnlyDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.deployable.InMemoryDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.deployable.RemountedDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.deployable.RemountedFile;
-import io.f1r3fly.fs.examples.storage.inmemory.deployable.UnlockedRemoteDirectory;
+import io.f1r3fly.fs.examples.storage.filesystem.common.Path;
+import io.f1r3fly.fs.examples.storage.filesystem.common.ReadOnlyDirectory;
+import io.f1r3fly.fs.examples.storage.filesystem.deployable.BlockchainDirectory;
+import io.f1r3fly.fs.examples.storage.filesystem.deployable.FetchedDirectory;
+import io.f1r3fly.fs.examples.storage.filesystem.deployable.FetchedFile;
+import io.f1r3fly.fs.examples.storage.filesystem.deployable.UnlockedWalletDirectory;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.utils.PathUtils;
 import org.slf4j.Logger;
@@ -23,7 +23,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 
-public class LockedRemoteDirectory extends AbstractNotDeployablePath implements IReadOnlyDirectory {
+public class LockedRemoteDirectory extends AbstractLocalPath implements ReadOnlyDirectory {
     private String revAddress;
 
     private static Logger logger = LoggerFactory.getLogger(LockedRemoteDirectory.class);
@@ -41,11 +41,11 @@ public class LockedRemoteDirectory extends AbstractNotDeployablePath implements 
     }
 
     @Override
-    public Set<IPath> getChildren() {
+    public Set<Path> getChildren() {
         return Set.of();
     }
 
-    public UnlockedRemoteDirectory unlock(String signingKeyRaw, DeployDispatcher deployDispatcher) {
+    public UnlockedWalletDirectory unlock(String signingKeyRaw, DeployDispatcher deployDispatcher) {
         // check if key is related to the rev address
         byte[] signingKey;
         try {
@@ -55,29 +55,29 @@ public class LockedRemoteDirectory extends AbstractNotDeployablePath implements 
         }
 
         try {
-            IPath root = fetchDirectoryFromShard(
+            Path root = fetchDirectoryFromShard(
                 deployDispatcher.getF1R3FlyApi(),
                 PathUtils.getPathDelimiterBasedOnOS(),
                 revAddress,
                 null
             );
 
-            if (!(root instanceof RemountedDirectory)) {
+            if (!(root instanceof FetchedDirectory)) {
                 throw new IllegalStateException("Root directory is not a directory");
             }
 
             // create a root and won't deploy it to the shard
-            return new UnlockedRemoteDirectory(
+            return new UnlockedWalletDirectory(
                 revAddress,
                 signingKey,
-                ((RemountedDirectory) root).getChildren(),
+                ((FetchedDirectory) root).getChildren(),
                 deployDispatcher,
                 false // skip deploy
             );
 
         } catch (NoDataByPath e) {
             // no previous mount: need to create a new root and deploy to the shard
-            return new UnlockedRemoteDirectory(
+            return new UnlockedWalletDirectory(
                 revAddress,
                 signingKey,
                 new HashSet<>(),
@@ -86,16 +86,16 @@ public class LockedRemoteDirectory extends AbstractNotDeployablePath implements 
         }
     }
 
-    public IPath fetchDirectoryFromShard(F1r3flyApi f1R3FlyApi, String absolutePath, String name, InMemoryDirectory parent) throws NoDataByPath {
+    public Path fetchDirectoryFromShard(F1r3flyApi f1R3FlyApi, String absolutePath, String name, BlockchainDirectory parent) throws NoDataByPath {
         try {
             List<RhoTypes.Par> pars = f1R3FlyApi.findDataByName(absolutePath);
 
             RholangExpressionConstructor.ChannelData fileOrDir = RholangExpressionConstructor.parseChannelData(pars);
 
             if (fileOrDir.isDir()) {
-                RemountedDirectory dir = new RemountedDirectory(name, parent);
+                FetchedDirectory dir = new FetchedDirectory(name, parent);
 
-                Set<IPath> children = fileOrDir.children().stream().map((childName) -> {
+                Set<Path> children = fileOrDir.children().stream().map((childName) -> {
                     try {
                         return fetchDirectoryFromShard(f1R3FlyApi, absolutePath + PathUtils.getPathDelimiterBasedOnOS() + childName, childName, dir);
                     } catch (NoDataByPath e) {
@@ -109,7 +109,7 @@ public class LockedRemoteDirectory extends AbstractNotDeployablePath implements 
                 return dir;
 
             } else {
-                RemountedFile file = new RemountedFile(PathUtils.getFileName(absolutePath), parent);
+                FetchedFile file = new FetchedFile(PathUtils.getFileName(absolutePath), parent);
                 long offset = 0;
                 offset = file.initFromBytes(fileOrDir.firstChunk(), offset);
 
@@ -139,4 +139,20 @@ public class LockedRemoteDirectory extends AbstractNotDeployablePath implements 
         }
     }
 
+
+    // TODO: fix
+//    @Override
+//    public synchronized void addChild(Path p) throws OperationNotPermitted {
+//        if (p instanceof TokenFile tokenFile) {
+//            long amount = tokenFile.value;
+//            String rholang = RholangExpressionConstructor.transfer(ConfigStorage.getRevAddress(), this.revAddress, amount);
+//
+//            deployDispatcher.enqueueDeploy(new DeployDispatcher.Deployment(
+//                rholang, false, F1r3flyApi.RHOLANG,
+//                signingKey
+//            ));
+//        } else {
+//            throw OperationNotPermitted.instance;
+//        }
+//    }
 }

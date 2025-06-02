@@ -1,12 +1,11 @@
-package io.f1r3fly.fs.examples.storage.inmemory.notdeployable;
+package io.f1r3fly.fs.examples.storage.filesystem.local;
 
 import io.f1r3fly.fs.examples.ConfigStorage;
-import io.f1r3fly.fs.examples.storage.DeployDispatcher;
 import io.f1r3fly.fs.examples.storage.errors.F1r3flyFSError;
 import io.f1r3fly.fs.examples.storage.errors.OperationNotPermitted;
 import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.common.IPath;
+import io.f1r3fly.fs.examples.storage.filesystem.common.Directory;
+import io.f1r3fly.fs.examples.storage.filesystem.common.Path;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseContext;
@@ -16,11 +15,11 @@ import rhoapi.RhoTypes;
 
 import java.util.*;
 
-public class TokenDirectory extends AbstractNotDeployablePath implements IDirectory {
+public class TokenDirectory extends AbstractLocalPath implements Directory {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TokenDirectory.class);
 
-    private final Set<IPath> children = new HashSet<>();
+    private final Set<Path> children = new HashSet<>();
 
     private final F1r3flyApi f1r3flyApi;
 
@@ -47,18 +46,18 @@ public class TokenDirectory extends AbstractNotDeployablePath implements IDirect
     );
 
 
-    public TokenDirectory(String name, IDirectory parent, F1r3flyApi f1r3flyApi) {
+    public TokenDirectory(String name, Directory parent, F1r3flyApi f1r3flyApi) {
         super(name, parent);
         this.f1r3flyApi = f1r3flyApi;
     }
 
     @Override
-    public synchronized void addChild(IPath p) {
+    public synchronized void addChild(Path p) {
         children.add(p);
     }
 
     @Override
-    public synchronized void deleteChild(IPath child) {
+    public synchronized void deleteChild(Path child) {
         children.remove(child);
     }
 
@@ -131,7 +130,7 @@ public class TokenDirectory extends AbstractNotDeployablePath implements IDirect
     }
 
     @Override
-    public Set<IPath> getChildren() {
+    public Set<Path> getChildren() {
         return children;
     }
 

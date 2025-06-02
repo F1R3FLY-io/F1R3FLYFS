@@ -1,4 +1,4 @@
-package io.f1r3fly.fs.examples.storage.inmemory.common;
+package io.f1r3fly.fs.examples.storage.filesystem.common;
 
 import io.f1r3fly.fs.examples.storage.errors.OperationNotPermitted;
 import io.f1r3fly.fs.utils.PathUtils;
@@ -9,12 +9,12 @@ import javax.annotation.Nullable;
 /**
  * Base class for all memory paths in the file system
  */
-public abstract class AbstractPath implements IPath {
+public abstract class AbstractPath implements Path {
 
     @NotNull protected String name;
-    @Nullable protected IDirectory parent;
+    @Nullable protected Directory parent;
 
-    public AbstractPath(@NotNull String name, @Nullable IDirectory parent) {
+    public AbstractPath(@NotNull String name, @Nullable Directory parent) {
         this.name = name;
         this.parent = parent;
     }
@@ -34,12 +34,12 @@ public abstract class AbstractPath implements IPath {
     }
 
     @Override
-    public @Nullable IDirectory getParent() {
+    public @Nullable Directory getParent() {
         return parent;
     }
 
     @Override
-    public void rename(String newName, IDirectory newParent) throws OperationNotPermitted {
+    public void rename(String newName, Directory newParent) throws OperationNotPermitted {
         this.name = newName;
         this.parent = newParent;
     }
