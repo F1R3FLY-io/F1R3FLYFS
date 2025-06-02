@@ -29,7 +29,15 @@ public abstract class AbstractPath implements Path {
         if (parent == null) {
             return name;
         } else {
-            return parent.getAbsolutePath() + PathUtils.getPathDelimiterBasedOnOS() + name;
+            String parentPath = parent.getAbsolutePath();
+            String delimiter = PathUtils.getPathDelimiterBasedOnOS();
+            
+            // Avoid double separators if parent path already ends with separator
+            if (parentPath.endsWith(delimiter)) {
+                return parentPath + name;
+            } else {
+                return parentPath + delimiter + name;
+            }
         }
     }
 

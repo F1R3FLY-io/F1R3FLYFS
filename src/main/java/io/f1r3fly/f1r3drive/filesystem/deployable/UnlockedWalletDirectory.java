@@ -2,6 +2,8 @@ package io.f1r3fly.f1r3drive.filesystem.deployable;
 
 import io.f1r3fly.f1r3drive.blockchain.client.DeployDispatcher;
 import io.f1r3fly.f1r3drive.filesystem.common.Path;
+import io.f1r3fly.f1r3drive.blockchain.rholang.RholangExpressionConstructor;
+import io.f1r3fly.f1r3drive.filesystem.local.RootDirectory;
 
 import java.util.Set;
 
@@ -11,12 +13,17 @@ public class UnlockedWalletDirectory extends BlockchainDirectory {
     private byte[] signingKey;
     private DeployDispatcher deployDispatcher;
 
-    public UnlockedWalletDirectory(String revAddress, byte[] signingKey, Set<Path> children, DeployDispatcher deployDispatcher, boolean sendToShard) {
-        super(revAddress, null, sendToShard);
+    public UnlockedWalletDirectory(String revAddress, byte[] signingKey, Set<Path> children, RootDirectory parent, DeployDispatcher deployDispatcher, boolean sendToShard) {
+        super(revAddress, parent, false);
         this.children = children;
         this.revAddress = revAddress;
         this.signingKey = signingKey;
         this.deployDispatcher = deployDispatcher;
+        
+        if (sendToShard) {
+            String rholang = RholangExpressionConstructor.sendDirectoryIntoNewChannel(getAbsolutePath(), Set.of());
+            enqueueMutation(rholang);
+        }
     }
 
     @Override

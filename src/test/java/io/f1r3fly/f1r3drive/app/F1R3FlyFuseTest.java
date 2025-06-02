@@ -101,13 +101,15 @@ class F1R3FlyFuseTest extends F1r3flyFSTestUtils {
     void shouldCreateRenameGetDeleteFiles() throws IOException {
         long start = System.currentTimeMillis();
 
-        File file = new File(MOUNT_POINT_FILE, "file.bin");
+        simulateUnlockWalletDirectoryAction(client1Wallet, client1PrivateKey);
+
+        File file = new File(client1Directory, "file.bin");
 
         assertFalse(file.exists(), "File should not exist");
         assertTrue(file.createNewFile(), "Failed to create test file");
         assertTrue(file.exists(), "File should exist");
 
-        assertContainChilds(MOUNT_POINT_FILE, file);
+        assertContainChilds(client1Directory, file);
 
         byte[] inputDataAsBinary = new byte[1024 * 1024]; // 1 MB
         new Random().nextBytes(inputDataAsBinary);
@@ -119,7 +121,7 @@ class F1R3FlyFuseTest extends F1r3flyFSTestUtils {
         File renamedFile = new File(file.getParent(), "renamed.txt");
         assertTrue(file.renameTo(renamedFile), "Failed to rename file");
 
-        assertContainChilds(MOUNT_POINT_FILE, renamedFile);
+        assertContainChilds(client1Directory, renamedFile);
 
         assertWrittenData(renamedFile, inputDataAsBinary, true, "Read data (from renamed file) should be equal to written data");
 
@@ -127,22 +129,22 @@ class F1R3FlyFuseTest extends F1r3flyFSTestUtils {
         Files.writeString(renamedFile.toPath(), inputDataAsString, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING); // truncate and override
         assertWrittenData(renamedFile, inputDataAsString.getBytes(), true, "Read data (from renamed file) should be equal to written data");
 
-        assertContainChilds(MOUNT_POINT_FILE, renamedFile); // it has to be the same folder after truncate and overide
+        assertContainChilds(client1Directory, renamedFile); // it has to be the same folder after truncate and overide
 
-        File dir = new File(MOUNT_POINT_FILE, "testDir");
+        File dir = new File(client1Directory, "testDir");
         assertTrue(dir.mkdir(), "Failed to create test directory");
 
         File nestedFile = new File(dir, "nestedFile.txt");
         assertTrue(nestedFile.createNewFile(), "Failed to create another file");
 
-        assertContainChilds(MOUNT_POINT_FILE, renamedFile, dir);
+        assertContainChilds(client1Directory, renamedFile, dir);
         assertContainChilds(dir, nestedFile);
 
         remount(); // umount and mount back
 
         // check if deployed data is correct:
 
-        assertContainChilds(MOUNT_POINT_FILE, renamedFile, dir);
+        assertContainChilds(client1Directory, renamedFile, dir);
         assertContainChilds(dir, nestedFile);
 
         String readDataAfterRemount = Files.readString(renamedFile.toPath());
@@ -152,7 +154,7 @@ class F1R3FlyFuseTest extends F1r3flyFSTestUtils {
         assertTrue(nestedFile.delete(), "Failed to delete file");
         assertTrue(dir.delete(), "Failed to delete file");
 
-        assertContainChilds(MOUNT_POINT_FILE); // empty
+        assertContainChilds(client1Directory); // empty
 
         assertFalse(renamedFile.exists(), "File should not exist");
         assertFalse(dir.exists(), "Directory should not exist");
@@ -165,7 +167,9 @@ class F1R3FlyFuseTest extends F1r3flyFSTestUtils {
 
     @Test
     void shouldCreateRenameListDeleteDirectories() {
-        File dir1 = new File(MOUNT_POINT_FILE, "testDir");
+        simulateUnlockWalletDirectoryAction(client1Wallet, client1PrivateKey);
+
+        File dir1 = new File(client1Directory, "testDir");
 
         long start = System.currentTimeMillis();
 
@@ -173,12 +177,12 @@ class F1R3FlyFuseTest extends F1r3flyFSTestUtils {
         assertTrue(dir1.mkdir(), "Failed to create test directory");
         assertTrue(dir1.exists(), "Directory should exist");
 
-        assertContainChilds(MOUNT_POINT_FILE, dir1);
+        assertContainChilds(client1Directory, dir1);
 
-        File renamedDir = new File(MOUNT_POINT_FILE, "renamedDir");
+        File renamedDir = new File(client1Directory, "renamedDir");
         assertTrue(dir1.renameTo(renamedDir), "Failed to rename directory");
 
-        assertContainChilds(MOUNT_POINT_FILE, renamedDir);
+        assertContainChilds(client1Directory, renamedDir);
 
         File nestedDir1 = new File(renamedDir, "nestedDir1");
         File nestedDir2 = new File(nestedDir1, "nestedDir2");
@@ -193,7 +197,7 @@ class F1R3FlyFuseTest extends F1r3flyFSTestUtils {
         assertTrue(nestedDir1.delete(), "Failed to delete nested directory");
         assertTrue(renamedDir.delete(), "Failed to delete directory");
 
-        assertContainChilds(MOUNT_POINT_FILE); // empty
+        assertContainChilds(client1Directory); // empty
 
         long end = System.currentTimeMillis();
         // in seconds
@@ -202,20 +206,27 @@ class F1R3FlyFuseTest extends F1r3flyFSTestUtils {
 
     @Test
     void shouldHandleOperationsWithNotExistingFileAndDirectory() {
-        File dir = new File(MOUNT_POINT_FILE, "testDir");
+        simulateUnlockWalletDirectoryAction(client1Wallet, client1PrivateKey);
+
+        File dir = new File(client1Directory, "testDir");
 
         assertFalse(dir.exists(), "Not existing directory should not exist");
         assertNull(dir.listFiles(), "Not existing directory should not have any files");
         assertFalse(dir.renameTo(new File(dir.getParent(), "abc")), "rename should return error");
         assertFalse(dir.delete(), "unlink should return error");
 
-        File file = new File(MOUNT_POINT_FILE, "testFile.txt");
+        File file = new File(client1Directory, "testFile.txt");
 
         assertFalse(file.exists(), "Not existing file should not exist");
         assertThrows(IOException.class, () -> Files.readAllBytes(file.toPath()), "read should return error");
         assertFalse(file.renameTo(new File(file.getParent(), "abc")), "rename should return error");
         assertFalse(file.delete(), "unlink should return error");
 
-        assertContainChilds(MOUNT_POINT_FILE); // empty
+        assertContainChilds(client1Directory); // empty
+
+        // test with client2
+        // folder is locked, so it should not be visible
+        assertContainChildsLocally(client2Directory); // empty
+        
     }
 }

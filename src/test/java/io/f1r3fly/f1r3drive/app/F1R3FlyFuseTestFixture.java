@@ -8,6 +8,8 @@ import io.f1r3fly.f1r3drive.encryption.AESCipher;
 import io.f1r3fly.f1r3drive.blockchain.client.F1r3flyBlockchainClient;
 import io.f1r3fly.f1r3drive.fuse.struct.Utils;
 import io.f1r3fly.f1r3drive.fuse.utils.MountUtils;
+import io.f1r3fly.f1r3drive.app.contextmenu.client.FinderSyncExtensionServiceClient;
+import generic.FinderSyncExtensionServiceOuterClass;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.LoggerFactory;
@@ -33,10 +35,16 @@ public class F1R3FlyFuseTestFixture {
     protected static final int MAX_MESSAGE_SIZE = 1024 * 1024 * 1024;  // ~1G
     protected static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
     protected static final String validatorPrivateKey = "f9854c5199bc86237206c75b25c6aeca024dccc0f55df3a553131111fd25dd85";
-    protected static final String clientPrivateKey = "a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954";
-    protected static final String clientWallet = "11112ZM9yrfaTrzCCbKjPbxBncjNCkMFsPqtcLFvhBf4Kqx6rpir2w";
     protected static final Path MOUNT_POINT = new File("/tmp/f1r3flyfs/").toPath();
     protected static final File MOUNT_POINT_FILE = MOUNT_POINT.toFile();
+
+    protected static final String client1Wallet = "11112ZM9yrfaTrzCCbKjPbxBncjNCkMFsPqtcLFvhBf4Kqx6rpir2w";
+    protected static final String client1PrivateKey = "a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954";
+    protected static final File client1Directory = new File(MOUNT_POINT_FILE, client1Wallet);
+
+    protected static final String client2Wallet = "1111AtahZeefej4tvVR6ti9TJtv8yxLebT31SCEVDCKMNikBk5r3g";
+    protected static final String client2PrivateKey = "5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657";
+    protected static final File client2Directory = new File(MOUNT_POINT_FILE, "LOCKED-REMOTE-REV-" + client2Wallet);
 
     public static final DockerImageName F1R3FLY_IMAGE = DockerImageName.parse(
         "ghcr.io/f1r3fly-io/rnode:latest"
@@ -61,8 +69,8 @@ public class F1R3FlyFuseTestFixture {
         listAppender.start();
         log.addAppender(listAppender);
 
-        ConfigStorage.setPrivateKey(Hex.decode(clientPrivateKey));
-        ConfigStorage.setRevAddress(clientWallet);
+        ConfigStorage.setPrivateKey(Hex.decode(client1PrivateKey));
+        ConfigStorage.setRevAddress(client1Wallet);
 
         // Create a network for containers to communicate
         network = Network.newNetwork();
@@ -185,5 +193,17 @@ public class F1R3FlyFuseTestFixture {
         // }
 
         //TODO: do nothing for now
+    }
+
+    protected static void simulateUnlockWalletDirectoryAction(String revAddress, String privateKey) {
+        try (FinderSyncExtensionServiceClient client = new FinderSyncExtensionServiceClient("localhost", 54000)) {
+            client.unlockWalletFolder(revAddress, privateKey);
+        }
+    }
+
+    protected static void simulateExchangeTokenAction(String tokenPath) {
+        try (FinderSyncExtensionServiceClient client = new FinderSyncExtensionServiceClient("localhost", 54000)) {
+            client.submitAction(FinderSyncExtensionServiceOuterClass.MenuActionType.EXCHANGE, tokenPath);
+        }
     }
 } 

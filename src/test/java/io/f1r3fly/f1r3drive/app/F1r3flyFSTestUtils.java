@@ -14,7 +14,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -93,39 +92,44 @@ public class F1r3flyFSTestUtils extends F1R3FlyFuseTestFixture {
         assertArrayEquals(expectedData, readData, "Read data should be equal to written data");
     }
 
+    private static List<File> getDefaultFolders() {
+        File walletsFile = new File("data/genesis/wallets.txt");
+        try {
+            return Files.readAllLines(walletsFile.toPath()).stream()
+                    .map(line -> line.split(",")[0])
+                    .map(folderName -> new File(MOUNT_POINT_FILE, "LOCKED-REMOTE-REV-" + folderName))
+                    .toList();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read wallets.txt", e);
+        }
+    }
+
     public static void assertContainChilds(File dir, File... expectedChilds) {
-        File[] childs = dir.listFiles();
+        assertContainChildsLocally(dir, expectedChilds);
 
-        File[] localFiles;
-
-        if (dir.equals(MOUNT_POINT_FILE)) {
-            File tokensDirectory = new File(MOUNT_POINT_FILE, ".tokens");
-            // expected + tokensDirectory
-            localFiles = Stream.concat(Arrays.stream(expectedChilds), Stream.of(tokensDirectory)).toArray(File[]::new);
-        } else {
-            localFiles = expectedChilds;
-        }
-
-
-        assertNotNull(childs, "Can't get list of files in %s".formatted(dir.getAbsolutePath()));
-        assertEquals(localFiles.length, childs.length, "Should be only %s file(s) but found %s in %s".formatted(Arrays.toString(localFiles), Arrays.toString(childs), dir.getAbsolutePath()));
-
-        for (File expectedChild : localFiles) {
-            assertTrue(
-                Arrays.stream(childs).anyMatch(file -> file.getName().equals(expectedChild.getName())),
-                "Expected file %s not found in list of childs (%s)".formatted(expectedChild, Arrays.toString(childs))
-            );
-        }
+        waitOnBackgroundDeployments();
 
         // and check the deployed data:
-
         Set<String> children = getFolderChildrenFromShardDirectly(dir);
         assertEquals(expectedChilds.length, children.size(), "Should be only %s file(s) in %s".formatted(expectedChilds.length, dir.getAbsolutePath()));
-
         for (File expectedChild : expectedChilds) {
             assertTrue(
                 children.contains(expectedChild.getName()),
                 "Expected file %s not found in list of childs (%s)".formatted(expectedChild, children)
+            );
+        }
+    }
+
+     public static void assertContainChildsLocally(File dir, File... expectedChilds) {
+        File[] childs = dir.listFiles();
+
+        assertNotNull(childs, "Can't get list of files in %s".formatted(dir.getAbsolutePath()));
+        assertEquals(expectedChilds.length, childs.length, "Should be only %s file(s) but found %s in %s".formatted(Arrays.toString(expectedChilds), Arrays.toString(childs), dir.getAbsolutePath()));
+
+        for (File expectedChild : expectedChilds) {
+            assertTrue(
+                Arrays.stream(childs).anyMatch(file -> file.getName().equals(expectedChild.getName())),
+                "Expected file %s not found in list of childs (%s)".formatted(expectedChild, Arrays.toString(childs))
             );
         }
     }

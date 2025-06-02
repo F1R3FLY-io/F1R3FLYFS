@@ -9,14 +9,20 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class BlockchainDirectory extends AbstractDeployablePath implements Directory {
+    
+    private static final Logger logger = LoggerFactory.getLogger(BlockchainDirectory.class);
+    
     protected Set<Path> children = new HashSet<>();
 
     public BlockchainDirectory(String name, BlockchainDirectory parent) {
         this(name, parent, true);
     }
 
-    protected BlockchainDirectory(String name, BlockchainDirectory parent, boolean sendToShard) {
+    protected BlockchainDirectory(String name, Directory parent, boolean sendToShard) {
         super(name, parent);
         if (sendToShard) {
             String rholang = RholangExpressionConstructor.sendDirectoryIntoNewChannel(getAbsolutePath(), Set.of());
@@ -26,6 +32,15 @@ public class BlockchainDirectory extends AbstractDeployablePath implements Direc
 
     @Override
     public synchronized void addChild(Path p) {
+        // force re-add
+        
+        // First remove any existing child with the same name
+        boolean removed = children.removeIf(child -> child.getName().equals(p.getName()));
+        if (removed) {
+            logger.info("Removed existing child with name %s".formatted(p.getName()));
+        }
+        
+        // Then add the new child
         boolean added = children.add(p);
 
         if (added) {

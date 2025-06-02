@@ -43,8 +43,16 @@ public class InMemoryFileSystem implements FileSystem {
 
     public InMemoryFileSystem(F1r3flyBlockchainClient f1R3FlyBlockchainClient) {
         this.deployDispatcher = new DeployDispatcher(f1R3FlyBlockchainClient);
+        deployDispatcher.startBackgroundDeploy();
+        this.rootDirectory = new RootDirectory();
         Set<Path> lockedRemoteDirectories = createRavAddressDirectories(this.deployDispatcher);
-        this.rootDirectory = new RootDirectory(lockedRemoteDirectories);
+        for (Path lockedRemoteDirectory : lockedRemoteDirectories) {
+            try {
+                rootDirectory.addChild(lockedRemoteDirectory);
+            } catch (OperationNotPermitted impossibleError) {
+                logger.error("Unexpected error: {}", impossibleError.getMessage());
+            }
+        }
     }
 
     // Helper method to get path separator
@@ -205,7 +213,12 @@ public class InMemoryFileSystem implements FileSystem {
         Directory newParent = getParentDirectoryInternal(newName);
 
         Directory oldParent = p.getParent();
-        p.rename(getLastComponent(newName), newParent);
+        String lastComponent = getLastComponent(newName);
+        if (lastComponent.equals(p.getName())) {
+            return;
+        }
+
+        p.rename(lastComponent, newParent);
 
         if (oldParent != newParent) {
             newParent.addChild(p);
@@ -326,7 +339,7 @@ public class InMemoryFileSystem implements FileSystem {
         Set<Path> children = new HashSet<>();
 
         for (String address : ravAddresses) {
-            children.add(new LockedRemoteDirectory(address));
+            children.add(new LockedRemoteDirectory(address, rootDirectory));
         }
 
         return children;
@@ -334,12 +347,7 @@ public class InMemoryFileSystem implements FileSystem {
 
     public void unlockRootDirectory(String revAddress, String privateKey) {
         String searchPath = "/LOCKED-REMOTE-REV-" + revAddress;
-        logger.debug("Attempting to unlock root directory with path: {}", searchPath);
-        logger.debug("Root directory children: {}", 
-            rootDirectory.getChildren().stream()
-                .map(Path::getName)
-                .collect(java.util.stream.Collectors.toList()));
-        
+
         Path lockedRoot = getDirectory(searchPath);
 
         if (lockedRoot instanceof LockedRemoteDirectory) {
@@ -354,14 +362,12 @@ public class InMemoryFileSystem implements FileSystem {
             }
 
         } else {
-            logger.warn("Root directory is not locked: {}", revAddress);
-            logger.warn("Root directory: {}", lockedRoot);
             if (lockedRoot != null) {
                 logger.warn("Root directory type: {}", lockedRoot.getClass());
                 logger.warn("Root directory name: {}", lockedRoot.getName());
                 logger.warn("Root directory parent: {}", lockedRoot.getParent());
             } else {
-                logger.warn("Root directory is null - path not found: /{}", revAddress);
+                logger.warn("Root directory is null - path not found: {}", searchPath);
             }
         }
     }

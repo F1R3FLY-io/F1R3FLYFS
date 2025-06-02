@@ -1,5 +1,6 @@
 package io.f1r3fly.f1r3drive.filesystem.local;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import io.f1r3fly.f1r3drive.errors.OperationNotPermitted;
@@ -9,11 +10,11 @@ import org.jetbrains.annotations.NotNull;
 
 public class RootDirectory extends AbstractLocalPath implements Directory {
 
-    private Set<Path> children;
+    private final Set<Path> children;
 
-    public RootDirectory(Set<Path> children) {
+    public RootDirectory() {
         super("/", null);
-        this.children = children;
+        children = new HashSet<>();
     }
 
     @Override

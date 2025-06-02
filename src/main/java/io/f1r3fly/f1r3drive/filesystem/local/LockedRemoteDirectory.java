@@ -34,8 +34,8 @@ public class LockedRemoteDirectory extends AbstractLocalPath implements ReadOnly
         }
     }
 
-    public LockedRemoteDirectory(String ravAddress) {
-        super("LOCKED-REMOTE-REV-" + ravAddress, null);
+    public LockedRemoteDirectory(String ravAddress, RootDirectory parent) {
+        super("LOCKED-REMOTE-REV-" + ravAddress, parent);
         this.revAddress = ravAddress;
 
     }
@@ -71,6 +71,7 @@ public class LockedRemoteDirectory extends AbstractLocalPath implements ReadOnly
                 revAddress,
                 signingKey,
                 ((FetchedDirectory) root).getChildren(),
+                getParent() == null ? null : (RootDirectory) getParent(),
                 deployDispatcher,
                 false // skip deploy
             );
@@ -81,6 +82,7 @@ public class LockedRemoteDirectory extends AbstractLocalPath implements ReadOnly
                 revAddress,
                 signingKey,
                 new HashSet<>(),
+                getParent() == null ? null : (RootDirectory) getParent(),
                 deployDispatcher,
                 true); // do deploy
         }
