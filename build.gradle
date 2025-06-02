@@ -75,7 +75,7 @@ shadowJar {
 jar {
     manifest {
         attributes(
-                'Main-Class': 'io.f1r3fly.fs.examples.F1r3flyFSMain'
+                'Main-Class': 'io.f1r3fly.f1r3drive.app.F1r3DriveCli'
         )
     }
 }
@@ -84,7 +84,7 @@ task run(type: JavaExec) {
     group = "Execution"
     description = "Run the main class with JavaExecTask"
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = "io.f1r3fly.fs.examples.F1r3flyFSMain"
+    mainClass = "io.f1r3fly.f1r3drive.app.F1r3DriveCli"
 }
 
 tasks.withType(Javadoc).configureEach {
