@@ -22,4 +22,8 @@ public class PathUtils {
     public static boolean isEncryptedExtension(String path) {
         return path.endsWith(".encrypted");
     }
+
+    public static boolean isAppleMetadataFile(String path) {
+        return path.contains(".DS_Store") || path.contains("._.");
+    }
 }

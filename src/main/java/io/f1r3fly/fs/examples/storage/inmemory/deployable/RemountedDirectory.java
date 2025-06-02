@@ -17,8 +17,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class RemountedDirectory extends InMemoryDirectory {
-    public RemountedDirectory(String prefix, String name, InMemoryDirectory parent, DeployDispatcher deployDispatcher) {
-        super(prefix, name, parent, deployDispatcher, false);
+    public RemountedDirectory(String name, InMemoryDirectory parent) {
+        super(name, parent, false);
     }
 
     public void setChildren(Set<IPath> children) {

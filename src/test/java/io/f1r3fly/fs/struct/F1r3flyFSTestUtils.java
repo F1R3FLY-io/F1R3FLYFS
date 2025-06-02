@@ -62,7 +62,7 @@ public class F1r3flyFSTestUtils extends F1r3flyFSTestFixture {
         // - the FUSE's path is /test.txt
         File fusePath = new File(file.getAbsolutePath().replace(MOUNT_POINT_FILE.getAbsolutePath(), "")); // /tmp/f1r3flyfs/test.txt -> /test.txt
 
-        String fileNameAtShard = f1r3flyFS.prependMountName(fusePath.getPath());
+        String fileNameAtShard = fusePath.getPath();
 
         // wait on background deployments
         waitOnBackgroundDeployments();

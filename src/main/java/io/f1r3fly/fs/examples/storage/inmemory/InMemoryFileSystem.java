@@ -1,5 +1,6 @@
 package io.f1r3fly.fs.examples.storage.inmemory;
 
+import casper.DeployServiceCommon;
 import io.f1r3fly.fs.FuseFillDir;
 import io.f1r3fly.fs.examples.storage.DeployDispatcher;
 import io.f1r3fly.fs.examples.storage.FileSystem;
@@ -8,71 +9,73 @@ import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
 import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
 import io.f1r3fly.fs.examples.storage.inmemory.common.IFile;
 import io.f1r3fly.fs.examples.storage.inmemory.common.IPath;
-import io.f1r3fly.fs.examples.storage.inmemory.deployable.InMemoryDirectory;
 import io.f1r3fly.fs.examples.storage.inmemory.deployable.InMemoryFile;
-import io.f1r3fly.fs.examples.storage.inmemory.deployable.RemountedDirectory;
-import io.f1r3fly.fs.examples.storage.inmemory.deployable.RemountedFile;
-import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
+import io.f1r3fly.fs.examples.storage.inmemory.deployable.UnlockedRemoteDirectory;
+import io.f1r3fly.fs.examples.storage.inmemory.notdeployable.LockedRemoteDirectory;
+import io.f1r3fly.fs.examples.storage.inmemory.notdeployable.RootDirectory;
+import io.f1r3fly.fs.examples.storage.inmemory.notdeployable.TokenDirectory;
+import io.f1r3fly.fs.examples.storage.inmemory.notdeployable.TokenFile;
 import io.f1r3fly.fs.struct.FileStat;
 import io.f1r3fly.fs.struct.FuseContext;
-import io.f1r3fly.fs.struct.FuseFileInfo;
 import io.f1r3fly.fs.struct.Statvfs;
 import io.f1r3fly.fs.utils.PathUtils;
 import jnr.ffi.Pointer;
 import jnr.ffi.types.mode_t;
 import jnr.ffi.types.off_t;
 import jnr.ffi.types.size_t;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import rhoapi.RhoTypes;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class InMemoryFileSystem implements FileSystem {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(InMemoryFileSystem.class);
+    private static final Logger logger = LoggerFactory.getLogger(InMemoryFileSystem.class);
 
-    private InMemoryDirectory rootDirectory;
-    private DeployDispatcher deployDispatcher;
-    private F1r3flyApi f1R3FlyApi;
-    private String mountName;
+    @NotNull
+    private final RootDirectory rootDirectory;
+    @NotNull
+    private final DeployDispatcher deployDispatcher;
 
-    public InMemoryFileSystem(InMemoryDirectory rootDirectory, DeployDispatcher deployDispatcher, F1r3flyApi f1R3FlyApi, String mountName) {
-        this.rootDirectory = rootDirectory;
-        this.deployDispatcher = deployDispatcher;
-        this.f1R3FlyApi = f1R3FlyApi;
-        this.mountName = mountName;
+    public InMemoryFileSystem(F1r3flyApi f1r3flyApi) {
+        this.deployDispatcher = new DeployDispatcher(f1r3flyApi);
+        Set<IPath> lockedRemoteDirectories = createRavAddressDirectories(this.deployDispatcher);
+        this.rootDirectory = new RootDirectory(lockedRemoteDirectories);
     }
 
-    public InMemoryFileSystem() {
-        this.rootDirectory = null;
-        this.deployDispatcher = null;
-        this.f1R3FlyApi = null;
-        this.mountName = null;
+    // Helper method to get path separator
+    private String pathSeparator() {
+        return PathUtils.getPathDelimiterBasedOnOS();
     }
 
-    // Path manipulation methods
+    // Simplified path manipulation methods
     public String getLastComponent(String path) {
-        while (path.endsWith(PathUtils.getPathDelimiterBasedOnOS())) {
+        // Remove trailing separators
+        while (path.endsWith(pathSeparator()) && path.length() > 1) {
             path = path.substring(0, path.length() - 1);
         }
-        if (path.isEmpty()) {
-            return "";
+        
+        if (path.equals(pathSeparator())) {
+            return pathSeparator();
         }
-        return path.substring(path.lastIndexOf(PathUtils.getPathDelimiterBasedOnOS()) + 1);
+        
+        int lastSeparatorIndex = path.lastIndexOf(pathSeparator());
+        return lastSeparatorIndex == -1 ? path : path.substring(lastSeparatorIndex + 1);
     }
 
     public IDirectory getParentDirectory(String path) {
-        String parentPath = path.substring(0, path.lastIndexOf("/"));
+        String parentPath = getParentPath(path);
+        if (parentPath == null) {
+            return null;
+        }
 
         try {
             IPath parent = getPath(parentPath);
-
             if (!(parent instanceof IDirectory)) {
                 throw new IllegalArgumentException("Parent path is not a directory: " + parentPath);
             }
@@ -83,10 +86,12 @@ public class InMemoryFileSystem implements FileSystem {
     }
 
     private IDirectory getParentDirectoryInternal(String path) throws PathNotFound {
-        String parentPath = path.substring(0, path.lastIndexOf("/"));
+        String parentPath = getParentPath(path);
+        if (parentPath == null) {
+            throw new PathNotFound("No parent for root path: " + path);
+        }
 
         IPath parent = getPath(parentPath);
-
         if (!(parent instanceof IDirectory)) {
             throw new IllegalArgumentException("Parent path is not a directory: " + parentPath);
         }
@@ -94,10 +99,7 @@ public class InMemoryFileSystem implements FileSystem {
     }
 
     public IPath findPath(String path) {
-        if (rootDirectory == null) {
-            return null;
-        }
-        return rootDirectory.find(path);
+        return this.rootDirectory.find(path);
     }
 
     public IPath getPath(String path) throws PathNotFound {
@@ -139,7 +141,8 @@ public class InMemoryFileSystem implements FileSystem {
     }
 
     // Core file system operations
-    public void createFile(String path, @mode_t long mode) throws PathNotFound, FileAlreadyExists, OperationNotPermitted {
+    public void createFile(String path, @mode_t long mode)
+            throws PathNotFound, FileAlreadyExists, OperationNotPermitted {
         IPath maybeExist = findPath(path);
 
         if (maybeExist != null) {
@@ -158,7 +161,8 @@ public class InMemoryFileSystem implements FileSystem {
         p.getAttr(stat, fuseContext);
     }
 
-    public void makeDirectory(String path, @mode_t long mode) throws PathNotFound, FileAlreadyExists, OperationNotPermitted {
+    public void makeDirectory(String path, @mode_t long mode)
+            throws PathNotFound, FileAlreadyExists, OperationNotPermitted {
         IPath maybeExist = findPath(path);
         if (maybeExist != null) {
             throw new FileAlreadyExists(path);
@@ -168,7 +172,8 @@ public class InMemoryFileSystem implements FileSystem {
         parent.mkdir(getLastComponent(path));
     }
 
-    public int readFile(String path, Pointer buf, @size_t long size, @off_t long offset) throws PathNotFound, PathIsNotAFile, IOException {
+    public int readFile(String path, Pointer buf, @size_t long size, @off_t long offset)
+            throws PathNotFound, PathIsNotAFile, IOException {
         IFile file = getFileByPath(path);
         return file.read(buf, size, offset);
     }
@@ -201,7 +206,7 @@ public class InMemoryFileSystem implements FileSystem {
         IDirectory newParent = getParentDirectoryInternal(newName);
 
         IDirectory oldParent = p.getParent();
-        p.rename(newName.substring(newName.lastIndexOf(PathUtils.getPathDelimiterBasedOnOS()) + 1), newParent);
+        p.rename(getLastComponent(newName), newParent);
 
         if (oldParent != newParent) {
             newParent.addChild(p);
@@ -215,7 +220,8 @@ public class InMemoryFileSystem implements FileSystem {
         }
     }
 
-    public void removeDirectory(String path) throws PathNotFound, PathIsNotADirectory, DirectoryNotEmpty, OperationNotPermitted {
+    public void removeDirectory(String path)
+            throws PathNotFound, PathIsNotADirectory, DirectoryNotEmpty, OperationNotPermitted {
         IDirectory directory = getDirectoryByPath(path);
         if (!directory.isEmpty()) {
             throw new DirectoryNotEmpty(path);
@@ -246,7 +252,8 @@ public class InMemoryFileSystem implements FileSystem {
         file.open();
     }
 
-    public int writeFile(String path, Pointer buf, @size_t long size, @off_t long offset) throws PathNotFound, PathIsNotAFile, IOException {
+    public int writeFile(String path, Pointer buf, @size_t long size, @off_t long offset)
+            throws PathNotFound, PathIsNotAFile, IOException {
         IFile file = getFileByPath(path);
         return file.write(buf, size, offset);
     }
@@ -257,95 +264,6 @@ public class InMemoryFileSystem implements FileSystem {
     }
 
     // Utility methods
-    public boolean isAppleMetadataFile(String path) {
-        return path.contains(".DS_Store") || path.contains("._.");
-    }
-
-    public String prependMountName(String path) {
-        return this.mountName + path;
-    }
-
-    public boolean isMounted() {
-        return this.rootDirectory != null;
-    }
-
-    // Shard operations
-    public IPath fetchDirectoryFromShard(String absolutePath, String name, InMemoryDirectory parent) throws NoDataByPath {
-        try {
-            List<RhoTypes.Par> pars = f1R3FlyApi.findDataByName(absolutePath);
-
-            RholangExpressionConstructor.ChannelData fileOrDir = RholangExpressionConstructor.parseChannelData(pars);
-
-            if (fileOrDir.isDir()) {
-                RemountedDirectory dir = new RemountedDirectory(this.mountName, name, parent, this.deployDispatcher);
-
-                Set<IPath> children = fileOrDir.children().stream().map((childName) -> {
-                    try {
-                        return fetchDirectoryFromShard(absolutePath + PathUtils.getPathDelimiterBasedOnOS() + childName, childName, dir);
-                    } catch (NoDataByPath e) {
-                        LOGGER.error("Error fetching child directory from shard for path: {}",
-                            absolutePath + PathUtils.getPathDelimiterBasedOnOS() + childName, e);
-                        return null;
-                    }
-                }).filter(Objects::nonNull).collect(Collectors.toSet());
-
-                dir.setChildren(children);
-                return dir;
-
-            } else {
-                RemountedFile file = new RemountedFile(this.mountName, PathUtils.getFileName(absolutePath), parent, this.deployDispatcher);
-                long offset = 0;
-                offset = file.initFromBytes(fileOrDir.firstChunk(), offset);
-
-                if (!fileOrDir.otherChunks().isEmpty()) {
-                    Set<Integer> chunkNumbers = fileOrDir.otherChunks().keySet();
-                    Integer[] sortedChunkNumbers = chunkNumbers.stream().sorted().toArray(Integer[]::new);
-
-                    for (Integer chunkNumber : sortedChunkNumbers) {
-                        String subChannel = fileOrDir.otherChunks().get(chunkNumber);
-                        List<RhoTypes.Par> subChannelPars = f1R3FlyApi.findDataByName(subChannel);
-                        byte[] data = RholangExpressionConstructor.parseBytes(subChannelPars);
-
-                        offset = offset + file.initFromBytes(data, offset);
-                    }
-                }
-
-                file.initSubChannels(fileOrDir.otherChunks());
-                return file;
-            }
-
-        } catch (NoDataByPath e) {
-            LOGGER.warn("No data found for path: {}", absolutePath, e);
-            throw e;
-        } catch (Throwable e) {
-            LOGGER.error("Error fetching directory from shard for path: {}", absolutePath, e);
-            throw new RuntimeException("Failed to fetch directory data for " + absolutePath, e);
-        }
-    }
-
-    // Setters for initialization
-    public void setRootDirectory(InMemoryDirectory rootDirectory) {
-        this.rootDirectory = rootDirectory;
-    }
-
-    public void setDeployDispatcher(DeployDispatcher deployDispatcher) {
-        this.deployDispatcher = deployDispatcher;
-    }
-
-    public void setF1R3FlyApi(F1r3flyApi f1R3FlyApi) {
-        this.f1R3FlyApi = f1R3FlyApi;
-    }
-
-    public void setMountName(String mountName) {
-        this.mountName = mountName;
-    }
-
-    // FileSystem interface implementation
-    @Override
-    public IPath getRootPath() {
-        return rootDirectory;
-    }
-
     @Override
     public IFile getFile(String path) {
         try {
@@ -366,7 +284,7 @@ public class InMemoryFileSystem implements FileSystem {
 
     @Override
     public boolean isRootPath(String path) {
-        return "/".equals(path) || "".equals(path);
+        return pathSeparator().equals(path) || "".equals(path);
     }
 
     @Nullable
@@ -375,10 +293,114 @@ public class InMemoryFileSystem implements FileSystem {
         if (isRootPath(path)) {
             return null;
         }
-        int lastSlash = path.lastIndexOf("/");
-        if (lastSlash <= 0) {
-            return "/";
+        
+        int lastSeparatorIndex = path.lastIndexOf(pathSeparator());
+        if (lastSeparatorIndex <= 0) {
+            return pathSeparator();
         }
-        return path.substring(0, lastSlash);
+        return path.substring(0, lastSeparatorIndex);
     }
-}
+
+    private List<String> parseRavAddressesFromGenesisBlock(F1r3flyApi f1R3FlyApi) {
+        List<DeployServiceCommon.DeployInfo> deploys = f1R3FlyApi.getGenesisBlock().getDeploysList();
+
+        DeployServiceCommon.DeployInfo tokenInitializeDeploy = deploys.stream()
+                .filter((deployInfo1 -> deployInfo1.getTerm().contains("revVaultInitCh"))).findFirst().orElseThrow();
+
+        String regex = "\\\"(1111[A-Za-z0-9]+)\\\"";
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(regex);
+        java.util.regex.Matcher matcher = pattern.matcher(tokenInitializeDeploy.getTerm());
+
+        List<String> ravAddresses = new java.util.ArrayList<>();
+        while (matcher.find()) {
+            ravAddresses.add(matcher.group(1));
+        }
+
+        return ravAddresses;
+    }
+
+    private Set<IPath> createRavAddressDirectories(DeployDispatcher deployDispatcher) {
+        List<String> ravAddresses = parseRavAddressesFromGenesisBlock(deployDispatcher.getF1R3FlyApi());
+
+        logger.debug("Addresses found in genesis block: {}", ravAddresses);
+
+        Set<IPath> children = new HashSet<>();
+
+        for (String address : ravAddresses) {
+            children.add(new LockedRemoteDirectory(address));
+        }
+
+        return children;
+    }
+
+    public void unlockRootDirectory(String revAddress, String privateKey) {
+        String searchPath = "/LOCKED-REMOTE-REV-" + revAddress;
+        logger.debug("Attempting to unlock root directory with path: {}", searchPath);
+        logger.debug("Root directory children: {}", 
+            rootDirectory.getChildren().stream()
+                .map(IPath::getName)
+                .collect(java.util.stream.Collectors.toList()));
+        
+        IPath lockedRoot = getDirectory(searchPath);
+
+        if (lockedRoot instanceof LockedRemoteDirectory) {
+            try {
+                UnlockedRemoteDirectory unlockedRoot = ((LockedRemoteDirectory) lockedRoot).unlock(privateKey,
+                        deployDispatcher);
+
+                this.rootDirectory.deleteChild(lockedRoot);
+                this.rootDirectory.addChild(unlockedRoot);
+            } catch (OperationNotPermitted e) {
+                logger.warn("Failed to unlock root directory: {}", revAddress, e);
+            }
+
+        } else {
+            logger.warn("Root directory is not locked: {}", revAddress);
+            logger.warn("Root directory: {}", lockedRoot);
+            if (lockedRoot != null) {
+                logger.warn("Root directory type: {}", lockedRoot.getClass());
+                logger.warn("Root directory name: {}", lockedRoot.getName());
+                logger.warn("Root directory parent: {}", lockedRoot.getParent());
+            } else {
+                logger.warn("Root directory is null - path not found: /{}", revAddress);
+            }
+        }
+    }
+
+    @Override
+    public void exchangeTokenFile(String filePath) throws NoDataByPath {
+        IFile file = getFile(filePath);
+        if (file == null) {
+            throw new NoDataByPath(filePath);
+        }
+
+        if (!(file instanceof TokenFile)) {
+            throw new RuntimeException("File is not a token file: " + filePath);
+        }
+
+        TokenFile tokenFile = (TokenFile) file;
+        IDirectory tokenDirectory = tokenFile.getParent();
+
+        if (tokenDirectory == null) {
+            throw new RuntimeException("Token directory is null: " + filePath);
+        }
+
+        if (!(tokenDirectory instanceof TokenDirectory)) {
+            throw new RuntimeException("Token directory is not a token directory: " + filePath);
+        }
+
+        ((TokenDirectory) tokenDirectory).exchange(tokenFile);
+    }
+
+    @Override
+    public void waitOnBackgroundDeploy() {
+        deployDispatcher.waitOnEmptyQueue();
+    }
+
+    @Override
+    public void terminate() {
+        waitOnBackgroundDeploy();
+        this.deployDispatcher.destroy();
+        this.rootDirectory.cleanLocalCache();
+    }
+} 

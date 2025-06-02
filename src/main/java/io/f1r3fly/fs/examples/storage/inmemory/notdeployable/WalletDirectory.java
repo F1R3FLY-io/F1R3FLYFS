@@ -8,23 +8,24 @@ import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
 import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
 import io.f1r3fly.fs.examples.storage.inmemory.common.IPath;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
-import io.f1r3fly.fs.struct.FileStat;
-import io.f1r3fly.fs.struct.FuseContext;
 import jnr.ffi.Pointer;
+import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 
 public class WalletDirectory extends AbstractNotDeployablePath implements IDirectory {
     private final String revAddress;
     private final DeployDispatcher deployDispatcher;
     private final boolean isLocked = true;
+    private final byte[] signingKey;
 
-    public WalletDirectory(String prefix, String name, TokenDirectory parent, String revAddress, DeployDispatcher dispatcher) {
-        super(prefix, name, parent);
+
+    // TODO: add a way to get the signing key from the file system
+    public WalletDirectory(String name, IDirectory parent, String revAddress, DeployDispatcher dispatcher, byte[] signingKey) {
+        super(name, parent);
         this.revAddress = revAddress;
         this.deployDispatcher = dispatcher;
+        this.signingKey = signingKey;
     }
 
     @Override
@@ -34,7 +35,8 @@ public class WalletDirectory extends AbstractNotDeployablePath implements IDirec
             String rholang = RholangExpressionConstructor.transfer(ConfigStorage.getRevAddress(), this.revAddress, amount);
 
             deployDispatcher.enqueueDeploy(new DeployDispatcher.Deployment(
-                rholang, false, F1r3flyApi.RHOLANG
+                rholang, false, F1r3flyApi.RHOLANG,
+                signingKey
             ));
         } else {
             throw OperationNotPermitted.instance;
@@ -71,7 +73,7 @@ public class WalletDirectory extends AbstractNotDeployablePath implements IDirec
     }
 
     @Override
-    public String getName() {
+    public @NotNull String getName() {
         if (isLocked) {
             return "LOCKED-REMOTE-REV-" + super.getName();
         } else {

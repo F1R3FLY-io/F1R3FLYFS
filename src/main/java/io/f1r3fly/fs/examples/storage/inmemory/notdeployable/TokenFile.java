@@ -15,8 +15,8 @@ public class TokenFile extends AbstractNotDeployablePath implements IFile {
 
     final long value;
 
-    public TokenFile(String prefix, String name, TokenDirectory parent, long value) {
-        super(prefix, name, parent);
+    public TokenFile(String name, TokenDirectory parent, long value) {
+        super(name, parent);
         this.value = value;
     }
 

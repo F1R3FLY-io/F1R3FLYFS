@@ -3,6 +3,7 @@ package io.f1r3fly.fs.examples.storage.inmemory.deployable;
 import io.f1r3fly.fs.examples.storage.DeployDispatcher;
 import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
 import io.f1r3fly.fs.examples.storage.inmemory.common.IPath;
+import io.f1r3fly.fs.examples.storage.inmemory.notdeployable.WalletDirectory;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
 
 import java.util.HashSet;
@@ -12,12 +13,12 @@ import java.util.stream.Collectors;
 public class InMemoryDirectory extends AbstractDeployablePath implements IDirectory {
     protected Set<IPath> children = new HashSet<>();
 
-    public InMemoryDirectory(String prefix, String name, InMemoryDirectory parent, DeployDispatcher deployDispatcher) {
-        this(prefix, name, parent, deployDispatcher, true);
+    public InMemoryDirectory(String name, InMemoryDirectory parent) {
+        this(name, parent, true);
     }
 
-    protected InMemoryDirectory(String prefix, String name, InMemoryDirectory parent, DeployDispatcher deployDispatcher, boolean sendToShard) {
-        super(prefix, name, parent, deployDispatcher);
+    protected InMemoryDirectory(String name, InMemoryDirectory parent, boolean sendToShard) {
+        super(name, parent);
         if (sendToShard) {
             String rholang = RholangExpressionConstructor.sendDirectoryIntoNewChannel(getAbsolutePath(), Set.of());
             enqueueMutation(rholang);
@@ -26,11 +27,11 @@ public class InMemoryDirectory extends AbstractDeployablePath implements IDirect
 
     @Override
     public synchronized void addChild(IPath p) {
-        if (!children.contains(p)) {
-            children.add(p);
-        }
+        boolean added = children.add(p);
 
-        enqueueUpdatingChildrenList();
+        if (added) {
+            enqueueUpdatingChildrenList();
+        }
     }
 
     private void enqueueUpdatingChildrenList() {
@@ -56,13 +57,13 @@ public class InMemoryDirectory extends AbstractDeployablePath implements IDirect
 
     @Override
     public synchronized void mkdir(String lastComponent) {
-        InMemoryDirectory newDir = new InMemoryDirectory(prefix, lastComponent, this, deployDispatcher, true);
+        InMemoryDirectory newDir = new InMemoryDirectory(lastComponent, this, true);
         addChild(newDir);
     }
 
     @Override
     public synchronized void mkfile(String lastComponent) {
-        InMemoryFile memoryFile = new InMemoryFile(prefix, lastComponent, this, deployDispatcher);
+        InMemoryFile memoryFile = new InMemoryFile(lastComponent, this);
         addChild(memoryFile);
     }
 
@@ -70,4 +71,30 @@ public class InMemoryDirectory extends AbstractDeployablePath implements IDirect
     public Set<IPath> getChildren() {
         return children; //TODO: return immutable set?
     }
+
+    //TODO: DRY
+    @Override
+    public DeployDispatcher getDeployDispatcher() {
+        IDirectory parent = getParent();
+        if (parent instanceof InMemoryDirectory) {
+            return ((InMemoryDirectory) parent).getDeployDispatcher();
+        } else if (parent == null) {
+            throw new IllegalStateException("Parent is null");
+        } else {
+            throw new IllegalStateException("deployable path %s depends on non-deployable parent %s".formatted(name, parent.getName()));
+        }
+    }
+
+    @Override
+    public byte[] getSigningKey() {
+        IDirectory parent = getParent();
+        if (parent instanceof InMemoryDirectory) {
+            return ((InMemoryDirectory) parent).getSigningKey();
+        } else if (parent == null) {
+            throw new IllegalStateException("Parent is null");
+        } else {
+            throw new IllegalStateException("deployable path %s depends on non-deployable parent %s".formatted(name, parent.getName()));
+        }
+    }
+
 }

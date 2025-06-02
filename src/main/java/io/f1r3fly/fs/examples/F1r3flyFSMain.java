@@ -37,17 +37,8 @@ class F1r3flyFSMain implements Callable<Integer> {
     @Option(names = {"-op", "--observer-port"}, description = "Port of the F1r3fly blockchain observer gRPC API to connect to. Defaults to 40403.")
     private int observerPort = 40403;
 
-    @Option(names = {"-sk", "--signing-key"}, description = "Private key, in hexadecimal, to sign Rholang deployments with.")
-    private String signingKey;
-
-    @Option(names = {"-w", "--wallet-address"}, description = "The REV address associated with the signing key.")
-    private String wallet;
-
     @Option(names = {"-ck", "--cipher-key-path"}, required = true, description = "Cipher key path. If file not found, a new key will be generated.")
     private String cipherKeyPath;
-
-    @Option(names = {"-mn", "--mount-name"}, description = "Mount name of the previous mounted filesystem. If specified, the filesystem will be restored from F1r3fly.")
-    private String mountName;
 
     @Parameters(index = "0", description = "The path at which to mount the filesystem.")
     private Path mountPoint;
@@ -57,23 +48,21 @@ class F1r3flyFSMain implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-
-        byte[] signingKeyHex = Hex.decode(signingKey);
-
         AESCipher.init(cipherKeyPath); // init singleton instance
 
-        ConfigStorage.setPrivateKey(signingKeyHex);
-        ConfigStorage.setRevAddress(wallet); // TODO: parse it from signing key
+        F1r3flyApi f1r3flyApi = new F1r3flyApi(
+            validatorHost,
+            validatorPort,
+            observerHost,
+            observerPort
+        );
 
-        F1r3flyApi f1R3FlyApi = new F1r3flyApi(signingKeyHex, validatorHost, validatorPort, observerHost, observerPort);
-        f1r3flyFS = new F1r3flyFS(f1R3FlyApi);
+        f1r3flyFS = new F1r3flyFS(
+            f1r3flyApi
+        );
 
         try {
-            if (mountName != null) {
-                f1r3flyFS.remount(mountName, mountPoint, true, false, new String[]{});
-            } else {
-                f1r3flyFS.mount(mountPoint, true);
-            }
+            f1r3flyFS.mount(mountPoint, true);
         } finally {
             f1r3flyFS.umount();
         }

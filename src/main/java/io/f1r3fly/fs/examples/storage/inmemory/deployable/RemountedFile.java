@@ -10,8 +10,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class RemountedFile extends InMemoryFile {
 
-  public RemountedFile(String prefix, String name, IDirectory parent, DeployDispatcher deployDispatcher) {
-        super(prefix, name, parent, deployDispatcher, false);
+  public RemountedFile(String name, IDirectory parent) {
+        super(name, parent, false);
     }
 
     public int initFromBytes(byte[] bytes, long offset) throws IOException {

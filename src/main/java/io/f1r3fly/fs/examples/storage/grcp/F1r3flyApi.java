@@ -42,15 +42,13 @@ public class F1r3flyApi {
     private static final int RETRIES = 10;
     private static final int MAX_MESSAGE_SIZE = Integer.MAX_VALUE; // ~2 GB
 
-    private final byte[] signingKey;
     private final DeployServiceGrpc.DeployServiceFutureStub validatorDeployService;
     private final ProposeServiceGrpc.ProposeServiceFutureStub validatorProposeService;
     private final DeployServiceGrpc.DeployServiceFutureStub observerDeployService;
     private final ProposeServiceGrpc.ProposeServiceFutureStub observerProposeService;
 
 
-    public F1r3flyApi(byte[] signingKey,
-                      String validatorHost,
+    public F1r3flyApi(String validatorHost,
                       int validatorPort,
                       String observerHost,
                       int observerPort
@@ -61,7 +59,6 @@ public class F1r3flyApi {
 
         ManagedChannel validatorChannel = ManagedChannelBuilder.forAddress(validatorHost, validatorPort).usePlaintext().build();
 
-        this.signingKey = signingKey;
         this.validatorDeployService = DeployServiceGrpc.newFutureStub(validatorChannel)
             .withMaxInboundMessageSize(MAX_MESSAGE_SIZE)
             .withMaxOutboundMessageSize(MAX_MESSAGE_SIZE);
@@ -147,7 +144,7 @@ public class F1r3flyApi {
         }
     }
 
-    public String deploy(String rhoCode, boolean useBiggerRhloPrice, String language) throws F1r3flyDeployError {
+    public String deploy(String rhoCode, boolean useBiggerRhloPrice, String language, byte[] signingKey) throws F1r3flyDeployError {
         try {
 
             int maxRholangInLogs = 2000;
@@ -168,7 +165,7 @@ public class F1r3flyApi {
                 .build();
 
             // Sign deployment
-            CasperMessage.DeployDataProto signed = signDeploy(deployment);
+            CasperMessage.DeployDataProto signed = signDeploy(deployment, signingKey);
 
             // Deploy
             Uni<String> deployVolumeContract =
@@ -326,7 +323,7 @@ public class F1r3flyApi {
     }
 
 
-    private CasperMessage.DeployDataProto signDeploy(CasperMessage.DeployDataProto deploy) {
+    private CasperMessage.DeployDataProto signDeploy(CasperMessage.DeployDataProto deploy, byte[] signingKey) {
         final MessageDigest digest;
 
         try {

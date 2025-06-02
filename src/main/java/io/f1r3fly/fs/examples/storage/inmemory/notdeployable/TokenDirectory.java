@@ -47,8 +47,8 @@ public class TokenDirectory extends AbstractNotDeployablePath implements IDirect
     );
 
 
-    public TokenDirectory(String prefix, IDirectory parent, F1r3flyApi f1r3flyApi) {
-        super(prefix, ".tokens", parent);
+    public TokenDirectory(String name, IDirectory parent, F1r3flyApi f1r3flyApi) {
+        super(name, parent);
         this.f1r3flyApi = f1r3flyApi;
     }
 
@@ -120,20 +120,9 @@ public class TokenDirectory extends AbstractNotDeployablePath implements IDirect
     public void addTokens(long denomination, long N) {
         for (int i = 0; i < N; i++) {
             String tokenName = denomination + "-REV." + i + ".token";
-            TokenFile tokenFile = new TokenFile(getPrefix(), tokenName, this, denomination);
+            TokenFile tokenFile = new TokenFile(tokenName, this, denomination);
             children.add(tokenFile);
         }
-    }
-
-    public void addWallet(String revAddress, DeployDispatcher deployDispatcher) {
-        WalletDirectory walletDirectory =
-            new WalletDirectory(getPrefix(),
-                revAddress, // name matches revAddress
-                this,
-                revAddress,
-                deployDispatcher); // deployDispatcher is used for transfering tokens. WalletDirectory is not deployable to the shard
-
-        children.add(walletDirectory);
     }
 
     @Override
@@ -187,7 +176,7 @@ public class TokenDirectory extends AbstractNotDeployablePath implements IDirect
                 // Create a token of the current denomination
                 String tokenName = denomination + "-REV.exchanged-" + originalDenomination + "." + i++ + ".token";
                 LOGGER.info("Creating token " + tokenName + " with value " + denomination);
-                TokenFile newTokenFile = new TokenFile(this.prefix, tokenName, this, denomination);
+                TokenFile newTokenFile = new TokenFile(tokenName, this, denomination);
                 this.addChild(newTokenFile);
                 amount -= denomination;
             } else {

@@ -6,28 +6,26 @@ import io.f1r3fly.fs.examples.storage.grcp.F1r3flyApi;
 import io.f1r3fly.fs.examples.storage.inmemory.common.AbstractPath;
 import io.f1r3fly.fs.examples.storage.inmemory.common.IDirectory;
 import io.f1r3fly.fs.examples.storage.rholang.RholangExpressionConstructor;
-import io.f1r3fly.fs.utils.PathUtils;
-
-import java.io.IOException;
+import org.jetbrains.annotations.Nullable;
 
 public abstract class AbstractDeployablePath extends AbstractPath {
 
-    protected DeployDispatcher deployDispatcher;
-
-    public AbstractDeployablePath(String prefix, String name, IDirectory parent, DeployDispatcher deployDispatcher) {
-        super(prefix, name, parent);
-        this.deployDispatcher = deployDispatcher;
+    public AbstractDeployablePath(String name, IDirectory parent) {
+        super(name, parent);
     }
 
     protected void enqueueMutation(String rholangExpression) {
         DeployDispatcher.Deployment deployment = new DeployDispatcher.Deployment(
             rholangExpression,
             true,
-            F1r3flyApi.RHOLANG
+            F1r3flyApi.RHOLANG,
+            getSigningKey()
         );
 
-        this.deployDispatcher.enqueueDeploy(deployment);
+        getDeployDispatcher().enqueueDeploy(deployment);
     }
+
+    protected abstract byte[] getSigningKey();
 
     @Override
     public synchronized void delete() {
@@ -42,4 +40,6 @@ public abstract class AbstractDeployablePath extends AbstractPath {
         String newPath = getAbsolutePath();
         enqueueMutation(RholangExpressionConstructor.renameChanel(oldPath, newPath));
     }
-} 
+
+    public abstract DeployDispatcher getDeployDispatcher();
+}

@@ -17,26 +17,36 @@ public interface IDirectory extends IPath {
 
     Set<IPath> getChildren();
 
+    // Simplified find method for directories
+    @Override
     default IPath find(String path) {
-        if (IPath.super.find(path) != null) {
-            return IPath.super.find(path);
+        path = normalizePath(path);
+        
+        // If path is empty or matches this directory name, return this directory
+        if (path.isEmpty() || path.equals(getName())) {
+            return this;
         }
-        while (path.startsWith(PathUtils.getPathDelimiterBasedOnOS())) {
-            path = path.substring(PathUtils.getPathDelimiterBasedOnOS().length());
+        
+        // If path doesn't contain separator, look for direct child
+        if (!path.contains(separator())) {
+            return findDirectChild(path);
         }
-        if (!path.contains(PathUtils.getPathDelimiterBasedOnOS())) {
-            for (IPath p : getChildren()) {
-                if (p.getName().equals(path)) {
-                    return p;
-                }
-            }
-            return null;
-        }
-        String nextName = path.substring(0, path.indexOf(PathUtils.getPathDelimiterBasedOnOS()));
-        String rest = path.substring(path.indexOf(PathUtils.getPathDelimiterBasedOnOS()));
-        for (IPath p : getChildren()) {
-            if (p.getName().equals(nextName)) {
-                return p.find(rest);
+        
+        // Split path into first component and rest
+        int separatorIndex = path.indexOf(separator());
+        String firstComponent = path.substring(0, separatorIndex);
+        String remainingPath = path.substring(separatorIndex);
+        
+        // Find the first component child and recursively search in it
+        IPath child = findDirectChild(firstComponent);
+        return child != null ? child.find(remainingPath) : null;
+    }
+
+    // Helper method to find direct child by name
+    default IPath findDirectChild(String name) {
+        for (IPath child : getChildren()) {
+            if (child.getName().equals(name)) {
+                return child;
             }
         }
         return null;
@@ -47,7 +57,6 @@ public interface IDirectory extends IPath {
             filler.apply(buf, child.getName(), null, 0);
         }
     }
-
 
     default void getAttr(FileStat stat, FuseContext fuseContext) {
         stat.st_mode.set(FileStat.S_IFDIR | 0777);
@@ -62,4 +71,8 @@ public interface IDirectory extends IPath {
     void addChild(IPath child) throws OperationNotPermitted;
 
     void deleteChild(IPath child) throws OperationNotPermitted;
+
+    default void cleanLocalCache() {
+        getChildren().forEach(IPath::cleanLocalCache);
+    }
 }

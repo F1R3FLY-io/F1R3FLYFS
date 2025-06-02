@@ -1,42 +1,33 @@
 package io.f1r3fly.fs.examples.storage.inmemory.common;
 
 import io.f1r3fly.fs.examples.storage.errors.OperationNotPermitted;
-import io.f1r3fly.fs.struct.FileStat;
-import io.f1r3fly.fs.struct.FuseContext;
 import io.f1r3fly.fs.utils.PathUtils;
+import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nullable;
-import java.util.Arrays;
 
 /**
  * Base class for all memory paths in the file system
  */
 public abstract class AbstractPath implements IPath {
 
-    protected String prefix;
-    protected String name;
-    protected IDirectory parent;
+    @NotNull protected String name;
+    @Nullable protected IDirectory parent;
 
-    public AbstractPath(String prefix, String name, IDirectory parent) {
-        this.prefix = prefix;
+    public AbstractPath(@NotNull String name, @Nullable IDirectory parent) {
         this.name = name;
         this.parent = parent;
     }
 
     @Override
-    public String getName() {
+    public @NotNull String getName() {
         return name;
     }
 
     @Override
-    public String getPrefix() {
-        return prefix;
-    }
-
-    @Override
-    public String getAbsolutePath() {
+    public @NotNull String getAbsolutePath() {
         if (parent == null) {
-            return prefix + name;
+            return name;
         } else {
             return parent.getAbsolutePath() + PathUtils.getPathDelimiterBasedOnOS() + name;
         }

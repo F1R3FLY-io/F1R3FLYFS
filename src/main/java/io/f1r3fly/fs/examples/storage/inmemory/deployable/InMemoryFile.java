@@ -40,11 +40,12 @@ public class InMemoryFile extends AbstractDeployablePath implements IFile {
     protected boolean isOtherChunksDeployed = false;
     protected Map<Integer, String> otherChunks = new ConcurrentHashMap<>();
 
-    public InMemoryFile(String prefix, String name, IDirectory parent, DeployDispatcher deployDispatcher) {
-        this(prefix, name, parent, deployDispatcher, true);
+    public InMemoryFile(String name, IDirectory parent) {
+        this(name, parent, true);
     }
-    protected InMemoryFile(String prefix, String name, IDirectory parent, DeployDispatcher deployDispatcher, boolean sendToShard) {
-        super(prefix, name, parent, deployDispatcher);
+
+    protected InMemoryFile(String name, @NotNull IDirectory parent, boolean sendToShard) {
+        super(name, parent);
         if (sendToShard) {
             enqueueCreatingFile();
         }
@@ -298,5 +299,38 @@ public class InMemoryFile extends AbstractDeployablePath implements IFile {
 
     private boolean isDeployable() {
         return PathUtils.isDeployableFile(name);
+    }
+
+    @Override
+    public DeployDispatcher getDeployDispatcher() {
+        IDirectory parent = getParent();
+        if (parent instanceof InMemoryDirectory) {
+            return ((InMemoryDirectory) parent).getDeployDispatcher();
+        } else if (parent == null) {
+            throw new IllegalStateException("Parent is null");
+        } else {
+            throw new IllegalStateException("deployable path %s depends on non-deployable parent %s".formatted(name, parent.getName()));
+        }
+    }
+
+    @Override
+    public byte[] getSigningKey() {
+        IDirectory parent = getParent();
+        if (parent instanceof InMemoryDirectory) {
+            return ((InMemoryDirectory) parent).getSigningKey();
+        } else if (parent == null) {
+            throw new IllegalStateException("Parent is null");
+        } else {
+            throw new IllegalStateException("deployable path %s depends on non-deployable parent %s".formatted(name, parent.getName()));
+        }
+    }
+
+    @Override
+    public void cleanLocalCache() {
+        try {
+            this.cachedFile.delete();
+        } catch (Throwable t) {
+            log.warn("Failed to clean local cache for file {}", cachedFile.getAbsolutePath(), t);
+        }
     }
 }

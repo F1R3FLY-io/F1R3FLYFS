@@ -8,8 +8,8 @@ import io.f1r3fly.fs.struct.FuseContext;
 
 public abstract class AbstractNotDeployablePath extends AbstractPath {
 
-    public AbstractNotDeployablePath(String prefix, String name, IDirectory parent) {
-        super(prefix, name, parent);
+    public AbstractNotDeployablePath(String name, IDirectory parent) {
+        super(name, parent);
     }
 
     @Override

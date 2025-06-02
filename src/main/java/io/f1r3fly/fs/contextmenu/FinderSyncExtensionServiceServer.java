@@ -2,6 +2,7 @@ package io.f1r3fly.fs.contextmenu;
 
 import generic.FinderSyncExtensionServiceGrpc;
 import generic.FinderSyncExtensionServiceOuterClass;
+import io.f1r3fly.fs.examples.storage.inmemory.notdeployable.LockedRemoteDirectory;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
@@ -14,9 +15,9 @@ public class FinderSyncExtensionServiceServer {
     private static final Logger logger = LoggerFactory.getLogger(FinderSyncExtensionServiceServer.class);
     private Server server;
 
-    public FinderSyncExtensionServiceServer(java.util.function.Consumer<String> onExchange, int port) {
+    public FinderSyncExtensionServiceServer(java.util.function.Consumer<String> onExchange, java.util.function.BiConsumer<String, String> onUnlockRevDirectory, int port) {
         server = ServerBuilder.forPort(port)
-            .addService(new FinderSyncExtensionServiceImpl(onExchange))
+            .addService(new FinderSyncExtensionServiceImpl(onExchange, onUnlockRevDirectory))
             .build();
     }
 
@@ -43,9 +44,11 @@ public class FinderSyncExtensionServiceServer {
 
     static class FinderSyncExtensionServiceImpl extends FinderSyncExtensionServiceGrpc.FinderSyncExtensionServiceImplBase {
         private final java.util.function.Consumer<String> onExchange;
+        private final java.util.function.BiConsumer<String, String> onUnlockRevDirectory;
 
-        public FinderSyncExtensionServiceImpl(java.util.function.Consumer<String> onExchange) {
+        public FinderSyncExtensionServiceImpl(java.util.function.Consumer<String> onExchange, java.util.function.BiConsumer<String, String> onUnlockRevDirectory) {
             this.onExchange = onExchange;
+            this.onUnlockRevDirectory = onUnlockRevDirectory;
         }
 
         @Override
@@ -82,12 +85,31 @@ public class FinderSyncExtensionServiceServer {
 
         @Override
         public void unlockWalletFolder(FinderSyncExtensionServiceOuterClass.UnlockWalletFolderRequest request, StreamObserver<FinderSyncExtensionServiceOuterClass.Response> responseObserver) {
-            // Stub implementation
             logger.info("UnlockWalletFolder called with revAddress: {}, privateKey: {}", request.getRevAddress(), request.getPrivateKey());
-            responseObserver.onNext(FinderSyncExtensionServiceOuterClass.Response.newBuilder().setSuccess(
-                FinderSyncExtensionServiceOuterClass.EmptyResponse.newBuilder().build()
-            ).build());
-            responseObserver.onCompleted();
+
+            try {
+                onUnlockRevDirectory.accept(request.getRevAddress(), request.getPrivateKey());
+
+                responseObserver.onNext(FinderSyncExtensionServiceOuterClass.Response.newBuilder().setSuccess(
+                    FinderSyncExtensionServiceOuterClass.EmptyResponse.newBuilder().build()
+                ).build());
+            } catch (LockedRemoteDirectory.InvalidSigningKeyException e) {
+                logger.error("Invalid signing key format for rev address: {} - {}", request.getRevAddress(), e.getMessage());
+                responseObserver.onNext(FinderSyncExtensionServiceOuterClass.Response.newBuilder().setError(
+                    FinderSyncExtensionServiceOuterClass.ErrorResponse.newBuilder()
+                        .setErrorMessage("Invalid signing key format: " + e.getMessage())
+                        .build()
+                ).build());
+            } catch (Throwable e) {
+                logger.error("Error unlocking rev directory for address: {} - {}", request.getRevAddress(), e.getMessage(), e);
+                responseObserver.onNext(FinderSyncExtensionServiceOuterClass.Response.newBuilder().setError(
+                    FinderSyncExtensionServiceOuterClass.ErrorResponse.newBuilder()
+                        .setErrorMessage("Failed to unlock directory: " + e.getMessage())
+                        .build()
+                ).build());
+            } finally {
+                responseObserver.onCompleted();
+            }
         }
     }
 }

@@ -32,7 +32,7 @@ public class DeployDispatcher {
 
     private final ConcurrentLinkedQueue<Deployment> queue;
 
-    public record Deployment(String rhoOrMettaExpression, boolean useBiggerPhloLimit, String language) {
+    public record Deployment(String rhoOrMettaExpression, boolean useBiggerPhloLimit, String language, byte[] signingKey) {
     }
 
     private class BackgroundDeployer extends Thread {
@@ -55,7 +55,7 @@ public class DeployDispatcher {
         private void doDeploy(Deployment deployment) {
             try {
                 isDeploying = true;
-                f1R3FlyApi.deploy(deployment.rhoOrMettaExpression, deployment.useBiggerPhloLimit, deployment.language);
+                f1R3FlyApi.deploy(deployment.rhoOrMettaExpression, deployment.useBiggerPhloLimit, deployment.language, deployment.signingKey);
                 retryCount = 0;
                 isDeploying = false;
             } catch (Throwable e) {
@@ -110,6 +110,7 @@ public class DeployDispatcher {
 
 
     public void waitOnEmptyQueue() {
+        logger.info("Waiting for the queue to be empty. Queue size: " + queue.size() + ". Is deploying: " + isDeploying);
         while ((!queue.isEmpty() || isDeploying) && lastDeployError.get() == null) {
             try {
                 logger.debug("Waiting for the queue to be empty. Queue size: " + queue.size() + ". Is deploying: " + isDeploying);
