@@ -23,6 +23,8 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.UUID;
+import java.io.File;
 
 
 public class F1r3flyFuse extends FuseStubFS {
@@ -57,8 +59,8 @@ public class F1r3flyFuse extends FuseStubFS {
     }
 
     private int executeWithErrorHandling(String operationName, String path, FuseOperation operation) {
-        // Log the operation at the start
-        if (operationName.equals("Getattr") || operationName.equals("Read") || operationName.equals("Write") || operationName.equals("Statfs")) {
+        boolean isTrace = operationName.equals("Getattr") || operationName.equals("Read") || operationName.equals("Write") || operationName.equals("Statfs");
+        if (isTrace) {
             LOGGER.trace("Called {} {}", operationName, path);
         } else {
             LOGGER.debug("Called {} {}", operationName, path);
@@ -66,35 +68,67 @@ public class F1r3flyFuse extends FuseStubFS {
 
         // Check if filesystem is mounted first
         if (notMounted()) {
-            LOGGER.warn("{} - FileSystem not mounted for path: {}", operationName, path);
+            LOGGER.debug("{} - FileSystem not mounted for path: {}", operationName, path);
             return -ErrorCodes.EIO();
         }
 
         try {
             return operation.execute();
         } catch (FileAlreadyExists e) {
-            LOGGER.warn("{} - File/Directory already exists: {}", operationName, path, e);
+            if (isTrace) {
+                LOGGER.trace("{} - File/Directory already exists: {}", operationName, path, e);
+            } else {
+                LOGGER.debug("{} - File/Directory already exists: {}", operationName, path, e);
+            }
             return -ErrorCodes.EEXIST();
         } catch (PathNotFound e) {
-            LOGGER.warn("{} - Path not found: {}", operationName, path, e);
+            if (isTrace) {
+                LOGGER.trace("{} - Path not found: {}", operationName, path, e);
+            } else {
+                LOGGER.debug("{} - Path not found: {}", operationName, path, e);
+            }
             return -ErrorCodes.ENOENT();
         } catch (OperationNotPermitted e) {
-            LOGGER.warn("{} - Operation not permitted: {}", operationName, path, e);
+            if (isTrace) {
+                LOGGER.trace("{} - Operation not permitted: {}", operationName, path, e);
+            } else {
+                LOGGER.debug("{} - Operation not permitted: {}", operationName, path, e);
+            }
             return -ErrorCodes.EPERM();
         } catch (PathIsNotAFile e) {
-            LOGGER.warn("{} - Path {} is not a file", operationName, path, e);
+            if (isTrace) {
+                LOGGER.trace("{} - Path {} is not a file", operationName, path, e);
+            } else {
+                LOGGER.info("{} - Path {} is not a file", operationName, path, e);
+            }
             return -ErrorCodes.EISDIR();
         } catch (PathIsNotADirectory e) {
-            LOGGER.warn("{} - Path {} is not a directory", operationName, path, e);
+            if (isTrace) {
+                LOGGER.trace("{} - Path {} is not a directory", operationName, path, e);
+            } else {
+                LOGGER.info("{} - Path {} is not a directory", operationName, path, e);
+            }
             return -ErrorCodes.ENOTDIR();
         } catch (DirectoryNotEmpty e) {
-            LOGGER.debug("{} - Directory {} is not empty", operationName, path);
+            if (isTrace) {
+                LOGGER.trace("{} - Directory {} is not empty", operationName, path);
+            } else {
+                LOGGER.info("{} - Directory {} is not empty", operationName, path);
+            }
             return -ErrorCodes.ENOTEMPTY();
         } catch (IOException e) {
-            LOGGER.warn("{} - IO error for path {}", operationName, path, e);
+            if (isTrace) {
+                LOGGER.trace("{} - IO error for path {}", operationName, path, e);
+            } else {
+                LOGGER.warn("{} - IO error for path {}", operationName, path, e);
+            }
             return -ErrorCodes.EIO();
-        } catch (Throwable e) {
-            LOGGER.error("{} - Unexpected error for path {}", operationName, path, e);
+        } catch (Exception e) {
+            if (isTrace) {
+                LOGGER.trace("{} - Unexpected error for path {}", operationName, path, e);
+            } else {
+                LOGGER.error("{} - Unexpected error for path {}", operationName, path, e);
+            }
             return -ErrorCodes.EIO();
         }
     }
@@ -222,26 +256,50 @@ public class F1r3flyFuse extends FuseStubFS {
         LOGGER.debug("Called Mounting F1r3flyFuse on {} with opts {}", mountPoint, Arrays.toString(fuseOpts));
 
         try {
+            // Ensure mount point exists and is accessible
+            File mountPointFile = mountPoint.toFile();
+            if (!mountPointFile.exists()) {
+                LOGGER.debug("Mount point does not exist, creating: {}", mountPoint);
+                if (!mountPointFile.mkdirs()) {
+                    throw new RuntimeException("Failed to create mount point directory: " + mountPoint);
+                }
+            }
+            if (!mountPointFile.isDirectory()) {
+                throw new RuntimeException("Mount point is not a directory: " + mountPoint);
+            }
+            if (!mountPointFile.canRead() || !mountPointFile.canWrite()) {
+                throw new RuntimeException("Mount point is not accessible (read/write): " + mountPoint);
+            }
+            LOGGER.debug("Mount point verified: {}", mountPoint);
+
             // combine fuseOpts and MOUNT_OPTIONS
             String[] allFuseOpts = Arrays.copyOf(fuseOpts, fuseOpts.length + MOUNT_OPTIONS.length);
             System.arraycopy(MOUNT_OPTIONS, 0, allFuseOpts, fuseOpts.length, MOUNT_OPTIONS.length);
 
+            LOGGER.debug("Creating InMemoryFileSystem...");
             this.fileSystem = new InMemoryFileSystem(f1R3FlyBlockchainClient);
+            LOGGER.debug("Created InMemoryFileSystem successfully");
+            
+            LOGGER.debug("Creating FinderSyncExtensionServiceServer...");
             this.finderSyncExtensionServiceServer = new FinderSyncExtensionServiceServer(
                 this::handleExchange, this::handleUnlockRevDirectory, 54000
             );
+            LOGGER.debug("Created FinderSyncExtensionServiceServer successfully");
 
-            this.mountName = "F1r3flyFuse"; // TODO: generate a random mount name for each mount
+            this.mountName = "F1r3flyFuse-" + UUID.randomUUID();
+            LOGGER.debug("Generated mount name: {}", this.mountName);
 
+            LOGGER.debug("Waiting for background operations to complete...");
             waitOnBackgroundThread();
 
+            LOGGER.debug("Starting FinderSyncExtensionServiceServer...");
             finderSyncExtensionServiceServer.start();
+            LOGGER.debug("Started FinderSyncExtensionServiceServer successfully");
 
-            LOGGER.debug("Server started");
-
+            LOGGER.debug("Mounting FUSE filesystem with options: {}", Arrays.toString(allFuseOpts));
             super.mount(mountPoint, blocking, debug, allFuseOpts);
 
-            LOGGER.debug("Mounted F1r3flyFuse on {} with name {}", mountPoint, this.mountName);
+            LOGGER.info("Successfully mounted F1r3flyFuse on {} with name {}", mountPoint, this.mountName);
 
         } catch (RuntimeException e) {
             LOGGER.error("Runtime error during mount: {}", e.getMessage(), e);
@@ -255,45 +313,89 @@ public class F1r3flyFuse extends FuseStubFS {
     }
 
     private void cleanupResources() {
+        LOGGER.debug("Starting cleanup of resources...");
         // destroy background tasks and queue
         if (this.fileSystem != null) {
+            LOGGER.debug("Terminating filesystem...");
             this.fileSystem.terminate();
             this.fileSystem = null;
+            LOGGER.debug("Filesystem terminated and set to null");
+        } else {
+            LOGGER.debug("Filesystem was already null, skipping termination");
         }
         if (this.finderSyncExtensionServiceServer != null) {
+            LOGGER.debug("Stopping FinderSyncExtensionServiceServer...");
             this.finderSyncExtensionServiceServer.stop();
+            LOGGER.debug("FinderSyncExtensionServiceServer stopped");
+        } else {
+            LOGGER.debug("FinderSyncExtensionServiceServer was already null, skipping stop");
         }
+        LOGGER.debug("Resource cleanup completed");
     }
 
     public void waitOnBackgroundThread() {
         try {
             if (fileSystem != null) {
+                LOGGER.debug("Waiting for background deploy operations to complete...");
                 fileSystem.waitOnBackgroundDeploy();
+                LOGGER.debug("Background deploy operations completed successfully");
+            } else {
+                LOGGER.warn("waitOnBackgroundThread called but fileSystem is null");
             }
         } catch (Throwable e) {
             LOGGER.error("Error waiting for background thread operations to complete", e);
-            throw new RuntimeException("Failed to wait for background operations", e);
+            // Don't propagate deployment errors during mount - they shouldn't unmount the filesystem
+            // The filesystem should remain mounted even if initial deployments fail
+            LOGGER.warn("Continuing with mount despite background deployment error. Filesystem will remain mounted.");
         }
     }
 
     @Override
     public void umount() {
-        LOGGER.debug("Called Umounting F1r3flyFuse");
+        LOGGER.debug("Called Umounting F1r3flyFuse. Mounted: {}, filesystem {}", mounted.get(), fileSystem != null);
         try {
+            LOGGER.debug("Waiting for background operations to complete before unmount...");
             waitOnBackgroundThread();
-            cleanupResources();
+            LOGGER.debug("Background operations completed, calling super.umount()...");
             super.umount();
+            LOGGER.debug("super.umount() completed, starting cleanup...");
+            cleanupResources();
+            LOGGER.info("Successfully unmounted F1r3flyFuse");
         } catch (RuntimeException e) {
             LOGGER.error("Runtime error during unmount: {}", e.getMessage(), e);
+            // Still cleanup on error
+            try {
+                cleanupResources();
+            } catch (Exception cleanupError) {
+                LOGGER.error("Error during cleanup after unmount failure", cleanupError);
+            }
             throw e;
         } catch (Throwable e) {
             LOGGER.error("Error unmounting F1r3flyFuse: {}", e.getMessage(), e);
+            // Still cleanup on error
+            try {
+                cleanupResources();
+            } catch (Exception cleanupError) {
+                LOGGER.error("Error during cleanup after unmount failure", cleanupError);
+            }
             throw new RuntimeException("Failed to unmount F1r3flyFuse", e);
         }
     }
 
     protected boolean notMounted() {
-        return fileSystem == null;
+        boolean mountedFlag = mounted.get();
+        boolean fileSystemExists = fileSystem != null;
+        boolean isNotMounted = !mountedFlag || !fileSystemExists;
+        
+        if (isNotMounted) {
+            LOGGER.warn("Filesystem is not mounted. mounted.get()={}, fileSystem!=null={}", mountedFlag, fileSystemExists);
+            // Add stack trace to help debug why filesystem becomes null
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("notMounted() called from:", new Exception("Stack trace"));
+            }
+        }
+        
+        return isNotMounted;
     }
 
     private void handleExchange(String tokenFilePath) {
@@ -304,6 +406,7 @@ public class F1r3flyFuse extends FuseStubFS {
                 return;
             }
             fileSystem.exchangeTokenFile(tokenFilePath);
+            LOGGER.debug("Successfully exchanged token file: {}", tokenFilePath);
         } catch (Throwable e) {
             LOGGER.error("Error onExchange for path: {}", tokenFilePath, e);
         }
@@ -312,8 +415,16 @@ public class F1r3flyFuse extends FuseStubFS {
     private void handleUnlockRevDirectory(String revAddress, String privateKey) {
         LOGGER.debug("Called handleUnlockRevDirectory for revAddress: {}", revAddress);
         
-        fileSystem.unlockRootDirectory(revAddress, privateKey);
-        
+        try {
+            if (notMounted()) {
+                LOGGER.warn("handleUnlockRevDirectory - FileSystem not mounted for revAddress: {}", revAddress);
+                return;
+            }
+            fileSystem.unlockRootDirectory(revAddress, privateKey);
+            LOGGER.debug("Successfully unlocked directory for revAddress: {}", revAddress);
+        } catch (Throwable e) {
+            LOGGER.error("Error handleUnlockRevDirectory for revAddress: {}", revAddress, e);
+        }
     }
 
 }

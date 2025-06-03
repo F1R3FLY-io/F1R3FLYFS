@@ -22,6 +22,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.io.File;
+import java.io.IOException;
+import java.net.Socket;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Arrays;
@@ -114,9 +116,9 @@ public class F1R3FlyFuseTestFixture {
         log.info("Starting observer with bootstrap address: {}", f1r3flyBootAddress);
         f1r3flyObserver.start();
 
-        // Waits on the node initialization
-        // Fresh start could take ~10 seconds
-        Thread.sleep(30 * 1000);
+        // Wait for both containers' GRPC ports to be available
+        waitForPortToOpen("localhost", f1r3flyBoot.getMappedPort(GRPC_PORT), STARTUP_TIMEOUT);
+        waitForPortToOpen("localhost", f1r3flyObserver.getMappedPort(GRPC_PORT), STARTUP_TIMEOUT);
 
         new File("/tmp/cipher.key").delete(); // remove key file if exists
 
@@ -127,7 +129,14 @@ public class F1R3FlyFuseTestFixture {
         f1r3flyFS = new F1r3flyFuse(f1R3FlyBlockchainClient);
 
         forceUmountAndCleanup(); // cleanup before mount
-        f1r3flyFS.mount(MOUNT_POINT);
+        
+        // Add delay before mounting to ensure previous test cleanup is complete
+        Thread.sleep(1000);
+        
+        f1r3flyFS.mount(MOUNT_POINT, false, true);
+        
+        // Add delay after mounting to ensure mount is stable
+        Thread.sleep(1000);
     }
 
     @AfterEach
@@ -135,6 +144,8 @@ public class F1R3FlyFuseTestFixture {
         try {
             if (f1r3flyFS != null) {
                 forceUmountAndCleanup();
+                // Add delay after cleanup to ensure complete unmount
+                Thread.sleep(2000);
             }
         } catch (Throwable e) {
             e.printStackTrace();
@@ -167,12 +178,80 @@ public class F1R3FlyFuseTestFixture {
 
     protected static void forceUmountAndCleanup() {
         try { // try to unmount
-            f1r3flyFS.umount();
-            MountUtils.umount(MOUNT_POINT);
-            MOUNT_POINT.toFile().delete();
+            if (f1r3flyFS != null) {
+                f1r3flyFS.umount();
+                Thread.sleep(1000); // Wait for unmount to complete
+            }
+            
+            // Force unmount using system commands
+            try {
+                MountUtils.umount(MOUNT_POINT);
+            } catch (Exception e) {
+                // Ignore errors from force unmount
+                log.debug("Force unmount failed (expected if not mounted): {}", e.getMessage());
+            }
+            
+            // Clean up mount point directory more carefully
+            File mountPointFile = MOUNT_POINT.toFile();
+            if (mountPointFile.exists()) {
+                // If directory exists and is not empty, try to clean it first
+                if (mountPointFile.isDirectory()) {
+                    File[] children = mountPointFile.listFiles();
+                    if (children != null) {
+                        for (File child : children) {
+                            try {
+                                if (child.isDirectory()) {
+                                    // Recursively delete subdirectories
+                                    deleteDirectoryRecursively(child);
+                                } else {
+                                    child.delete();
+                                }
+                            } catch (Exception e) {
+                                log.warn("Failed to delete child file/directory: {}", child.getAbsolutePath(), e);
+                            }
+                        }
+                    }
+                }
+                // Now try to delete the mount point directory itself
+                if (!mountPointFile.delete()) {
+                    log.warn("Failed to delete mount point directory: {}", mountPointFile.getAbsolutePath());
+                }
+            }
+            
+            // Ensure mount point directory is recreated clean
+            if (!mountPointFile.mkdirs()) {
+                // mkdirs() returns false if directory already exists, so check if it exists
+                if (!mountPointFile.exists()) {
+                    log.error("Failed to create mount point directory: {}", mountPointFile.getAbsolutePath());
+                    throw new RuntimeException("Failed to create mount point directory");
+                } else {
+                    log.debug("Mount point directory already exists: {}", mountPointFile.getAbsolutePath());
+                }
+            } else {
+                log.debug("Created mount point directory: {}", mountPointFile.getAbsolutePath());
+            }
+            
         } catch (Throwable e) {
-            e.printStackTrace();
+            log.error("Error during forceUmountAndCleanup", e);
         }
+    }
+    
+    private static void deleteDirectoryRecursively(File directory) {
+        if (!directory.exists()) {
+            return;
+        }
+        
+        File[] children = directory.listFiles();
+        if (children != null) {
+            for (File child : children) {
+                if (child.isDirectory()) {
+                    deleteDirectoryRecursively(child);
+                } else {
+                    child.delete();
+                }
+            }
+        }
+        directory.delete();
     }
 
     protected static void waitOnBackgroundDeployments() {
@@ -205,5 +284,25 @@ public class F1R3FlyFuseTestFixture {
         try (FinderSyncExtensionServiceClient client = new FinderSyncExtensionServiceClient("localhost", 54000)) {
             client.submitAction(FinderSyncExtensionServiceOuterClass.MenuActionType.EXCHANGE, tokenPath);
         }
+    }
+
+    private static void waitForPortToOpen(String host, int port, Duration timeout) throws InterruptedException {
+        long startTime = System.currentTimeMillis();
+        long timeoutMillis = timeout.toMillis();
+        
+        log.info("Waiting for port {}:{} to become available...", host, port);
+        
+        while (System.currentTimeMillis() - startTime < timeoutMillis) {
+            try (Socket socket = new Socket()) {
+                socket.connect(new java.net.InetSocketAddress(host, port), 1000);
+                log.info("Port {}:{} is now available", host, port);
+                return;
+            } catch (IOException e) {
+                // Port not yet available, continue waiting
+                Thread.sleep(1000);
+            }
+        }
+        
+        throw new RuntimeException("Timeout waiting for port " + host + ":" + port + " to become available");
     }
 } 

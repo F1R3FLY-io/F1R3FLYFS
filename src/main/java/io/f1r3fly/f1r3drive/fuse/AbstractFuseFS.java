@@ -287,6 +287,7 @@ public abstract class AbstractFuseFS implements FuseFS {
                 }
             }
             if (res != 0) {
+                mounted.set(false);
                 throw new FuseException("Unable to mount FS, return code = " + res);
             }
         } catch (Exception e) {

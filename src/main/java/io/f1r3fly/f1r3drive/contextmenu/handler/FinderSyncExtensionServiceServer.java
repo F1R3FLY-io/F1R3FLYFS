@@ -23,22 +23,18 @@ public class FinderSyncExtensionServiceServer {
 
     public void start() throws IOException {
         server.start();
-        logger.info("Server started, listening on {}", server.getPort());
+        logger.debug("Server started, listening on {}", server.getPort());
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            logger.info("Shutting down gRPC server since JVM is shutting down");
+            logger.debug("Shutting down gRPC server since JVM is shutting down");
             FinderSyncExtensionServiceServer.this.stop();
-            logger.info("Server shut down");
+            logger.debug("Server shut down");
         }));
     }
 
     public void stop() {
-        logger.info("Shutting down gRPC server");
         if (server != null && !server.isTerminated()) {
-            logger.info("Stopping gRPC server");
+            logger.debug("Shutting down gRPC server");
             server.shutdown();
-            logger.info("GRPC server shut down");
-        } else {
-            logger.info("GRPC server is already shut down");
         }
     }
 

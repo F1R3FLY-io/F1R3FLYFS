@@ -56,7 +56,7 @@ public class LockedRemoteDirectory extends AbstractLocalPath implements ReadOnly
 
         try {
             Path root = fetchDirectoryFromShard(
-                deployDispatcher.getF1R3FlyApi(),
+                deployDispatcher.getBlockchainClient(),
                 PathUtils.getPathDelimiterBasedOnOS(),
                 revAddress,
                 null

@@ -133,7 +133,7 @@ public class DeployDispatcher {
         executorService.shutdown();
     }
 
-    public F1r3flyBlockchainClient getF1R3FlyApi() {
+    public F1r3flyBlockchainClient getBlockchainClient() {
         return f1R3FlyBlockchainClient;
     }
 

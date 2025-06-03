@@ -332,7 +332,7 @@ public class InMemoryFileSystem implements FileSystem {
     }
 
     private Set<Path> createRavAddressDirectories(DeployDispatcher deployDispatcher) {
-        List<String> ravAddresses = parseRavAddressesFromGenesisBlock(deployDispatcher.getF1R3FlyApi());
+        List<String> ravAddresses = parseRavAddressesFromGenesisBlock(deployDispatcher.getBlockchainClient());
 
         logger.debug("Addresses found in genesis block: {}", ravAddresses);
 
@@ -404,8 +404,31 @@ public class InMemoryFileSystem implements FileSystem {
 
     @Override
     public void terminate() {
-        waitOnBackgroundDeploy();
-        this.deployDispatcher.destroy();
-        this.rootDirectory.cleanLocalCache();
+        logger.info("Terminating filesystem");
+        try {
+            logger.debug("Waiting for background deployments to complete before termination...");
+            waitOnBackgroundDeploy();
+            logger.debug("Background deployments completed successfully");
+        } catch (Throwable e) {
+            logger.warn("Error waiting for background deployments during termination, continuing with cleanup", e);
+        }
+        
+        try {
+            logger.debug("Destroying deploy dispatcher...");
+            this.deployDispatcher.destroy();
+            logger.info("Destroyed deploy dispatcher");
+        } catch (Throwable e) {
+            logger.warn("Error destroying deploy dispatcher during termination", e);
+        }
+        
+        try {
+            logger.debug("Cleaning local cache...");
+            this.rootDirectory.cleanLocalCache();
+            logger.info("Cleaned local cache");
+        } catch (Throwable e) {
+            logger.warn("Error cleaning local cache during termination", e);
+        }
+        
+        logger.info("Filesystem termination completed");
     }
 } 
