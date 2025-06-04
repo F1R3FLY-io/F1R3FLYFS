@@ -107,7 +107,10 @@ dependencies {
     implementation group: 'io.grpc', name: 'grpc-all', version: '1.61.0'
 
     implementation group: 'com.rfksystems', name: 'blake2b', version: '2.0.0'
-
+    
+    // Add Keccak-256 implementation
+    implementation 'org.bouncycastle:bcprov-jdk15on:1.70'
+    
     implementation group: 'fr.acinq.secp256k1', name: 'secp256k1-kmp', version: secpVersion
     runtimeOnly group: 'fr.acinq.secp256k1', name: 'secp256k1-kmp-jni-jvm', version: secpVersion
 
@@ -138,6 +141,8 @@ dependencies {
 
     // https://mvnrepository.com/artifact/commons-codec/commons-codec
     implementation 'commons-codec:commons-codec:1.17.0'
+
+    testImplementation "org.junit.jupiter:junit-jupiter-params:$junitVersion"
 
 }
 

@@ -2,6 +2,7 @@ package io.f1r3fly.f1r3drive.filesystem.local;
 
 import fr.acinq.secp256k1.Hex;
 import io.f1r3fly.f1r3drive.blockchain.client.DeployDispatcher;
+import io.f1r3fly.f1r3drive.crypto.PrivateKeyValidator;
 import io.f1r3fly.f1r3drive.errors.NoDataByPath;
 import io.f1r3fly.f1r3drive.blockchain.client.F1r3flyBlockchainClient;
 import io.f1r3fly.f1r3drive.filesystem.common.Path;
@@ -32,6 +33,10 @@ public class LockedRemoteDirectory extends AbstractLocalPath implements ReadOnly
         public InvalidSigningKeyException(String message) {
             super(message);
         }
+        
+        public InvalidSigningKeyException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 
     public LockedRemoteDirectory(String ravAddress, RootDirectory parent) {
@@ -46,14 +51,22 @@ public class LockedRemoteDirectory extends AbstractLocalPath implements ReadOnly
     }
 
     public UnlockedWalletDirectory unlock(String signingKeyRaw, DeployDispatcher deployDispatcher) {
-        // check if key is related to the rev address
+        // Validate the signing key format and decode it
         byte[] signingKey;
         try {
             signingKey = Hex.decode(signingKeyRaw);
         } catch (IllegalArgumentException e) {
-            throw new InvalidSigningKeyException("Invalid signing key format: " + e.getMessage());
+            throw new InvalidSigningKeyException("Invalid signing key format: " + e.getMessage(), e);
         }
 
+        // Validate that the private key corresponds to the REV address
+        try {
+            PrivateKeyValidator.validatePrivateKeyForRevAddressOrThrow(signingKey, revAddress);
+        } catch (PrivateKeyValidator.InvalidPrivateKeyException e) {
+            throw new InvalidSigningKeyException("Private key validation failed: " + e.getMessage(), e);
+        }
+
+        // If validation passes, proceed with unlock
         try {
             Path root = fetchDirectoryFromShard(
                 deployDispatcher.getBlockchainClient(),

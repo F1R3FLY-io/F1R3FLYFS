@@ -14,6 +14,7 @@ import io.f1r3fly.f1r3drive.fuse.FuseException;
 import fr.acinq.secp256k1.Hex;
 import fr.acinq.secp256k1.Secp256k1;
 import io.f1r3fly.f1r3drive.errors.F1r3flyDeployError;
+import io.f1r3fly.f1r3drive.errors.F1r3flyFSError;
 import io.f1r3fly.f1r3drive.errors.NoDataByPath;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -45,7 +46,6 @@ public class F1r3flyBlockchainClient {
     private final DeployServiceGrpc.DeployServiceFutureStub validatorDeployService;
     private final ProposeServiceGrpc.ProposeServiceFutureStub validatorProposeService;
     private final DeployServiceGrpc.DeployServiceFutureStub observerDeployService;
-    private final ProposeServiceGrpc.ProposeServiceFutureStub observerProposeService;
 
 
     public F1r3flyBlockchainClient(String validatorHost,
@@ -71,9 +71,6 @@ public class F1r3flyBlockchainClient {
         this.observerDeployService = DeployServiceGrpc.newFutureStub(observerChannel)
             .withMaxInboundMessageSize(MAX_MESSAGE_SIZE)
             .withMaxOutboundMessageSize(MAX_MESSAGE_SIZE);
-        this.observerProposeService = ProposeServiceGrpc.newFutureStub(observerChannel)
-            .withMaxInboundMessageSize(MAX_MESSAGE_SIZE)
-            .withMaxOutboundMessageSize(MAX_MESSAGE_SIZE);
     }
 
     // Cut down on verbosity of surfacing successes
@@ -91,13 +88,13 @@ public class F1r3flyBlockchainClient {
         return messages.stream().collect(Collectors.joining("\n"));
     }
 
-    public DeployServiceCommon.BlockInfo getGenesisBlock() {
+    public DeployServiceCommon.BlockInfo getGenesisBlock() throws F1r3flyFSError {
         DeployServiceV1.LastFinalizedBlockResponse response = null;
             try {
                 response = observerDeployService.lastFinalizedBlock(DeployServiceCommon.LastFinalizedBlockQuery.newBuilder().build()).get();
             } catch (InterruptedException | ExecutionException e) {
                 LOGGER.error("Error retrieving last finalized block", e);
-                return null;
+                throw new F1r3flyFSError("Error retrieving last finalized block", e);
             }
 
         DeployServiceCommon.BlockInfo block = response.getBlockInfo();
@@ -111,14 +108,14 @@ public class F1r3flyBlockchainClient {
                 ).get().getBlockInfo();
             } catch (InterruptedException | ExecutionException e) {
                 LOGGER.error("Error retrieving block information", e);
-                return null;
+                throw new F1r3flyFSError("Error retrieving block information", e);
             }
         }
 
         return block;
     }
 
-    public RhoTypes.Expr exploratoryDeploy(String rhoCode) {
+    public RhoTypes.Expr exploratoryDeploy(String rhoCode) throws F1r3flyFSError {
         try {
             LOGGER.debug("Exploratory deploy code {}", rhoCode);
 
@@ -134,13 +131,13 @@ public class F1r3flyBlockchainClient {
 
             if (deployResponse.hasError()) {
                 LOGGER.debug("Exploratory deploy code {}. Error response {}", rhoCode, deployResponse.getError());
-                return null;
+                throw new F1r3flyFSError("Error retrieving exploratory deploy: " + gatherErrors(deployResponse.getError()));
             }
 
             return deployResponse.getResult().getPostBlockData(0).getExprs(0);
         } catch (Exception e) {
             LOGGER.warn("failed to deploy exploratory code", e);
-            return null;
+            throw new F1r3flyFSError("Error deploying exploratory code", e);
         }
     }
 

@@ -3,6 +3,7 @@ package io.f1r3fly.f1r3drive.app;
 import io.f1r3fly.f1r3drive.errors.NoDataByPath;
 import io.f1r3fly.f1r3drive.errors.PathIsNotADirectory;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
@@ -20,18 +21,21 @@ class F1R3FlyFuseTest extends F1r3flyFSTestUtils {
 
     @Test
     @Disabled
+    @DisplayName("Should deploy Rho file after renaming from txt extension")
     void shouldDeployRhoFileAfterRename() throws IOException, NoDataByPath {
         testToRenameTxtToDeployableExtension("rho");
     }
 
     @Disabled
     @Test
+    @DisplayName("Should deploy Metta file after renaming from txt extension")
     void shouldDeployMettaFileAfterRename() throws IOException, NoDataByPath {
         testToRenameTxtToDeployableExtension("metta");
     }
 
     @Test
     @Disabled
+    @DisplayName("Should encrypt on save and decrypt on read for encrypted extension")
     void shouldEncryptOnSaveAndDecryptOnReadForEncryptedExtension() throws IOException, NoDataByPath {
         File encrypted = new File(MOUNT_POINT_FILE, "test.txt.encrypted");
         String fileContent = "Hello, world!";
@@ -48,6 +52,7 @@ class F1R3FlyFuseTest extends F1r3flyFSTestUtils {
 
     @Test
     @Disabled
+    @DisplayName("Should encrypt content when changing file extension to encrypted")
     void shouldEncryptOnChangingExtension() throws IOException, NoDataByPath {
         File encrypted = new File(MOUNT_POINT_FILE, "test.txt.encrypted");
         String fileContent = "Hello, world!";
@@ -69,18 +74,21 @@ class F1R3FlyFuseTest extends F1r3flyFSTestUtils {
 
     @Disabled
     @Test
+    @DisplayName("Should store Metta file and deploy it")
     void shouldStoreMettaFileAndDeployIt() throws IOException, NoDataByPath {
         testToCreateDeployableFile("metta"); // TODO: pass the correct Metta code from this line
     }
 
     @Test
     @Disabled
+    @DisplayName("Should store Rho file and deploy it")
     void shouldStoreRhoFileAndDeployIt() throws IOException, NoDataByPath {
         testToCreateDeployableFile("rho");
     }
 
     @Disabled
     @Test
+    @DisplayName("Should write and read large file (512MB)")
     void shouldWriteAndReadLargeFile() throws IOException, NoDataByPath, PathIsNotADirectory {
         File file = new File(MOUNT_POINT_FILE, "file.bin");
 
@@ -98,6 +106,7 @@ class F1R3FlyFuseTest extends F1r3flyFSTestUtils {
     }
 
     @Test
+    @DisplayName("Should perform CRUD operations on files: create, rename, read, and delete")
     void shouldCreateRenameGetDeleteFiles() throws IOException {
         long start = System.currentTimeMillis();
 
@@ -166,6 +175,7 @@ class F1R3FlyFuseTest extends F1r3flyFSTestUtils {
     }
 
     @Test
+    @DisplayName("Should perform CRUD operations on directories: create, rename, list, and delete")
     void shouldCreateRenameListDeleteDirectories() {
         simulateUnlockWalletDirectoryAction(client1Wallet, client1PrivateKey);
 
@@ -205,6 +215,7 @@ class F1R3FlyFuseTest extends F1r3flyFSTestUtils {
     }
 
     @Test
+    @DisplayName("Should properly handle operations on non-existent files and directories")
     void shouldHandleOperationsWithNotExistingFileAndDirectory() {
         simulateUnlockWalletDirectoryAction(client1Wallet, client1PrivateKey);
 

@@ -26,24 +26,23 @@ import java.util.Arrays;
 import java.util.UUID;
 import java.io.File;
 
-
 public class F1r3flyFuse extends FuseStubFS {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(F1r3flyFuse.class);
 
     private final String[] MOUNT_OPTIONS = {
-        // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options
-        "-o", "noappledouble",
-        "-o", "daemon_timeout=3600", // 1 hour timeout
-        "-o", "defer_permissions", // permission is not supported that, this disables the permission check from Fuse side
-        "-o", "local",
-        "-o", "allow_other",
-        "-o", "auto_cache"
+            // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options
+            "-o", "noappledouble",
+            "-o", "daemon_timeout=3600", // 1 hour timeout
+            "-o", "defer_permissions", // permission is not supported that, this disables the permission check from
+                                       // Fuse side
+            "-o", "local",
+            "-o", "allow_other",
+            "-o", "auto_cache"
     };
     private FileSystem fileSystem;
     private F1r3flyBlockchainClient f1R3FlyBlockchainClient;
     private FinderSyncExtensionServiceServer finderSyncExtensionServiceServer;
-
 
     public F1r3flyFuse(F1r3flyBlockchainClient f1R3FlyBlockchainClient) {
         super(); // no need to call Fuse constructor?
@@ -59,7 +58,8 @@ public class F1r3flyFuse extends FuseStubFS {
     }
 
     private int executeWithErrorHandling(String operationName, String path, FuseOperation operation) {
-        boolean isTrace = operationName.equals("Getattr") || operationName.equals("Read") || operationName.equals("Write") || operationName.equals("Statfs");
+        boolean isTrace = operationName.equals("Getattr") || operationName.equals("Read")
+                || operationName.equals("Write") || operationName.equals("Statfs");
         if (isTrace) {
             LOGGER.trace("Called {} {}", operationName, path);
         } else {
@@ -279,11 +279,10 @@ public class F1r3flyFuse extends FuseStubFS {
             LOGGER.debug("Creating InMemoryFileSystem...");
             this.fileSystem = new InMemoryFileSystem(f1R3FlyBlockchainClient);
             LOGGER.debug("Created InMemoryFileSystem successfully");
-            
+
             LOGGER.debug("Creating FinderSyncExtensionServiceServer...");
             this.finderSyncExtensionServiceServer = new FinderSyncExtensionServiceServer(
-                this::handleExchange, this::handleUnlockRevDirectory, 54000
-            );
+                    this::handleExchange, this::handleUnlockRevDirectory, 54000);
             LOGGER.debug("Created FinderSyncExtensionServiceServer successfully");
 
             this.mountName = "F1r3flyFuse-" + UUID.randomUUID();
@@ -344,9 +343,6 @@ public class F1r3flyFuse extends FuseStubFS {
             }
         } catch (Throwable e) {
             LOGGER.error("Error waiting for background thread operations to complete", e);
-            // Don't propagate deployment errors during mount - they shouldn't unmount the filesystem
-            // The filesystem should remain mounted even if initial deployments fail
-            LOGGER.warn("Continuing with mount despite background deployment error. Filesystem will remain mounted.");
         }
     }
 
@@ -386,15 +382,16 @@ public class F1r3flyFuse extends FuseStubFS {
         boolean mountedFlag = mounted.get();
         boolean fileSystemExists = fileSystem != null;
         boolean isNotMounted = !mountedFlag || !fileSystemExists;
-        
+
         if (isNotMounted) {
-            LOGGER.warn("Filesystem is not mounted. mounted.get()={}, fileSystem!=null={}", mountedFlag, fileSystemExists);
+            LOGGER.warn("Filesystem is not mounted. mounted.get()={}, fileSystem!=null={}", mountedFlag,
+                    fileSystemExists);
             // Add stack trace to help debug why filesystem becomes null
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("notMounted() called from:", new Exception("Stack trace"));
             }
         }
-        
+
         return isNotMounted;
     }
 
@@ -414,17 +411,14 @@ public class F1r3flyFuse extends FuseStubFS {
 
     private void handleUnlockRevDirectory(String revAddress, String privateKey) {
         LOGGER.debug("Called handleUnlockRevDirectory for revAddress: {}", revAddress);
-        
-        try {
-            if (notMounted()) {
-                LOGGER.warn("handleUnlockRevDirectory - FileSystem not mounted for revAddress: {}", revAddress);
-                return;
-            }
-            fileSystem.unlockRootDirectory(revAddress, privateKey);
-            LOGGER.debug("Successfully unlocked directory for revAddress: {}", revAddress);
-        } catch (Throwable e) {
-            LOGGER.error("Error handleUnlockRevDirectory for revAddress: {}", revAddress, e);
+
+        if (notMounted()) {
+            LOGGER.warn("handleUnlockRevDirectory - FileSystem not mounted for revAddress: {}", revAddress);
+            return;
         }
+        fileSystem.unlockRootDirectory(revAddress, privateKey);
+        LOGGER.debug("Successfully unlocked directory for revAddress: {}", revAddress);
+
     }
 
 }

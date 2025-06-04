@@ -41,7 +41,7 @@ public class InMemoryFileSystem implements FileSystem {
     @NotNull
     private final DeployDispatcher deployDispatcher;
 
-    public InMemoryFileSystem(F1r3flyBlockchainClient f1R3FlyBlockchainClient) {
+    public InMemoryFileSystem(F1r3flyBlockchainClient f1R3FlyBlockchainClient) throws F1r3flyFSError {
         this.deployDispatcher = new DeployDispatcher(f1R3FlyBlockchainClient);
         deployDispatcher.startBackgroundDeploy();
         this.rootDirectory = new RootDirectory();
@@ -313,7 +313,7 @@ public class InMemoryFileSystem implements FileSystem {
         return path.substring(0, lastSeparatorIndex);
     }
 
-    private List<String> parseRavAddressesFromGenesisBlock(F1r3flyBlockchainClient f1R3FlyBlockchainClient) {
+    private List<String> parseRavAddressesFromGenesisBlock(F1r3flyBlockchainClient f1R3FlyBlockchainClient) throws F1r3flyFSError {
         List<DeployServiceCommon.DeployInfo> deploys = f1R3FlyBlockchainClient.getGenesisBlock().getDeploysList();
 
         DeployServiceCommon.DeployInfo tokenInitializeDeploy = deploys.stream()
@@ -331,7 +331,7 @@ public class InMemoryFileSystem implements FileSystem {
         return ravAddresses;
     }
 
-    private Set<Path> createRavAddressDirectories(DeployDispatcher deployDispatcher) {
+    private Set<Path> createRavAddressDirectories(DeployDispatcher deployDispatcher) throws F1r3flyFSError {
         List<String> ravAddresses = parseRavAddressesFromGenesisBlock(deployDispatcher.getBlockchainClient());
 
         logger.debug("Addresses found in genesis block: {}", ravAddresses);

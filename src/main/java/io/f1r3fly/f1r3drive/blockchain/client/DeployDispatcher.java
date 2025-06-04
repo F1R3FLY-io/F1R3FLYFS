@@ -14,7 +14,6 @@ public class DeployDispatcher {
 
     // Config
     private final int MAX_EXPRESSION_LENGTH_IN_LOG = 1000;
-    private final int MAX_DEPLOYMENT_STRING_LENGTH = 1000;
     private final int POLL_INTERVAL_MS = 5000;
     private final int WAITING_STEP_MS = 5000;
     private final int MAX_RETRIES = 10;
