@@ -15,7 +15,33 @@ public class FinderSyncExtensionServiceServer {
     private static final Logger logger = LoggerFactory.getLogger(FinderSyncExtensionServiceServer.class);
     private Server server;
 
-    public FinderSyncExtensionServiceServer(java.util.function.Consumer<String> onExchange, java.util.function.BiConsumer<String, String> onUnlockRevDirectory, int port) {
+    public static class Result {
+        private final boolean success;
+        private final String errorMessage;
+        
+        private Result(boolean success, String errorMessage) {
+            this.success = success;
+            this.errorMessage = errorMessage;
+        }
+        
+        public static Result success() {
+            return new Result(true, null);
+        }
+        
+        public static Result error(String message) {
+            return new Result(false, message);
+        }
+        
+        public boolean isSuccess() {
+            return success;
+        }
+        
+        public String getErrorMessage() {
+            return errorMessage;
+        }
+    }
+
+    public FinderSyncExtensionServiceServer(java.util.function.Function<String, Result> onExchange, java.util.function.BiConsumer<String, String> onUnlockRevDirectory, int port) {
         server = ServerBuilder.forPort(port)
             .addService(new FinderSyncExtensionServiceImpl(onExchange, onUnlockRevDirectory))
             .build();
@@ -39,10 +65,10 @@ public class FinderSyncExtensionServiceServer {
     }
 
     static class FinderSyncExtensionServiceImpl extends FinderSyncExtensionServiceGrpc.FinderSyncExtensionServiceImplBase {
-        private final java.util.function.Consumer<String> onExchange;
+        private final java.util.function.Function<String, Result> onExchange;
         private final java.util.function.BiConsumer<String, String> onUnlockRevDirectory;
 
-        public FinderSyncExtensionServiceImpl(java.util.function.Consumer<String> onExchange, java.util.function.BiConsumer<String, String> onUnlockRevDirectory) {
+        public FinderSyncExtensionServiceImpl(java.util.function.Function<String, Result> onExchange, java.util.function.BiConsumer<String, String> onUnlockRevDirectory) {
             this.onExchange = onExchange;
             this.onUnlockRevDirectory = onUnlockRevDirectory;
         }
@@ -59,10 +85,19 @@ public class FinderSyncExtensionServiceServer {
                         return;
                     } else {
                         logger.info("Received Change: path={}, action={}", request.getPath(0), request.getAction());
-                        onExchange.accept(request.getPath(0));
-                        responseObserver.onNext(FinderSyncExtensionServiceOuterClass.Response.newBuilder().setSuccess(
-                            FinderSyncExtensionServiceOuterClass.EmptyResponse.newBuilder().build()
-                        ).build());
+                        Result result = onExchange.apply(request.getPath(0));
+                        if (result.isSuccess()) {
+                            responseObserver.onNext(FinderSyncExtensionServiceOuterClass.Response.newBuilder().setSuccess(
+                                FinderSyncExtensionServiceOuterClass.EmptyResponse.newBuilder().build()
+                            ).build());
+                        } else {
+                            logger.error("Error during exchange operation for path: {} - {}", request.getPath(0), result.getErrorMessage());
+                            responseObserver.onNext(FinderSyncExtensionServiceOuterClass.Response.newBuilder().setError(
+                                FinderSyncExtensionServiceOuterClass.ErrorResponse.newBuilder()
+                                    .setErrorMessage("Exchange operation failed: " + result.getErrorMessage())
+                                    .build()
+                            ).build());
+                        }
                     }
                     break;
                 case COMBINE:

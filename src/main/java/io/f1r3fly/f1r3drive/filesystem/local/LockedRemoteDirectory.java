@@ -2,7 +2,7 @@ package io.f1r3fly.f1r3drive.filesystem.local;
 
 import fr.acinq.secp256k1.Hex;
 import io.f1r3fly.f1r3drive.blockchain.client.DeployDispatcher;
-import io.f1r3fly.f1r3drive.crypto.PrivateKeyValidator;
+import io.f1r3fly.f1r3drive.blockchain.wallet.PrivateKeyValidator;
 import io.f1r3fly.f1r3drive.errors.NoDataByPath;
 import io.f1r3fly.f1r3drive.blockchain.client.F1r3flyBlockchainClient;
 import io.f1r3fly.f1r3drive.filesystem.common.Path;
@@ -70,7 +70,7 @@ public class LockedRemoteDirectory extends AbstractLocalPath implements ReadOnly
         try {
             Path root = fetchDirectoryFromShard(
                 deployDispatcher.getBlockchainClient(),
-                PathUtils.getPathDelimiterBasedOnOS(),
+                PathUtils.getPathDelimiterBasedOnOS() + revAddress,
                 revAddress,
                 null
             );

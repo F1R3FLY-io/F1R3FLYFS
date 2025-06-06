@@ -7,6 +7,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.f1r3fly.f1r3drive.background.state.StateChangeEvents;
+import io.f1r3fly.f1r3drive.background.state.StateChangeEventsManager;
+
 public class DeployDispatcher {
 
     private final Logger logger = LoggerFactory.getLogger(DeployDispatcher.class.getName());
@@ -28,8 +31,10 @@ public class DeployDispatcher {
 
     private final ConcurrentLinkedQueue<Deployment> queue;
 
-    public record Deployment(String rhoOrMettaExpression, boolean useBiggerPhloLimit, String language, byte[] signingKey) {
+    public record Deployment(String rhoOrMettaExpression, boolean useBiggerPhloLimit, String language, String revAddress, byte[] signingKey) {
     }
+
+    private final StateChangeEventsManager stateChangeEventsManager;
 
     private class BackgroundDeployer extends Thread {
         @Override
@@ -52,6 +57,7 @@ public class DeployDispatcher {
             try {
                 isDeploying = true;
                 f1R3FlyBlockchainClient.deploy(deployment.rhoOrMettaExpression, deployment.useBiggerPhloLimit, deployment.language, deployment.signingKey);
+                stateChangeEventsManager.addEvent(new StateChangeEvents.WalletBalanceChanged(deployment.revAddress));
                 retryCount = 0;
                 isDeploying = false;
             } catch (Throwable e) {
@@ -74,8 +80,9 @@ public class DeployDispatcher {
         }
     }
 
-    public DeployDispatcher(F1r3flyBlockchainClient f1R3FlyBlockchainClient) {
+    public DeployDispatcher(F1r3flyBlockchainClient f1R3FlyBlockchainClient, StateChangeEventsManager stateChangeEventsManager) {
         this.f1R3FlyBlockchainClient = f1R3FlyBlockchainClient;
+        this.stateChangeEventsManager = stateChangeEventsManager;
         queue = new ConcurrentLinkedQueue<>();
         // single thread pool
         this.executorService = java.util.concurrent.Executors.newSingleThreadExecutor();

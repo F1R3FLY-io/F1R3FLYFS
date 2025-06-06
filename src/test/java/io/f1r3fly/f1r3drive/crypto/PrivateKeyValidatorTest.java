@@ -1,5 +1,6 @@
 package io.f1r3fly.f1r3drive.crypto;
 
+import io.f1r3fly.f1r3drive.blockchain.wallet.PrivateKeyValidator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -9,7 +10,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.f1r3fly.f1r3drive.crypto.PrivateKeyValidator.InvalidPrivateKeyException;
+import io.f1r3fly.f1r3drive.blockchain.wallet.PrivateKeyValidator.InvalidPrivateKeyException;
 
 /**
  * Unit tests for PrivateKeyValidator class

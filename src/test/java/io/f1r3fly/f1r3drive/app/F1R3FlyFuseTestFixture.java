@@ -133,7 +133,7 @@ public class F1R3FlyFuseTestFixture {
         // Add delay before mounting to ensure previous test cleanup is complete
         Thread.sleep(1000);
         
-        f1r3flyFS.mount(MOUNT_POINT, false, true);
+        f1r3flyFS.mount(MOUNT_POINT);
         
         // Add delay after mounting to ensure mount is stable
         Thread.sleep(1000);
@@ -274,15 +274,19 @@ public class F1R3FlyFuseTestFixture {
         //TODO: do nothing for now
     }
 
-    protected static void simulateUnlockWalletDirectoryAction(String revAddress, String privateKey) {
+    protected static void simulateUnlockWalletDirectoryAction(String revAddress, String privateKey) throws FinderSyncExtensionServiceClient.WalletUnlockException {
         try (FinderSyncExtensionServiceClient client = new FinderSyncExtensionServiceClient("localhost", 54000)) {
             client.unlockWalletFolder(revAddress, privateKey);
+        } catch (Exception e) {
+            throw e;
         }
     }
 
-    protected static void simulateExchangeTokenAction(String tokenPath) {
+    protected static void simulateExchangeTokenAction(String tokenPath) throws FinderSyncExtensionServiceClient.ActionSubmissionException {
         try (FinderSyncExtensionServiceClient client = new FinderSyncExtensionServiceClient("localhost", 54000)) {
             client.submitAction(FinderSyncExtensionServiceOuterClass.MenuActionType.EXCHANGE, tokenPath);
+        } catch (Exception e) {
+            throw e;
         }
     }
 

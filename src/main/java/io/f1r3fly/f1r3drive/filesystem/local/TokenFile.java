@@ -29,7 +29,6 @@ public class TokenFile extends AbstractLocalPath implements File {
     @Override
     public void rename(String newName, Directory newParent) throws OperationNotPermitted {
         if (!this.name.equals(newName)) {
-            System.out.println("Renaming " + name + " to " + newName);
             throw OperationNotPermitted.instance;
         }
 

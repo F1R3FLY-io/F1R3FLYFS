@@ -6,6 +6,7 @@ import io.f1r3fly.f1r3drive.blockchain.client.F1r3flyBlockchainClient;
 import io.f1r3fly.f1r3drive.filesystem.common.AbstractPath;
 import io.f1r3fly.f1r3drive.filesystem.common.Directory;
 import io.f1r3fly.f1r3drive.blockchain.rholang.RholangExpressionConstructor;
+import io.f1r3fly.f1r3drive.blockchain.wallet.RevWalletInfo;
 
 public abstract class AbstractDeployablePath extends AbstractPath {
 
@@ -14,24 +15,26 @@ public abstract class AbstractDeployablePath extends AbstractPath {
     }
 
     protected void enqueueMutation(String rholangExpression) {
+
+        RevWalletInfo revWalletInfo = getRevWalletInfo();
         DeployDispatcher.Deployment deployment = new DeployDispatcher.Deployment(
             rholangExpression,
             true,
             F1r3flyBlockchainClient.RHOLANG,
-            getSigningKey()
+            revWalletInfo.revAddress(),
+            revWalletInfo.signingKey()
         );
 
         getDeployDispatcher().enqueueDeploy(deployment);
     }
 
-    protected abstract byte[] getSigningKey();
-
+    
     @Override
     public synchronized void delete() {
         String rholangExpression = RholangExpressionConstructor.forgetChanel(getAbsolutePath());
         enqueueMutation(rholangExpression);
     }
-
+    
     @Override
     public void rename(String newName, Directory newParent) throws OperationNotPermitted {
         String oldPath = getAbsolutePath();
@@ -40,5 +43,6 @@ public abstract class AbstractDeployablePath extends AbstractPath {
         enqueueMutation(RholangExpressionConstructor.renameChanel(oldPath, newPath));
     }
 
+    protected abstract RevWalletInfo getRevWalletInfo();
     public abstract DeployDispatcher getDeployDispatcher();
 }

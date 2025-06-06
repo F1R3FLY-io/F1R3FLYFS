@@ -4,6 +4,7 @@ import io.f1r3fly.f1r3drive.blockchain.client.DeployDispatcher;
 import io.f1r3fly.f1r3drive.filesystem.common.Directory;
 import io.f1r3fly.f1r3drive.filesystem.common.Path;
 import io.f1r3fly.f1r3drive.blockchain.rholang.RholangExpressionConstructor;
+import io.f1r3fly.f1r3drive.blockchain.wallet.RevWalletInfo;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -100,10 +101,10 @@ public class BlockchainDirectory extends AbstractDeployablePath implements Direc
     }
 
     @Override
-    public byte[] getSigningKey() {
+    public RevWalletInfo getRevWalletInfo() {
         Directory parent = getParent();
         if (parent instanceof BlockchainDirectory) {
-            return ((BlockchainDirectory) parent).getSigningKey();
+            return ((BlockchainDirectory) parent).getRevWalletInfo();
         } else if (parent == null) {
             throw new IllegalStateException("Parent is null");
         } else {

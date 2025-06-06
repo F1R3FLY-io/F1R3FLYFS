@@ -1,4 +1,4 @@
-package io.f1r3fly.f1r3drive.crypto;
+package io.f1r3fly.f1r3drive.blockchain.wallet;
 
 import com.rfksystems.blake2b.Blake2b;
 import com.rfksystems.blake2b.security.Blake2bProvider;
@@ -8,10 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.Security;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.apache.commons.codec.binary.Base64;
 
 import java.math.BigInteger;
 import java.util.Arrays;

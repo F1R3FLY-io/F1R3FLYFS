@@ -31,14 +31,14 @@ public class F1r3flyFuse extends FuseStubFS {
     private static final Logger LOGGER = LoggerFactory.getLogger(F1r3flyFuse.class);
 
     private final String[] MOUNT_OPTIONS = {
-            // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options
-            "-o", "noappledouble",
-            "-o", "daemon_timeout=3600", // 1 hour timeout
-            "-o", "defer_permissions", // permission is not supported that, this disables the permission check from
-                                       // Fuse side
-            "-o", "local",
-            "-o", "allow_other",
-            "-o", "auto_cache"
+        // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options
+        "-o", "noappledouble",
+        "-o", "daemon_timeout=3600", // 1 hour timeout
+        "-o", "defer_permissions", // permission is not supported that, this disables the permission check from
+        // Fuse side
+        "-o", "local",
+        "-o", "allow_other",
+        "-o", "auto_cache"
     };
     private FileSystem fileSystem;
     private F1r3flyBlockchainClient f1R3FlyBlockchainClient;
@@ -59,7 +59,7 @@ public class F1r3flyFuse extends FuseStubFS {
 
     private int executeWithErrorHandling(String operationName, String path, FuseOperation operation) {
         boolean isTrace = operationName.equals("Getattr") || operationName.equals("Read")
-                || operationName.equals("Write") || operationName.equals("Statfs");
+            || operationName.equals("Write") || operationName.equals("Statfs");
         if (isTrace) {
             LOGGER.trace("Called {} {}", operationName, path);
         } else {
@@ -282,7 +282,7 @@ public class F1r3flyFuse extends FuseStubFS {
 
             LOGGER.debug("Creating FinderSyncExtensionServiceServer...");
             this.finderSyncExtensionServiceServer = new FinderSyncExtensionServiceServer(
-                    this::handleExchange, this::handleUnlockRevDirectory, 54000);
+                this::handleExchange, this::handleUnlockRevDirectory, 54000);
             LOGGER.debug("Created FinderSyncExtensionServiceServer successfully");
 
             this.mountName = "F1r3flyFuse-" + UUID.randomUUID();
@@ -385,7 +385,7 @@ public class F1r3flyFuse extends FuseStubFS {
 
         if (isNotMounted) {
             LOGGER.warn("Filesystem is not mounted. mounted.get()={}, fileSystem!=null={}", mountedFlag,
-                    fileSystemExists);
+                fileSystemExists);
             // Add stack trace to help debug why filesystem becomes null
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("notMounted() called from:", new Exception("Stack trace"));
@@ -395,17 +395,21 @@ public class F1r3flyFuse extends FuseStubFS {
         return isNotMounted;
     }
 
-    private void handleExchange(String tokenFilePath) {
+    private FinderSyncExtensionServiceServer.Result handleExchange(String tokenFilePath) {
         LOGGER.debug("Called onExchange for path: {}", tokenFilePath);
+        if (notMounted()) {
+            LOGGER.warn("handleExchange - FileSystem not mounted for path: {}", tokenFilePath);
+            return FinderSyncExtensionServiceServer.Result.error("FileSystem not mounted");
+        }
+
         try {
-            if (notMounted()) {
-                LOGGER.warn("handleExchange - FileSystem not mounted for path: {}", tokenFilePath);
-                return;
-            }
-            fileSystem.exchangeTokenFile(tokenFilePath);
-            LOGGER.debug("Successfully exchanged token file: {}", tokenFilePath);
-        } catch (Throwable e) {
-            LOGGER.error("Error onExchange for path: {}", tokenFilePath, e);
+            String normalizedTokenFilePath = tokenFilePath.replace(mountPoint.toFile().getAbsolutePath(), "");
+            fileSystem.exchangeTokenFile(normalizedTokenFilePath);
+            LOGGER.debug("Successfully exchanged token file: {}", normalizedTokenFilePath);
+            return FinderSyncExtensionServiceServer.Result.success();
+        } catch (Exception e) {
+            LOGGER.error("Error exchanging token file: {}", tokenFilePath, e);
+            return FinderSyncExtensionServiceServer.Result.error(e.getMessage());
         }
     }
 

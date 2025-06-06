@@ -6,20 +6,31 @@ import io.f1r3fly.f1r3drive.errors.OperationNotPermitted;
 import io.f1r3fly.f1r3drive.blockchain.client.F1r3flyBlockchainClient;
 import io.f1r3fly.f1r3drive.filesystem.common.Directory;
 import io.f1r3fly.f1r3drive.filesystem.common.Path;
+import io.f1r3fly.f1r3drive.filesystem.deployable.UnlockedWalletDirectory;
 import io.f1r3fly.f1r3drive.blockchain.rholang.RholangExpressionConstructor;
+import io.f1r3fly.f1r3drive.fuse.FuseFillDir;
 import io.f1r3fly.f1r3drive.fuse.struct.FileStat;
 import io.f1r3fly.f1r3drive.fuse.struct.FuseContext;
+import jnr.ffi.Pointer;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rhoapi.RhoTypes;
 
 import java.util.*;
 
+import javax.annotation.Nullable;
+
 public class TokenDirectory extends AbstractLocalPath implements Directory {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TokenDirectory.class);
 
+    public static String NAME = ".tokens";
+
     private final Set<Path> children = new HashSet<>();
+    private final UnlockedWalletDirectory parent;
+
+    private volatile boolean balanceChanged = true;
 
     private final F1r3flyBlockchainClient f1R3FlyBlockchainClient;
 
@@ -46,9 +57,10 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
     );
 
 
-    public TokenDirectory(String name, Directory parent, F1r3flyBlockchainClient f1R3FlyBlockchainClient) {
-        super(name, parent);
+    public TokenDirectory(UnlockedWalletDirectory parent, F1r3flyBlockchainClient f1R3FlyBlockchainClient) {
+        super(NAME, parent);
         this.f1R3FlyBlockchainClient = f1R3FlyBlockchainClient;
+        this.parent = parent;
     }
 
     @Override
@@ -106,7 +118,7 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
 
 
     private long checkBalance() throws F1r3flyFSError {
-        String checkBalanceRho = RholangExpressionConstructor.checkBalanceRho(ConfigStorage.getRevAddress());
+        String checkBalanceRho = RholangExpressionConstructor.checkBalanceRho(parent.getRevAddress());
         RhoTypes.Expr expr = f1R3FlyBlockchainClient.exploratoryDeploy(checkBalanceRho);
 
         if (!expr.hasGInt()) {
@@ -184,4 +196,26 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
             }
         }
     }
+
+    public void handleWalletBalanceChanged() {
+        this.balanceChanged = true;
+    }
+
+    @Override
+    public void read(Pointer buf, FuseFillDir filler) {
+        if (balanceChanged) {
+            recreateTokenFiles();
+            balanceChanged = false;
+        }
+        Directory.super.read(buf, filler);
+    }
+
+    @Override
+    public @Nullable UnlockedWalletDirectory getParent() {
+        return parent;
+    }
+
+    
+
+    
 }

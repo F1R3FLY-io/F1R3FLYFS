@@ -4,6 +4,7 @@ import generic.FinderSyncExtensionServiceGrpc;
 import generic.FinderSyncExtensionServiceOuterClass;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.StatusRuntimeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,6 +13,36 @@ public class FinderSyncExtensionServiceClient implements AutoCloseable {
     private final FinderSyncExtensionServiceGrpc.FinderSyncExtensionServiceBlockingStub blockingStub;
     private final ManagedChannel channel;
 
+    public static class FinderSyncServiceException extends Exception {
+        public FinderSyncServiceException(String message) {
+            super(message);
+        }
+        
+        public FinderSyncServiceException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+    
+    public static class ActionSubmissionException extends FinderSyncServiceException {
+        public ActionSubmissionException(String message) {
+            super(message);
+        }
+        
+        public ActionSubmissionException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+    
+    public static class WalletUnlockException extends FinderSyncServiceException {
+        public WalletUnlockException(String message) {
+            super(message);
+        }
+        
+        public WalletUnlockException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
     public FinderSyncExtensionServiceClient(String host, int port) {
         channel = ManagedChannelBuilder.forAddress(host, port)
                 .usePlaintext()
@@ -19,7 +50,7 @@ public class FinderSyncExtensionServiceClient implements AutoCloseable {
         blockingStub = FinderSyncExtensionServiceGrpc.newBlockingStub(channel);
     }
 
-    public void submitAction(FinderSyncExtensionServiceOuterClass.MenuActionType action, String... paths) {
+    public void submitAction(FinderSyncExtensionServiceOuterClass.MenuActionType action, String... paths) throws ActionSubmissionException {
         FinderSyncExtensionServiceOuterClass.MenuActionRequest request = FinderSyncExtensionServiceOuterClass.MenuActionRequest.newBuilder()
                 .setAction(action)
                 .addAllPath(java.util.Arrays.asList(paths))
@@ -28,16 +59,24 @@ public class FinderSyncExtensionServiceClient implements AutoCloseable {
         try {
             FinderSyncExtensionServiceOuterClass.Response response = blockingStub.submitAction(request);
             if (response.hasError()) {
-                logger.error("Error submitting action: {}", response.getError().getErrorMessage());
-                throw new RuntimeException("Error submitting action: " + response.getError().getErrorMessage());
+                String errorMessage = response.getError().getErrorMessage();
+                logger.error("Server returned error for action {}: {}", action, errorMessage);
+                throw new ActionSubmissionException("Failed to submit action " + action + ": " + errorMessage);
             }
+            logger.debug("Successfully submitted action {} for paths: {}", action, java.util.Arrays.toString(paths));
+        } catch (StatusRuntimeException e) {
+            logger.error("gRPC error calling submitAction for action {}: {}", action, e.getStatus(), e);
+            throw new ActionSubmissionException("gRPC communication error: " + e.getStatus().getDescription(), e);
+        } catch (ActionSubmissionException e) {
+            // Re-throw our custom exceptions
+            throw e;
         } catch (Exception e) {
-            logger.error("Error calling submitAction", e);
-            throw new RuntimeException("Error calling submitAction", e);
+            logger.error("Unexpected error calling submitAction for action {}", action, e);
+            throw new ActionSubmissionException("Unexpected error during action submission: " + e.getMessage(), e);
         }
     }
 
-    public void unlockWalletFolder(String revAddress, String privateKey) {
+    public void unlockWalletFolder(String revAddress, String privateKey) throws WalletUnlockException {
         FinderSyncExtensionServiceOuterClass.UnlockWalletFolderRequest request = FinderSyncExtensionServiceOuterClass.UnlockWalletFolderRequest.newBuilder()
                 .setRevAddress(revAddress)
                 .setPrivateKey(privateKey)
@@ -46,12 +85,20 @@ public class FinderSyncExtensionServiceClient implements AutoCloseable {
         try {
             FinderSyncExtensionServiceOuterClass.Response response = blockingStub.unlockWalletFolder(request);
             if (response.hasError()) {
-                logger.error("Error unlocking wallet folder: {}", response.getError().getErrorMessage());
-                throw new RuntimeException("Error unlocking wallet folder: " + response.getError().getErrorMessage());
+                String errorMessage = response.getError().getErrorMessage();
+                logger.error("Server returned error for wallet unlock (revAddress: {}): {}", revAddress, errorMessage);
+                throw new WalletUnlockException("Failed to unlock wallet folder for " + revAddress + ": " + errorMessage);
             }
+            logger.debug("Successfully unlocked wallet folder for revAddress: {}", revAddress);
+        } catch (StatusRuntimeException e) {
+            logger.error("gRPC error calling unlockWalletFolder for revAddress {}: {}", revAddress, e.getStatus(), e);
+            throw new WalletUnlockException("gRPC communication error: " + e.getStatus().getDescription(), e);
+        } catch (WalletUnlockException e) {
+            // Re-throw our custom exceptions
+            throw e;
         } catch (Exception e) {
-            logger.error("Error calling unlockWalletFolder", e);
-            throw new RuntimeException("Error calling unlockWalletFolder", e);
+            logger.error("Unexpected error calling unlockWalletFolder for revAddress {}", revAddress, e);
+            throw new WalletUnlockException("Unexpected error during wallet unlock: " + e.getMessage(), e);
         }
     }
 

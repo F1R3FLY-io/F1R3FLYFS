@@ -3,6 +3,9 @@ package io.f1r3fly.f1r3drive.filesystem;
 import casper.DeployServiceCommon;
 import io.f1r3fly.f1r3drive.errors.*;
 import io.f1r3fly.f1r3drive.fuse.FuseFillDir;
+import io.f1r3fly.f1r3drive.background.state.StateChangeEvents;
+import io.f1r3fly.f1r3drive.background.state.StateChangeEventsManager;
+import io.f1r3fly.f1r3drive.background.state.StateChangeEventProcessor;
 import io.f1r3fly.f1r3drive.blockchain.client.DeployDispatcher;
 import io.f1r3fly.f1r3drive.blockchain.client.F1r3flyBlockchainClient;
 import io.f1r3fly.f1r3drive.filesystem.common.Directory;
@@ -41,9 +44,16 @@ public class InMemoryFileSystem implements FileSystem {
     @NotNull
     private final DeployDispatcher deployDispatcher;
 
+    private final StateChangeEventsManager stateChangeEventsManager;
+
     public InMemoryFileSystem(F1r3flyBlockchainClient f1R3FlyBlockchainClient) throws F1r3flyFSError {
-        this.deployDispatcher = new DeployDispatcher(f1R3FlyBlockchainClient);
+
+        this.stateChangeEventsManager = new StateChangeEventsManager();
+        this.stateChangeEventsManager.start();
+
+        this.deployDispatcher = new DeployDispatcher(f1R3FlyBlockchainClient, stateChangeEventsManager);
         deployDispatcher.startBackgroundDeploy();
+
         this.rootDirectory = new RootDirectory();
         Set<Path> lockedRemoteDirectories = createRavAddressDirectories(this.deployDispatcher);
         for (Path lockedRemoteDirectory : lockedRemoteDirectories) {
@@ -53,6 +63,7 @@ public class InMemoryFileSystem implements FileSystem {
                 logger.error("Unexpected error: {}", impossibleError.getMessage());
             }
         }
+
     }
 
     // Helper method to get path separator
@@ -66,11 +77,11 @@ public class InMemoryFileSystem implements FileSystem {
         while (path.endsWith(pathSeparator()) && path.length() > 1) {
             path = path.substring(0, path.length() - 1);
         }
-        
+
         if (path.equals(pathSeparator())) {
             return pathSeparator();
         }
-        
+
         int lastSeparatorIndex = path.lastIndexOf(pathSeparator());
         return lastSeparatorIndex == -1 ? path : path.substring(lastSeparatorIndex + 1);
     }
@@ -305,7 +316,7 @@ public class InMemoryFileSystem implements FileSystem {
         if (isRootPath(path)) {
             return null;
         }
-        
+
         int lastSeparatorIndex = path.lastIndexOf(pathSeparator());
         if (lastSeparatorIndex <= 0) {
             return pathSeparator();
@@ -313,7 +324,8 @@ public class InMemoryFileSystem implements FileSystem {
         return path.substring(0, lastSeparatorIndex);
     }
 
-    private List<String> parseRavAddressesFromGenesisBlock(F1r3flyBlockchainClient f1R3FlyBlockchainClient) throws F1r3flyFSError {
+    private List<String> parseRavAddressesFromGenesisBlock(F1r3flyBlockchainClient f1R3FlyBlockchainClient)
+            throws F1r3flyFSError {
         List<DeployServiceCommon.DeployInfo> deploys = f1R3FlyBlockchainClient.getGenesisBlock().getDeploysList();
 
         DeployServiceCommon.DeployInfo tokenInitializeDeploy = deploys.stream()
@@ -357,6 +369,24 @@ public class InMemoryFileSystem implements FileSystem {
 
                 this.rootDirectory.deleteChild(lockedRoot);
                 this.rootDirectory.addChild(unlockedRoot);
+
+                TokenDirectory tokenDirectory = unlockedRoot.getTokenDirectory();
+                if (tokenDirectory != null) {
+                    stateChangeEventsManager.registerEventProcessor(StateChangeEvents.WalletBalanceChanged.class,
+                            new StateChangeEventProcessor() {
+                                @Override
+                                public void processEvent(StateChangeEvents event) {
+                                    if (event instanceof StateChangeEvents.WalletBalanceChanged walletBalanceChanged) {
+                                        if (walletBalanceChanged.revAddress().equals(unlockedRoot.getRevAddress())) {
+                                            tokenDirectory.handleWalletBalanceChanged();
+                                        }
+                                    }
+                                }
+                            });
+                } else {
+                    logger.warn("Token directory is null for unlocked root directory: {}", unlockedRoot.getRevAddress());
+                }
+
             } catch (OperationNotPermitted e) {
                 logger.warn("Failed to unlock root directory: {}", revAddress, e);
             }
@@ -412,7 +442,7 @@ public class InMemoryFileSystem implements FileSystem {
         } catch (Throwable e) {
             logger.warn("Error waiting for background deployments during termination, continuing with cleanup", e);
         }
-        
+
         try {
             logger.debug("Destroying deploy dispatcher...");
             this.deployDispatcher.destroy();
@@ -420,7 +450,7 @@ public class InMemoryFileSystem implements FileSystem {
         } catch (Throwable e) {
             logger.warn("Error destroying deploy dispatcher during termination", e);
         }
-        
+
         try {
             logger.debug("Cleaning local cache...");
             this.rootDirectory.cleanLocalCache();
@@ -428,7 +458,15 @@ public class InMemoryFileSystem implements FileSystem {
         } catch (Throwable e) {
             logger.warn("Error cleaning local cache during termination", e);
         }
-        
+
+        try {
+            logger.debug("Shutting down state change events manager...");
+            this.stateChangeEventsManager.shutdown();
+            logger.info("Shut down state change events manager");
+        } catch (Throwable e) {
+            logger.warn("Error shutting down state change events manager during termination", e);
+        }
+
         logger.info("Filesystem termination completed");
     }
-} 
+}

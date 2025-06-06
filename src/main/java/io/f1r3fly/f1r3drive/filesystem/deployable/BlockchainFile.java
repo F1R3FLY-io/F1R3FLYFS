@@ -1,5 +1,6 @@
 package io.f1r3fly.f1r3drive.filesystem.deployable;
 
+import io.f1r3fly.f1r3drive.blockchain.wallet.RevWalletInfo;
 import io.f1r3fly.f1r3drive.encryption.AESCipher;
 import io.f1r3fly.f1r3drive.blockchain.client.DeployDispatcher;
 import io.f1r3fly.f1r3drive.errors.OperationNotPermitted;
@@ -311,10 +312,10 @@ public class BlockchainFile extends AbstractDeployablePath implements File {
     }
 
     @Override
-    public byte[] getSigningKey() {
+    public RevWalletInfo getRevWalletInfo() {
         Directory parent = getParent();
         if (parent instanceof BlockchainDirectory) {
-            return ((BlockchainDirectory) parent).getSigningKey();
+            return ((BlockchainDirectory) parent).getRevWalletInfo();
         } else if (parent == null) {
             throw new IllegalStateException("Parent is null");
         } else {
