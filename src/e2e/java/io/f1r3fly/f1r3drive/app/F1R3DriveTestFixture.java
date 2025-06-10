@@ -5,10 +5,11 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.f1r3fly.f1r3drive.encryption.AESCipher;
 import io.f1r3fly.f1r3drive.blockchain.client.F1r3flyBlockchainClient;
-import io.f1r3fly.f1r3drive.fuse.struct.Utils;
 import io.f1r3fly.f1r3drive.fuse.utils.MountUtils;
 import io.f1r3fly.f1r3drive.app.contextmenu.client.FinderSyncExtensionServiceClient;
 import generic.FinderSyncExtensionServiceOuterClass;
+
+import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.LoggerFactory;
@@ -23,9 +24,11 @@ import org.testcontainers.utility.DockerImageName;
 import java.io.File;
 import java.io.IOException;
 import java.net.Socket;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 
 @Testcontainers
 public class F1R3DriveTestFixture {
@@ -170,8 +173,40 @@ public class F1R3DriveTestFixture {
         listAppender.stop();
     }
 
+    protected static void cleanDataDirectory(String destination, List<String> excludeList) {
+        try {
+            // if test fails, try to cleanup the data folder of the node manually
+            // cd data && rm -rf blockstorage dagstorage eval rspace casperbuffer deploystorage rnode.log && cd
+            cleanDirectoryExcept(destination, excludeList);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    protected static void cleanDirectoryExcept(String directoryPath, List<String> excludeList) throws IOException {
+        File directory = new File(directoryPath);
+        Path dirPath = directory.toPath();
+        File[] files = directory.listFiles();
+
+        if (files != null) {
+            for (File file : files) {
+                Path filePath = file.toPath();
+                String relativePath = dirPath.relativize(filePath).toString();
+
+                if (!excludeList.contains(relativePath)) {
+                    if (file.isDirectory()) {
+                        FileUtils.deleteDirectory(file);
+                    } else {
+                        Files.deleteIfExists(file.toPath());
+                    }
+                }
+            }
+        }
+    }
+
+
     protected static void recreateDirectories() {
-        Utils.cleanDataDirectory("data", Arrays.asList("genesis", "node.certificate.pem", "node.key.pem"));
+        cleanDataDirectory("data", Arrays.asList("genesis", "node.certificate.pem", "node.key.pem"));
 
         // Ensure the observer data directory exists
         new File("data/observer").mkdirs();

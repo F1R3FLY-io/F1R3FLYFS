@@ -54,6 +54,17 @@ sourceSets {
             srcDirs 'build/generated/source/proto/main/java'
         }
     }
+    
+    e2e {
+        java {
+            srcDir 'src/e2e/java'
+        }
+        resources {
+            srcDir 'src/e2e/resources'
+        }
+        compileClasspath += sourceSets.main.output + sourceSets.test.output + configurations.testRuntimeClasspath
+        runtimeClasspath += output + compileClasspath
+    }
 }
 
 java {
@@ -92,6 +103,26 @@ tasks.withType(Javadoc).configureEach {
 test {
     useJUnitPlatform()
     maxHeapSize = '4096m'
+}
+
+task e2eTest(type: Test) {
+    description = 'Runs the e2e tests'
+    group = 'verification'
+    testClassesDirs = sourceSets.e2e.output.classesDirs
+    classpath = sourceSets.e2e.runtimeClasspath
+    
+    useJUnitPlatform()
+    maxHeapSize = '4096m'
+    
+    // Don't run e2e tests as part of the regular build
+    shouldRunAfter test
+}
+
+// E2e tests will only run when explicitly called with the e2eTest task
+
+configurations {
+    e2eImplementation.extendsFrom testImplementation
+    e2eRuntimeOnly.extendsFrom testRuntimeOnly
 }
 
 dependencies {

@@ -1,4 +1,4 @@
-package io.f1r3fly.f1r3drive.app.contextmenu.client;
+package io.f1r3fly.f1r3drive.app.finderextensions.client;
 
 import generic.FinderSyncExtensionServiceGrpc;
 import generic.FinderSyncExtensionServiceOuterClass;

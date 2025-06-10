@@ -33,35 +33,4 @@ public class Utils {
             return new Pair<>(left, right);
         }
     }
-
-    public static void cleanDataDirectory(String destination, List<String> excludeList) {
-        try {
-            // if test fails, try to cleanup the data folder of the node manually
-            // cd data && rm -rf blockstorage dagstorage eval rspace casperbuffer deploystorage rnode.log && cd
-            cleanDirectoryExcept(destination, excludeList);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public static void cleanDirectoryExcept(String directoryPath, List<String> excludeList) throws IOException {
-        File directory = new File(directoryPath);
-        Path dirPath = directory.toPath();
-        File[] files = directory.listFiles();
-
-        if (files != null) {
-            for (File file : files) {
-                Path filePath = file.toPath();
-                String relativePath = dirPath.relativize(filePath).toString();
-
-                if (!excludeList.contains(relativePath)) {
-                    if (file.isDirectory()) {
-                        FileUtils.deleteDirectory(file);
-                    } else {
-                        Files.deleteIfExists(file.toPath());
-                    }
-                }
-            }
-        }
-    }
 }
