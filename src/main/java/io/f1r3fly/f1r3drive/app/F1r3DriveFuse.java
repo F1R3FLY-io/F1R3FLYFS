@@ -26,9 +26,9 @@ import java.util.Arrays;
 import java.util.UUID;
 import java.io.File;
 
-public class F1r3flyFuse extends FuseStubFS {
+public class F1r3DriveFuse extends FuseStubFS {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(F1r3flyFuse.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(F1r3DriveFuse.class);
 
     private final String[] MOUNT_OPTIONS = {
         // refers to https://github.com/osxfuse/osxfuse/wiki/Mount-options
@@ -44,7 +44,7 @@ public class F1r3flyFuse extends FuseStubFS {
     private F1r3flyBlockchainClient f1R3FlyBlockchainClient;
     private FinderSyncExtensionServiceServer finderSyncExtensionServiceServer;
 
-    public F1r3flyFuse(F1r3flyBlockchainClient f1R3FlyBlockchainClient) {
+    public F1r3DriveFuse(F1r3flyBlockchainClient f1R3FlyBlockchainClient) {
         super(); // no need to call Fuse constructor?
         this.f1R3FlyBlockchainClient = f1R3FlyBlockchainClient; // doesnt have a state, so can be reused between mounts
     }
@@ -253,7 +253,7 @@ public class F1r3flyFuse extends FuseStubFS {
 
     @Override
     public void mount(Path mountPoint, boolean blocking, boolean debug, String[] fuseOpts) {
-        LOGGER.debug("Called Mounting F1r3flyFuse on {} with opts {}", mountPoint, Arrays.toString(fuseOpts));
+        LOGGER.debug("Called Mounting F1r3DriveFuse on {} with opts {}", mountPoint, Arrays.toString(fuseOpts));
 
         try {
             // Ensure mount point exists and is accessible
@@ -285,7 +285,7 @@ public class F1r3flyFuse extends FuseStubFS {
                 this::handleChange, this::handleUnlockRevDirectory, 54000);
             LOGGER.debug("Created FinderSyncExtensionServiceServer successfully");
 
-            this.mountName = "F1r3flyFuse-" + UUID.randomUUID();
+            this.mountName = "F1r3DriveFuse-" + UUID.randomUUID();
             LOGGER.debug("Generated mount name: {}", this.mountName);
 
             LOGGER.debug("Waiting for background operations to complete...");
@@ -298,16 +298,16 @@ public class F1r3flyFuse extends FuseStubFS {
             LOGGER.debug("Mounting FUSE filesystem with options: {}", Arrays.toString(allFuseOpts));
             super.mount(mountPoint, blocking, debug, allFuseOpts);
 
-            LOGGER.info("Successfully mounted F1r3flyFuse on {} with name {}", mountPoint, this.mountName);
+            LOGGER.info("Successfully mounted F1r3DriveFuse on {} with name {}", mountPoint, this.mountName);
 
         } catch (RuntimeException e) {
             LOGGER.error("Runtime error during mount: {}", e.getMessage(), e);
             cleanupResources();
             throw e;
         } catch (Throwable e) {
-            LOGGER.error("Error mounting F1r3flyFuse on {}: {}", mountPoint, e.getMessage(), e);
+            LOGGER.error("Error mounting F1r3DriveFuse on {}: {}", mountPoint, e.getMessage(), e);
             cleanupResources();
-            throw new RuntimeException("Failed to mount F1r3flyFuse", e);
+            throw new RuntimeException("Failed to mount F1r3DriveFuse", e);
         }
     }
 
@@ -348,7 +348,7 @@ public class F1r3flyFuse extends FuseStubFS {
 
     @Override
     public void umount() {
-        LOGGER.debug("Called Umounting F1r3flyFuse. Mounted: {}, filesystem {}", mounted.get(), fileSystem != null);
+        LOGGER.debug("Called Umounting F1r3DriveFuse. Mounted: {}, filesystem {}", mounted.get(), fileSystem != null);
         try {
             LOGGER.debug("Waiting for background operations to complete before unmount...");
             waitOnBackgroundThread();
@@ -356,7 +356,7 @@ public class F1r3flyFuse extends FuseStubFS {
             super.umount();
             LOGGER.debug("super.umount() completed, starting cleanup...");
             cleanupResources();
-            LOGGER.info("Successfully unmounted F1r3flyFuse");
+            LOGGER.info("Successfully unmounted F1r3DriveFuse");
         } catch (RuntimeException e) {
             LOGGER.error("Runtime error during unmount: {}", e.getMessage(), e);
             // Still cleanup on error
@@ -367,14 +367,14 @@ public class F1r3flyFuse extends FuseStubFS {
             }
             throw e;
         } catch (Throwable e) {
-            LOGGER.error("Error unmounting F1r3flyFuse: {}", e.getMessage(), e);
+            LOGGER.error("Error unmounting F1r3DriveFuse: {}", e.getMessage(), e);
             // Still cleanup on error
             try {
                 cleanupResources();
             } catch (Exception cleanupError) {
                 LOGGER.error("Error during cleanup after unmount failure", cleanupError);
             }
-            throw new RuntimeException("Failed to unmount F1r3flyFuse", e);
+            throw new RuntimeException("Failed to unmount F1r3DriveFuse", e);
         }
     }
 

@@ -48,7 +48,7 @@ public class InMemoryFileSystem implements FileSystem {
 
     private final StateChangeEventsManager stateChangeEventsManager;
 
-    public InMemoryFileSystem(F1r3flyBlockchainClient f1R3FlyBlockchainClient) throws F1r3flyFSError {
+    public InMemoryFileSystem(F1r3flyBlockchainClient f1R3FlyBlockchainClient) throws F1r3DriveError {
 
         this.stateChangeEventsManager = new StateChangeEventsManager();
         this.stateChangeEventsManager.start();
@@ -324,7 +324,7 @@ public class InMemoryFileSystem implements FileSystem {
     }
 
     private List<String> parseRavAddressesFromGenesisBlock(F1r3flyBlockchainClient f1R3FlyBlockchainClient)
-            throws F1r3flyFSError {
+            throws F1r3DriveError {
         List<DeployServiceCommon.DeployInfo> deploys = f1R3FlyBlockchainClient.getGenesisBlock().getDeploysList();
 
         DeployServiceCommon.DeployInfo tokenInitializeDeploy = deploys.stream()
@@ -342,7 +342,7 @@ public class InMemoryFileSystem implements FileSystem {
         return ravAddresses;
     }
 
-    private Set<Path> createRavAddressDirectories(DeployDispatcher deployDispatcher) throws F1r3flyFSError {
+    private Set<Path> createRavAddressDirectories(DeployDispatcher deployDispatcher) throws F1r3DriveError {
         List<String> ravAddresses = parseRavAddressesFromGenesisBlock(deployDispatcher.getBlockchainClient());
 
         logger.debug("Addresses found in genesis block: {}", ravAddresses);

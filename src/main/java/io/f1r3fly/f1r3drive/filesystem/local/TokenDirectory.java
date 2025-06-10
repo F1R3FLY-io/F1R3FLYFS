@@ -1,6 +1,6 @@
 package io.f1r3fly.f1r3drive.filesystem.local;
 
-import io.f1r3fly.f1r3drive.errors.F1r3flyFSError;
+import io.f1r3fly.f1r3drive.errors.F1r3DriveError;
 import io.f1r3fly.f1r3drive.errors.OperationNotPermitted;
 import io.f1r3fly.f1r3drive.blockchain.BlockchainContext;
 import io.f1r3fly.f1r3drive.filesystem.common.Directory;
@@ -85,7 +85,7 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
         long balance;
         try {
             balance = checkBalance();
-        } catch (F1r3flyFSError e) {
+        } catch (F1r3DriveError e) {
             return;
         }
 
@@ -113,12 +113,12 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
     }
 
 
-    private long checkBalance() throws F1r3flyFSError {
+    private long checkBalance() throws F1r3DriveError {
         String checkBalanceRho = RholangExpressionConstructor.checkBalanceRho(getBlockchainContext().getWalletInfo().revAddress());
         RhoTypes.Expr expr = getBlockchainContext().getBlockchainClient().exploratoryDeploy(checkBalanceRho);
 
         if (!expr.hasGInt()) {
-            throw new F1r3flyFSError("Invalid balance data");
+            throw new F1r3DriveError("Invalid balance data");
         }
 
         return expr.getGInt();

@@ -32,7 +32,7 @@ class F1r3DriveCli implements Callable<Integer> {
     @Parameters(index = "0", description = "The path at which to mount the filesystem.")
     private Path mountPoint;
 
-    private F1r3flyFuse f1r3flyFS;
+    private F1r3DriveFuse f1r3DriveFuse;
 
 
     @Override
@@ -46,14 +46,14 @@ class F1r3DriveCli implements Callable<Integer> {
             observerPort
         );
 
-        f1r3flyFS = new F1r3flyFuse(
+        f1r3DriveFuse = new F1r3DriveFuse(
             f1R3FlyBlockchainClient
         );
 
         try {
-            f1r3flyFS.mount(mountPoint, true);
+            f1r3DriveFuse.mount(mountPoint, true);
         } finally {
-            f1r3flyFS.umount();
+            f1r3DriveFuse.umount();
         }
         return 0;
     }

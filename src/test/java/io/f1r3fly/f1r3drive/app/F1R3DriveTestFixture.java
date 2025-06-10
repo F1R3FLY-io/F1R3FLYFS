@@ -28,7 +28,7 @@ import java.time.Duration;
 import java.util.Arrays;
 
 @Testcontainers
-public class F1R3FlyFuseTestFixture {
+public class F1R3DriveTestFixture {
     protected static final int GRPC_PORT = 40402;
     protected static final int PROTOCOL_PORT = 40400;
     protected static final int DISCOVERY_PORT = 40404;
@@ -36,7 +36,7 @@ public class F1R3FlyFuseTestFixture {
     protected static final int MAX_MESSAGE_SIZE = 1024 * 1024 * 1024;  // ~1G
     protected static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
     protected static final String validatorPrivateKey = "f9854c5199bc86237206c75b25c6aeca024dccc0f55df3a553131111fd25dd85";
-    protected static final Path MOUNT_POINT = new File("/tmp/f1r3flyfs/").toPath();
+    protected static final Path MOUNT_POINT = new File("/tmp/f1r3drive/").toPath();
     protected static final File MOUNT_POINT_FILE = MOUNT_POINT.toFile();
 
     protected static final String REV_WALLET_1 = "11112ZM9yrfaTrzCCbKjPbxBncjNCkMFsPqtcLFvhBf4Kqx6rpir2w";
@@ -58,11 +58,11 @@ public class F1R3FlyFuseTestFixture {
     protected static GenericContainer<?> f1r3flyObserver;
     protected static Network network;
 
-    protected static final Logger log = (Logger) LoggerFactory.getLogger(F1R3FlyFuseTestFixture.class);
+    protected static final Logger log = (Logger) LoggerFactory.getLogger(F1R3DriveTestFixture.class);
     protected static final Slf4jLogConsumer logConsumer = new Slf4jLogConsumer(log);
     protected static final ListAppender<ILoggingEvent> listAppender = new ListAppender<>();
 
-    protected static F1r3flyFuse f1r3flyFS;
+    protected static F1r3DriveFuse f1r3DriveFuse;
     protected static F1r3flyBlockchainClient f1R3FlyBlockchainClient;
 
     @BeforeEach
@@ -127,14 +127,14 @@ public class F1R3FlyFuseTestFixture {
         f1R3FlyBlockchainClient = new F1r3flyBlockchainClient(
             "localhost", f1r3flyBoot.getMappedPort(GRPC_PORT),
             "localhost", f1r3flyObserver.getMappedPort(GRPC_PORT));
-        f1r3flyFS = new F1r3flyFuse(f1R3FlyBlockchainClient);
+        f1r3DriveFuse = new F1r3DriveFuse(f1R3FlyBlockchainClient);
 
         forceUmountAndCleanup(); // cleanup before mount
 
         // Add delay before mounting to ensure previous test cleanup is complete
         Thread.sleep(1000);
 
-        f1r3flyFS.mount(MOUNT_POINT);
+        f1r3DriveFuse.mount(MOUNT_POINT);
 
         // Add delay after mounting to ensure mount is stable
         Thread.sleep(1000);
@@ -143,7 +143,7 @@ public class F1R3FlyFuseTestFixture {
     @AfterEach
     void tearDownContainers() {
         try {
-            if (f1r3flyFS != null) {
+            if (f1r3DriveFuse != null) {
                 forceUmountAndCleanup();
                 // Add delay after cleanup to ensure complete unmount
                 Thread.sleep(2000);
@@ -179,8 +179,8 @@ public class F1R3FlyFuseTestFixture {
 
     protected static void forceUmountAndCleanup() {
         try { // try to unmount
-            if (f1r3flyFS != null) {
-                f1r3flyFS.umount();
+            if (f1r3DriveFuse != null) {
+                f1r3DriveFuse.umount();
                 Thread.sleep(1000); // Wait for unmount to complete
             }
 
@@ -256,18 +256,18 @@ public class F1R3FlyFuseTestFixture {
     }
 
     protected static void waitOnBackgroundDeployments() {
-        if (f1r3flyFS == null)
-            throw new IllegalStateException("f1r3flyFS is not initialized");
+        if (f1r3DriveFuse == null)
+            throw new IllegalStateException("f1r3drive is not initialized");
 
-        f1r3flyFS.waitOnBackgroundThread();
+        f1r3DriveFuse.waitOnBackgroundThread();
     }
 
     protected static void remount() {
-        // String mountName = f1r3flyFS.getMountName();
-        // f1r3flyFS.umount();
+        // String mountName = f1r3DriveFuse.getMountName();
+        // f1r3DriveFuse.umount();
         // forceUmountAndCleanup();
         // try {
-        //     f1r3flyFS.mount(MOUNT_POINT); // should pass: fetch the filesystem back
+        //     f1r3DriveFuse.mount(MOUNT_POINT); // should pass: fetch the filesystem back
         // } catch (Exception e) {
         //     throw new RuntimeException(e);
         // }

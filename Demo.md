@@ -30,43 +30,43 @@ where f9854c5199bc86237206c75b25c6aeca024dccc0f55df3a553131111fd25dd85 - key fro
 
 1. Wait on log like ```Listening for traffic on rnode://cfae6a0c885d734908f8c756fb0519d2df7fbcec@178.150.31.10?protocol=40400&discovery=40404```
 
-# Run F1r3flyFS app
+# Run f1r3Drive app
 
-1. Go to `F1r3flyFS` folder. Ensure this directory has the same parent directory as the `f1r3fly` directory.
-2. Build f1r3flyFS into Jar
+1. Go to `f1r3Drive` folder. Ensure this directory has the same parent directory as the `f1r3fly` directory.
+2. Build f1r3Drive into Jar
 
 ```sh
 ./gradlew shadowJar -x test
 ```
 
-3. Run F1r3flyFS app with a key (`a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954` is an exmaple key). This key has to be related to Wallet (row in wallet.txt at Node)
+3. Run f1r3Drive app with a key (`a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954` is an exmaple key). This key has to be related to Wallet (row in wallet.txt at Node)
 
 ```sh
-# creating ~/demo-f1r3flyfs folder and mounting it to F1r3flyFS
-java -jar ./build/libs/f1r3flyfs-0.5.7-shadow.jar ~/demo-f1r3flyfs -sk a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954 -ck ~/cipher.key -h localhost -p 40402 
+# creating ~/demo-f1r3Drive folder and mounting it to f1r3Drive
+java -jar ./build/libs/f1r3Drive-0.5.7-shadow.jar ~/demo-f1r3Drive -sk a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954 -ck ~/cipher.key -h localhost -p 40402 
 ```
 
 # Demo
 
-Creating a tiny file inside ~/demo-f1r3flyfs folder
+Creating a tiny file inside ~/demo-f1r3Drive folder
 
 ```sh
-echo "abc" > ~/demo-f1r3flyfs/demo.txt
-ls -lh ~/demo-f1r3flyfs/demo.txt
-cat ~/demo-f1r3flyfs/demo.txt
+echo "abc" > ~/demo-f1r3Drive/demo.txt
+ls -lh ~/demo-f1r3Drive/demo.txt
+cat ~/demo-f1r3Drive/demo.txt
 ```
 
-Copy 1M file inside ~/demo-f1r3flyfs folder
+Copy 1M file inside ~/demo-f1r3Drive folder
 
 ```sh
 # generating binary file with 1M size
 dd if=/dev/zero of=large_data.txt  bs=1m  count=1
 
-cp large_data.txt ~/demo-f1r3flyfs/ OR rsync -av --progress large_data.txt ./demo-f1r3flyfs (here more logs)
+cp large_data.txt ~/demo-f1r3Drive/ OR rsync -av --progress large_data.txt ./demo-f1r3Drive (here more logs)
 # wait for some time
 
 # make sure that file is copied
-ls -lh ~/demo-f1r3flyfs/large_data.txt
+ls -lh ~/demo-f1r3Drive/large_data.txt
 ```
 
 # Cleanup
@@ -74,7 +74,7 @@ ls -lh ~/demo-f1r3flyfs/large_data.txt
 Stop all processes and remove all files
 
 ```sh
-# Stop node and F1r3flyFS apps
+# Stop node and f1r3Drive apps
 # or kill if stuck
 ps aux | grep java | grep -v grep | awk '{print $2}' | xargs kill -9
 
@@ -86,12 +86,12 @@ rm -rf ~/.rnode
 # clean Node state except for genesis files:
 find ~/.rnode -type f ! -path "$HOME/.rnode/genesis/*" -delete && find ~/.rnode -mindepth 1 -maxdepth 1 -type d ! -name "genesis" -exec rm -rf {} +
 
-# Unmount ~/demo-f1r3flyfs if f1r3flyFS crashed
-sudo diskutil umount force ~/demo-f1r3flyfs
+# Unmount ~/demo-f1r3Drive if f1r3Drive crashed
+sudo diskutil umount force ~/demo-f1r3Drive
 
-# ~/demo-f1r3flyfs has to be empty folder
-# delete ~/demo-f1r3flyfs before running the next demo
-rm -rf ~/demo-f1r3flyfs
+# ~/demo-f1r3Drive has to be empty folder
+# delete ~/demo-f1r3Drive before running the next demo
+rm -rf ~/demo-f1r3Drive
 
 # remove large_data.txt
 rm -f large_data.txt

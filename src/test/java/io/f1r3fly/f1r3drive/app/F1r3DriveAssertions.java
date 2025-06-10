@@ -1,8 +1,6 @@
 package io.f1r3fly.f1r3drive.app;
 
-import io.f1r3fly.f1r3drive.errors.NoDataByPath;
 import io.f1r3fly.f1r3drive.filesystem.local.TokenDirectory;
-import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
@@ -14,7 +12,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class F1r3flyFSAssertions extends F1R3FlyFuseTestFixture {
+public class F1r3DriveAssertions extends F1R3DriveTestFixture {
 
     public static void assertWrittenData(File file, byte[] inputDataAsBinary, boolean assertDataFromShard,
                                          String message) throws IOException {
@@ -26,17 +24,17 @@ public class F1r3flyFSAssertions extends F1R3FlyFuseTestFixture {
     }
 
     public static void assertFileContentFromShard(byte[] expectedData, File file) {
-        byte[] readData = F1r3flyFSHelpers.getFileContentFromShardDirectly(file);
+        byte[] readData = F1r3DriveTestHelpers.getFileContentFromShardDirectly(file);
         assertArrayEquals(expectedData, readData, "Read data should be equal to written data");
     }
 
     public static void assertContainChilds(File dir, File... expectedChilds) {
         assertContainChildsLocally(dir, expectedChilds);
 
-        F1r3flyFSHelpers.waitOnBackgroundDeployments();
+        F1r3DriveTestHelpers.waitOnBackgroundDeployments();
 
         // and check the deployed data:
-        Set<String> children = F1r3flyFSHelpers.getFolderChildrenFromShardDirectly(dir);
+        Set<String> children = F1r3DriveTestHelpers.getFolderChildrenFromShardDirectly(dir);
         assertEquals(expectedChilds.length, children.size(),
             "Should be only %s file(s) in %s".formatted(expectedChilds.length, dir.getAbsolutePath()));
         for (File expectedChild : expectedChilds) {
@@ -56,7 +54,7 @@ public class F1r3flyFSAssertions extends F1R3FlyFuseTestFixture {
 
         assertNotNull(childs, "Can't get list of files in %s".formatted(dir.getAbsolutePath()));
 
-        if (F1r3flyFSHelpers.isWalletDirectory(dir)) {
+        if (F1r3DriveTestHelpers.isWalletDirectory(dir)) {
             // remove token folder from childs
             childs = Arrays.stream(childs).filter(c -> !c.getName().equals(TokenDirectory.NAME)).toArray(File[]::new);
         }

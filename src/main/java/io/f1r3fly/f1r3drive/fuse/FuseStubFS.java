@@ -1,7 +1,6 @@
 package io.f1r3fly.f1r3drive.fuse;
 
 import com.kenai.jffi.MemoryIO;
-import io.f1r3fly.f1r3drive.app.F1r3flyFuse;
 import io.f1r3fly.f1r3drive.fuse.flags.FuseBufFlags;
 import io.f1r3fly.f1r3drive.fuse.struct.FileStat;
 import io.f1r3fly.f1r3drive.fuse.struct.FuseFileInfo;
@@ -25,7 +24,7 @@ import org.slf4j.LoggerFactory;
 
 public class FuseStubFS extends AbstractFuseFS {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(F1r3flyFuse.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(FuseStubFS.class);
 
     @Override
     public int getattr(String path, FileStat stat) {

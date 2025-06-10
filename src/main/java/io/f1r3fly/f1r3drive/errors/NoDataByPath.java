@@ -1,6 +1,6 @@
 package io.f1r3fly.f1r3drive.errors;
 
-public class NoDataByPath extends F1r3flyFSError {
+public class NoDataByPath extends F1r3DriveError {
     public NoDataByPath(String path) {
         super("No data found by path %s".formatted(path));
     }

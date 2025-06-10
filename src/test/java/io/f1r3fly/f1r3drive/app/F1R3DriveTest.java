@@ -20,10 +20,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static io.f1r3fly.f1r3drive.app.F1r3flyFSAssertions.*;
-import static io.f1r3fly.f1r3drive.app.F1r3flyFSHelpers.*;
+import static io.f1r3fly.f1r3drive.app.F1r3DriveAssertions.*;
+import static io.f1r3fly.f1r3drive.app.F1r3DriveTestHelpers.*;
 
-class F1R3FlyFuseTest extends F1r3flyFSTestUtils {
+class F1R3DriveTest extends F1R3DriveTestFixture {
 
     // TESTS:
 

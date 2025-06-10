@@ -1,6 +1,6 @@
 package io.f1r3fly.f1r3drive.app;
 
-import io.f1r3fly.f1r3drive.errors.F1r3flyFSError;
+import io.f1r3fly.f1r3drive.errors.F1r3DriveError;
 import io.f1r3fly.f1r3drive.errors.NoDataByPath;
 import io.f1r3fly.f1r3drive.blockchain.rholang.RholangExpressionConstructor;
 import org.jetbrains.annotations.NotNull;
@@ -17,7 +17,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class F1r3flyFSHelpers extends F1R3FlyFuseTestFixture {
+public class F1r3DriveTestHelpers extends F1R3DriveTestFixture {
 
     public static @NotNull byte[] getFileContentFromShardDirectly(File file) {
         try {
@@ -57,9 +57,9 @@ public class F1r3flyFSHelpers extends F1R3FlyFuseTestFixture {
         // reading data from shard directly:
         // 1. Get a data from the file. File is a chanel at specific block
         // Reducing the path. Fuse changes the path, so we need to change it too:
-        // - the REAL path is /tmp/f1r3flyfs/test.txt
+        // - the REAL path is /tmp/f1r3Drive/test.txt
         // - the FUSE's path is /test.txt
-        File fusePath = new File(file.getAbsolutePath().replace(MOUNT_POINT_FILE.getAbsolutePath(), "")); // /tmp/f1r3flyfs/test.txt
+        File fusePath = new File(file.getAbsolutePath().replace(MOUNT_POINT_FILE.getAbsolutePath(), "")); // /tmp/f1r3Drive/test.txt
         // ->
         // /test.txt
 
@@ -79,18 +79,6 @@ public class F1r3flyFSHelpers extends F1R3FlyFuseTestFixture {
 
         // 2. Parse Chanel value as a map
         return RholangExpressionConstructor.parseChannelData(fileData);
-    }
-
-    private static List<File> getDefaultFolders() {
-        File walletsFile = new File("data/genesis/wallets.txt");
-        try {
-            return Files.readAllLines(walletsFile.toPath()).stream()
-                .map(line -> line.split(",")[0])
-                .map(folderName -> new File(MOUNT_POINT_FILE, "LOCKED-REMOTE-REV-" + folderName))
-                .toList();
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to read wallets.txt", e);
-        }
     }
 
     public static boolean isWalletDirectory(File dir) {
@@ -159,7 +147,7 @@ public class F1r3flyFSHelpers extends F1R3FlyFuseTestFixture {
         RhoTypes.Expr expr = f1R3FlyBlockchainClient.exploratoryDeploy(checkBalanceRho);
 
         if (!expr.hasGInt()) {
-            throw new F1r3flyFSError("Invalid balance data");
+            throw new F1r3DriveError("Invalid balance data");
         }
 
         return expr.getGInt();
