@@ -24,17 +24,8 @@ class PrivateKeyValidatorTest {
     private static final String VALID_REV_ADDRESS_2 = "111127RX5ZgiAdRaQy4AWy57RdvAAckdELReEBxzvWYVvdnR32PiHA";
     private static final String VALID_PRIVATE_KEY_2 = "357cdc4201a5650830e0bc5a03299a30038d9934ba4c7ab73ec164ad82471ff9";
     
-    private static final String VALID_REV_ADDRESS_3 = "111129p33f7vaRrpLqK8Nr35Y2aacAjrR5pd6PCzqcdrMuPHzymczH";
-    private static final String VALID_PRIVATE_KEY_3 = "2c02138097d019d263c1d5383fcaddb1ba6416a0f4e64e3a617fe3af45b7851d";
-    
-    private static final String VALID_REV_ADDRESS_4 = "1111LAd2PWaHsw84gxarNx99YVK2aZhCThhrPsWTV7cs1BPcvHftP";
-    private static final String VALID_PRIVATE_KEY_4 = "b67533f1f99c0ecaedb7d829e430b1c0e605bda10f339f65d5567cb5bd77cbcb";
-    
-    private static final String VALID_REV_ADDRESS_5 = "1111La6tHaCtGjRiv4wkffbTAAjGyMsVhzSUNzQxH1jjZH9jtEi3M";
-    private static final String VALID_PRIVATE_KEY_5 = "5ff3514bf79a7d18e8dd974c699678ba63b7762ce8d78c532346e52f0ad219cd";
 
     // Invalid test data
-    private static final String INVALID_REV_ADDRESS = "1111InvalidRevAddressForTesting123456789";
     private static final String INVALID_PRIVATE_KEY = "invalid_private_key_hex";
     private static final String WRONG_LENGTH_PRIVATE_KEY = "123456";
     private static final String WRONG_REV_ADDRESS = "222227RX5ZgiAdRaQy4AWy57RdvAAckdELReEBxzvWYVvdnR32PiHA";

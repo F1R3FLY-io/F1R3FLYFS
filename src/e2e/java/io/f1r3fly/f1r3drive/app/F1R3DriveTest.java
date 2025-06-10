@@ -1,6 +1,6 @@
 package io.f1r3fly.f1r3drive.app;
 
-import io.f1r3fly.f1r3drive.app.contextmenu.client.FinderSyncExtensionServiceClient.WalletUnlockException;
+import io.f1r3fly.f1r3drive.finderextensions.client.FinderSyncExtensionServiceClient.WalletUnlockException;
 import io.f1r3fly.f1r3drive.errors.NoDataByPath;
 import io.f1r3fly.f1r3drive.errors.PathIsNotADirectory;
 import io.f1r3fly.f1r3drive.filesystem.local.TokenDirectory;

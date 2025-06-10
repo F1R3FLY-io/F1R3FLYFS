@@ -1,13 +1,7 @@
 package io.f1r3fly.f1r3drive.fuse.struct;
 
-import org.apache.commons.io.FileUtils;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.List;
 
 public class Utils {
 

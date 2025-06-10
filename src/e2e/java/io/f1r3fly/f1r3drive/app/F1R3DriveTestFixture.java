@@ -6,7 +6,7 @@ import ch.qos.logback.core.read.ListAppender;
 import io.f1r3fly.f1r3drive.encryption.AESCipher;
 import io.f1r3fly.f1r3drive.blockchain.client.F1r3flyBlockchainClient;
 import io.f1r3fly.f1r3drive.fuse.utils.MountUtils;
-import io.f1r3fly.f1r3drive.app.contextmenu.client.FinderSyncExtensionServiceClient;
+import io.f1r3fly.f1r3drive.finderextensions.client.FinderSyncExtensionServiceClient;
 import generic.FinderSyncExtensionServiceOuterClass;
 
 import org.apache.commons.io.FileUtils;
