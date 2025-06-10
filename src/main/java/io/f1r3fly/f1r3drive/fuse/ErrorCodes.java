@@ -68,7 +68,7 @@ public class ErrorCodes {
 
 
     /**
-     * Invalid exchange
+     * Invalid change
      */
     public static int EBADE() {
         return 52;
@@ -1043,7 +1043,7 @@ public class ErrorCodes {
 
 
     /**
-     * Exchange full
+     * Change full
      */
     public static int EXFULL() {
         return 54;

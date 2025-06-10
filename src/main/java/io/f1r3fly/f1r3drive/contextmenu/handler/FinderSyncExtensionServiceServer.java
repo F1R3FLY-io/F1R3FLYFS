@@ -2,7 +2,7 @@ package io.f1r3fly.f1r3drive.contextmenu.handler;
 
 import generic.FinderSyncExtensionServiceGrpc;
 import generic.FinderSyncExtensionServiceOuterClass;
-import io.f1r3fly.f1r3drive.filesystem.local.LockedRemoteDirectory;
+import io.f1r3fly.f1r3drive.errors.InvalidSigningKeyException;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
@@ -41,9 +41,9 @@ public class FinderSyncExtensionServiceServer {
         }
     }
 
-    public FinderSyncExtensionServiceServer(java.util.function.Function<String, Result> onExchange, java.util.function.BiConsumer<String, String> onUnlockRevDirectory, int port) {
+    public FinderSyncExtensionServiceServer(java.util.function.Function<String, Result> onChange, java.util.function.BiFunction<String, String, Result> onUnlockRevDirectory, int port) {
         server = ServerBuilder.forPort(port)
-            .addService(new FinderSyncExtensionServiceImpl(onExchange, onUnlockRevDirectory))
+            .addService(new FinderSyncExtensionServiceImpl(onChange, onUnlockRevDirectory))
             .build();
     }
 
@@ -65,18 +65,18 @@ public class FinderSyncExtensionServiceServer {
     }
 
     static class FinderSyncExtensionServiceImpl extends FinderSyncExtensionServiceGrpc.FinderSyncExtensionServiceImplBase {
-        private final java.util.function.Function<String, Result> onExchange;
-        private final java.util.function.BiConsumer<String, String> onUnlockRevDirectory;
+        private final java.util.function.Function<String, Result> onChange;
+        private final java.util.function.BiFunction<String, String, Result> onUnlockRevDirectory;
 
-        public FinderSyncExtensionServiceImpl(java.util.function.Function<String, Result> onExchange, java.util.function.BiConsumer<String, String> onUnlockRevDirectory) {
-            this.onExchange = onExchange;
+        public FinderSyncExtensionServiceImpl(java.util.function.Function<String, Result> onChange, java.util.function.BiFunction<String, String, Result> onUnlockRevDirectory) {
+            this.onChange = onChange;
             this.onUnlockRevDirectory = onUnlockRevDirectory;
         }
 
         @Override
         public void submitAction(FinderSyncExtensionServiceOuterClass.MenuActionRequest request, StreamObserver<FinderSyncExtensionServiceOuterClass.Response> responseObserver) {
             switch(request.getAction()) {
-                case EXCHANGE:
+                case CHANGE:
                     if (request.getPathCount() != 1) {
                         responseObserver.onNext(FinderSyncExtensionServiceOuterClass.Response.newBuilder().setError(
                             FinderSyncExtensionServiceOuterClass.ErrorResponse.newBuilder().setErrorMessage("Path should be one").build()
@@ -85,16 +85,16 @@ public class FinderSyncExtensionServiceServer {
                         return;
                     } else {
                         logger.info("Received Change: path={}, action={}", request.getPath(0), request.getAction());
-                        Result result = onExchange.apply(request.getPath(0));
+                        Result result = onChange.apply(request.getPath(0));
                         if (result.isSuccess()) {
                             responseObserver.onNext(FinderSyncExtensionServiceOuterClass.Response.newBuilder().setSuccess(
                                 FinderSyncExtensionServiceOuterClass.EmptyResponse.newBuilder().build()
                             ).build());
                         } else {
-                            logger.error("Error during exchange operation for path: {} - {}", request.getPath(0), result.getErrorMessage());
+                            logger.error("Error during change operation for path: {} - {}", request.getPath(0), result.getErrorMessage());
                             responseObserver.onNext(FinderSyncExtensionServiceOuterClass.Response.newBuilder().setError(
                                 FinderSyncExtensionServiceOuterClass.ErrorResponse.newBuilder()
-                                    .setErrorMessage("Exchange operation failed: " + result.getErrorMessage())
+                                    .setErrorMessage("Change operation failed: " + result.getErrorMessage())
                                     .build()
                             ).build());
                         }
@@ -115,16 +115,24 @@ public class FinderSyncExtensionServiceServer {
         }
 
         @Override
-        public void unlockWalletFolder(FinderSyncExtensionServiceOuterClass.UnlockWalletFolderRequest request, StreamObserver<FinderSyncExtensionServiceOuterClass.Response> responseObserver) {
-            logger.info("UnlockWalletFolder called with revAddress: {}, privateKey: {}", request.getRevAddress(), request.getPrivateKey());
+        public void unlockWalletDirectory(FinderSyncExtensionServiceOuterClass.UnlockWalletDirectoryRequest request, StreamObserver<FinderSyncExtensionServiceOuterClass.Response> responseObserver) {
+            logger.info("UnlockWalletDirectory called with revAddress: {}, privateKey: {}", request.getRevAddress(), request.getPrivateKey());
 
             try {
-                onUnlockRevDirectory.accept(request.getRevAddress(), request.getPrivateKey());
-
-                responseObserver.onNext(FinderSyncExtensionServiceOuterClass.Response.newBuilder().setSuccess(
-                    FinderSyncExtensionServiceOuterClass.EmptyResponse.newBuilder().build()
-                ).build());
-            } catch (LockedRemoteDirectory.InvalidSigningKeyException e) {
+                Result result = onUnlockRevDirectory.apply(request.getRevAddress(), request.getPrivateKey());
+                if (result.isSuccess()) {
+                    responseObserver.onNext(FinderSyncExtensionServiceOuterClass.Response.newBuilder().setSuccess(
+                        FinderSyncExtensionServiceOuterClass.EmptyResponse.newBuilder().build()
+                    ).build());
+                } else {
+                    responseObserver.onNext(FinderSyncExtensionServiceOuterClass.Response.newBuilder().setError(
+                        FinderSyncExtensionServiceOuterClass.ErrorResponse.newBuilder()
+                            .setErrorMessage("Failed to unlock directory: " + result.getErrorMessage())
+                            .build()
+                    ).build());
+                }
+            
+            } catch (InvalidSigningKeyException e) {
                 logger.error("Invalid signing key format for rev address: {} - {}", request.getRevAddress(), e.getMessage());
                 responseObserver.onNext(FinderSyncExtensionServiceOuterClass.Response.newBuilder().setError(
                     FinderSyncExtensionServiceOuterClass.ErrorResponse.newBuilder()

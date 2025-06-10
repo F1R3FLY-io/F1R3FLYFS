@@ -76,14 +76,14 @@ public class FinderSyncExtensionServiceClient implements AutoCloseable {
         }
     }
 
-    public void unlockWalletFolder(String revAddress, String privateKey) throws WalletUnlockException {
-        FinderSyncExtensionServiceOuterClass.UnlockWalletFolderRequest request = FinderSyncExtensionServiceOuterClass.UnlockWalletFolderRequest.newBuilder()
+    public void unlockWalletDirectory(String revAddress, String privateKey) throws WalletUnlockException {
+        FinderSyncExtensionServiceOuterClass.UnlockWalletDirectoryRequest request = FinderSyncExtensionServiceOuterClass.UnlockWalletDirectoryRequest.newBuilder()
                 .setRevAddress(revAddress)
                 .setPrivateKey(privateKey)
                 .build();
 
         try {
-            FinderSyncExtensionServiceOuterClass.Response response = blockingStub.unlockWalletFolder(request);
+            FinderSyncExtensionServiceOuterClass.Response response = blockingStub.unlockWalletDirectory(request);
             if (response.hasError()) {
                 String errorMessage = response.getError().getErrorMessage();
                 logger.error("Server returned error for wallet unlock (revAddress: {}): {}", revAddress, errorMessage);
@@ -91,13 +91,13 @@ public class FinderSyncExtensionServiceClient implements AutoCloseable {
             }
             logger.debug("Successfully unlocked wallet folder for revAddress: {}", revAddress);
         } catch (StatusRuntimeException e) {
-            logger.error("gRPC error calling unlockWalletFolder for revAddress {}: {}", revAddress, e.getStatus(), e);
+            logger.error("gRPC error calling UnlockWalletDirectory for revAddress {}: {}", revAddress, e.getStatus(), e);
             throw new WalletUnlockException("gRPC communication error: " + e.getStatus().getDescription(), e);
         } catch (WalletUnlockException e) {
             // Re-throw our custom exceptions
             throw e;
         } catch (Exception e) {
-            logger.error("Unexpected error calling unlockWalletFolder for revAddress {}", revAddress, e);
+            logger.error("Unexpected error calling UnlockWalletDirectory for revAddress {}", revAddress, e);
             throw new WalletUnlockException("Unexpected error during wallet unlock: " + e.getMessage(), e);
         }
     }

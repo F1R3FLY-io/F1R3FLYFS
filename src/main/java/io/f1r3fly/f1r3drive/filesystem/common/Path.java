@@ -1,5 +1,6 @@
 package io.f1r3fly.f1r3drive.filesystem.common;
 
+import io.f1r3fly.f1r3drive.blockchain.BlockchainContext;
 import io.f1r3fly.f1r3drive.errors.OperationNotPermitted;
 import io.f1r3fly.f1r3drive.fuse.struct.FileStat;
 import io.f1r3fly.f1r3drive.fuse.struct.FuseContext;
@@ -45,4 +46,6 @@ public interface Path {
     void rename(String newName, Directory newParent) throws OperationNotPermitted;
 
     default void cleanLocalCache() {};
+
+    BlockchainContext getBlockchainContext();
 }

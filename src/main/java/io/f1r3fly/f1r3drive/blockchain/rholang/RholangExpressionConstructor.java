@@ -1,6 +1,6 @@
 package io.f1r3fly.f1r3drive.blockchain.rholang;
 
-import io.f1r3fly.f1r3drive.codec.Base16Coder;
+import org.apache.commons.codec.binary.Hex;
 import org.jetbrains.annotations.NotNull;
 import rhoapi.RhoTypes;
 
@@ -176,7 +176,7 @@ public class RholangExpressionConstructor {
             .append(").set(\"")
             .append(FIRST_CHUNK)
             .append("\",\"")
-            .append(Base16Coder.bytesToHex(newChunk))
+            .append(Hex.encodeHexString(newChunk))
             .append("\".hexToBytes()))}")
             .toString();
     }
@@ -217,7 +217,7 @@ public class RholangExpressionConstructor {
             .append("@\"")
             .append(channel)
             .append("\"!(\"")
-            .append(Base16Coder.bytesToHex(chunk))
+            .append(Hex.encodeHexString(chunk))
             .append("\".hexToBytes())")
             .toString();
     }

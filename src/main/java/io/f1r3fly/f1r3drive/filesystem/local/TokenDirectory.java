@@ -1,9 +1,8 @@
 package io.f1r3fly.f1r3drive.filesystem.local;
 
-import io.f1r3fly.f1r3drive.app.ConfigStorage;
 import io.f1r3fly.f1r3drive.errors.F1r3flyFSError;
 import io.f1r3fly.f1r3drive.errors.OperationNotPermitted;
-import io.f1r3fly.f1r3drive.blockchain.client.F1r3flyBlockchainClient;
+import io.f1r3fly.f1r3drive.blockchain.BlockchainContext;
 import io.f1r3fly.f1r3drive.filesystem.common.Directory;
 import io.f1r3fly.f1r3drive.filesystem.common.Path;
 import io.f1r3fly.f1r3drive.filesystem.deployable.UnlockedWalletDirectory;
@@ -32,8 +31,6 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
 
     private volatile boolean balanceChanged = true;
 
-    private final F1r3flyBlockchainClient f1R3FlyBlockchainClient;
-
     private static final List<Long> denominations = Arrays.asList(
         1_000_000_000_000_000_000L, // 1 quintillion
         100_000_000_000_000_000L,   // 100 quadrillion
@@ -57,9 +54,8 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
     );
 
 
-    public TokenDirectory(UnlockedWalletDirectory parent, F1r3flyBlockchainClient f1R3FlyBlockchainClient) {
-        super(NAME, parent);
-        this.f1R3FlyBlockchainClient = f1R3FlyBlockchainClient;
+    public TokenDirectory(BlockchainContext blockchainContext, UnlockedWalletDirectory parent) {
+        super(blockchainContext, NAME, parent);
         this.parent = parent;
     }
 
@@ -118,8 +114,8 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
 
 
     private long checkBalance() throws F1r3flyFSError {
-        String checkBalanceRho = RholangExpressionConstructor.checkBalanceRho(parent.getRevAddress());
-        RhoTypes.Expr expr = f1R3FlyBlockchainClient.exploratoryDeploy(checkBalanceRho);
+        String checkBalanceRho = RholangExpressionConstructor.checkBalanceRho(getBlockchainContext().getWalletInfo().revAddress());
+        RhoTypes.Expr expr = getBlockchainContext().getBlockchainClient().exploratoryDeploy(checkBalanceRho);
 
         if (!expr.hasGInt()) {
             throw new F1r3flyFSError("Invalid balance data");
@@ -131,7 +127,7 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
     public void addTokens(long denomination, long N) {
         for (int i = 0; i < N; i++) {
             String tokenName = denomination + "-REV." + i + ".token";
-            TokenFile tokenFile = new TokenFile(tokenName, this, denomination);
+            TokenFile tokenFile = new TokenFile(getBlockchainContext(), tokenName, this, denomination);
             children.add(tokenFile);
         }
     }
@@ -155,9 +151,9 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
     }
 
     /**
-     * Exchange the token file into smaller token files and add them to the children
+     * Change the token file into smaller token files and add them to the children
      *
-     * @param tokenFile the token file to exchange
+     * @param tokenFile the token file to change
      *                  <p>
      *                  Example: 1000 -> 100, 100, 100, 100, 100, 100, 100, 100, 100, 100
      *                  or 14 -> 10, 4
@@ -165,7 +161,7 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
      *                  or 9 -> 9
      *                  or 99 -> 10, 10, 10, 10, 10, 10, 10, 10, 10, 9
      */
-    public void exchange(TokenFile tokenFile) {
+    public void change(TokenFile tokenFile) {
         long amount = tokenFile.value;
         this.deleteChild(tokenFile);
 
@@ -185,9 +181,9 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
         while (amount > 0) {
             if (amount >= denomination) {
                 // Create a token of the current denomination
-                String tokenName = denomination + "-REV.exchanged-" + originalDenomination + "." + i++ + ".token";
+                String tokenName = denomination + "-REV.changed-" + originalDenomination + "." + i++ + ".token";
                 LOGGER.info("Creating token " + tokenName + " with value " + denomination);
-                TokenFile newTokenFile = new TokenFile(tokenName, this, denomination);
+                TokenFile newTokenFile = new TokenFile(getBlockchainContext(), tokenName, this, denomination);
                 this.addChild(newTokenFile);
                 amount -= denomination;
             } else {

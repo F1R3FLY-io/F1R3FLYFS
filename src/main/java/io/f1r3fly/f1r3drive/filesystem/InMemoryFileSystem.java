@@ -1,7 +1,9 @@
 package io.f1r3fly.f1r3drive.filesystem;
 
 import casper.DeployServiceCommon;
+import io.f1r3fly.f1r3drive.blockchain.wallet.RevWalletInfo;
 import io.f1r3fly.f1r3drive.errors.*;
+import io.f1r3fly.f1r3drive.blockchain.BlockchainContext;
 import io.f1r3fly.f1r3drive.fuse.FuseFillDir;
 import io.f1r3fly.f1r3drive.background.state.StateChangeEvents;
 import io.f1r3fly.f1r3drive.background.state.StateChangeEventsManager;
@@ -13,7 +15,7 @@ import io.f1r3fly.f1r3drive.filesystem.common.File;
 import io.f1r3fly.f1r3drive.filesystem.common.Path;
 import io.f1r3fly.f1r3drive.filesystem.deployable.BlockchainFile;
 import io.f1r3fly.f1r3drive.filesystem.deployable.UnlockedWalletDirectory;
-import io.f1r3fly.f1r3drive.filesystem.local.LockedRemoteDirectory;
+import io.f1r3fly.f1r3drive.filesystem.local.LockedWalletDirectory;
 import io.f1r3fly.f1r3drive.filesystem.local.RootDirectory;
 import io.f1r3fly.f1r3drive.filesystem.local.TokenDirectory;
 import io.f1r3fly.f1r3drive.filesystem.local.TokenFile;
@@ -56,9 +58,9 @@ public class InMemoryFileSystem implements FileSystem {
 
         this.rootDirectory = new RootDirectory();
         Set<Path> lockedRemoteDirectories = createRavAddressDirectories(this.deployDispatcher);
-        for (Path lockedRemoteDirectory : lockedRemoteDirectories) {
+        for (Path LockedWalletDirectory : lockedRemoteDirectories) {
             try {
-                rootDirectory.addChild(lockedRemoteDirectory);
+                rootDirectory.addChild(LockedWalletDirectory);
             } catch (OperationNotPermitted impossibleError) {
                 logger.error("Unexpected error: {}", impossibleError.getMessage());
             }
@@ -225,9 +227,6 @@ public class InMemoryFileSystem implements FileSystem {
 
         Directory oldParent = p.getParent();
         String lastComponent = getLastComponent(newName);
-        if (lastComponent.equals(p.getName())) {
-            return;
-        }
 
         p.rename(lastComponent, newParent);
 
@@ -351,20 +350,21 @@ public class InMemoryFileSystem implements FileSystem {
         Set<Path> children = new HashSet<>();
 
         for (String address : ravAddresses) {
-            children.add(new LockedRemoteDirectory(address, rootDirectory));
+            children.add(new LockedWalletDirectory(
+                    new BlockchainContext(new RevWalletInfo(address, null), deployDispatcher), rootDirectory));
         }
 
         return children;
     }
 
-    public void unlockRootDirectory(String revAddress, String privateKey) {
+    public void unlockRootDirectory(String revAddress, String privateKey) throws InvalidSigningKeyException {
         String searchPath = "/LOCKED-REMOTE-REV-" + revAddress;
 
         Path lockedRoot = getDirectory(searchPath);
 
-        if (lockedRoot instanceof LockedRemoteDirectory) {
+        if (lockedRoot instanceof LockedWalletDirectory) {
             try {
-                UnlockedWalletDirectory unlockedRoot = ((LockedRemoteDirectory) lockedRoot).unlock(privateKey,
+                UnlockedWalletDirectory unlockedRoot = ((LockedWalletDirectory) lockedRoot).unlock(privateKey,
                         deployDispatcher);
 
                 this.rootDirectory.deleteChild(lockedRoot);
@@ -377,14 +377,16 @@ public class InMemoryFileSystem implements FileSystem {
                                 @Override
                                 public void processEvent(StateChangeEvents event) {
                                     if (event instanceof StateChangeEvents.WalletBalanceChanged walletBalanceChanged) {
-                                        if (walletBalanceChanged.revAddress().equals(unlockedRoot.getRevAddress())) {
+                                        if (walletBalanceChanged.revAddress().equals(
+                                                unlockedRoot.getBlockchainContext().getWalletInfo().revAddress())) {
                                             tokenDirectory.handleWalletBalanceChanged();
                                         }
                                     }
                                 }
                             });
                 } else {
-                    logger.warn("Token directory is null for unlocked root directory: {}", unlockedRoot.getRevAddress());
+                    logger.warn("Token directory is null for unlocked root directory: {}",
+                            unlockedRoot.getBlockchainContext().getWalletInfo().revAddress());
                 }
 
             } catch (OperationNotPermitted e) {
@@ -398,12 +400,13 @@ public class InMemoryFileSystem implements FileSystem {
                 logger.warn("Root directory parent: {}", lockedRoot.getParent());
             } else {
                 logger.warn("Root directory is null - path not found: {}", searchPath);
+                throw new PathNotFound(searchPath);
             }
         }
     }
 
     @Override
-    public void exchangeTokenFile(String filePath) throws NoDataByPath {
+    public void changeTokenFile(String filePath) throws NoDataByPath {
         File file = getFile(filePath);
         if (file == null) {
             throw new NoDataByPath(filePath);
@@ -424,7 +427,7 @@ public class InMemoryFileSystem implements FileSystem {
             throw new RuntimeException("Token directory is not a token directory: " + filePath);
         }
 
-        ((TokenDirectory) tokenDirectory).exchange(tokenFile);
+        ((TokenDirectory) tokenDirectory).change(tokenFile);
     }
 
     @Override

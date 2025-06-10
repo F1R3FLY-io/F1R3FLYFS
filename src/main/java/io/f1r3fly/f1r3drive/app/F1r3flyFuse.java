@@ -282,7 +282,7 @@ public class F1r3flyFuse extends FuseStubFS {
 
             LOGGER.debug("Creating FinderSyncExtensionServiceServer...");
             this.finderSyncExtensionServiceServer = new FinderSyncExtensionServiceServer(
-                this::handleExchange, this::handleUnlockRevDirectory, 54000);
+                this::handleChange, this::handleUnlockRevDirectory, 54000);
             LOGGER.debug("Created FinderSyncExtensionServiceServer successfully");
 
             this.mountName = "F1r3flyFuse-" + UUID.randomUUID();
@@ -395,17 +395,17 @@ public class F1r3flyFuse extends FuseStubFS {
         return isNotMounted;
     }
 
-    private FinderSyncExtensionServiceServer.Result handleExchange(String tokenFilePath) {
-        LOGGER.debug("Called onExchange for path: {}", tokenFilePath);
+    private FinderSyncExtensionServiceServer.Result handleChange(String tokenFilePath) {
+        LOGGER.debug("Called onChange for path: {}", tokenFilePath);
         if (notMounted()) {
-            LOGGER.warn("handleExchange - FileSystem not mounted for path: {}", tokenFilePath);
+            LOGGER.warn("handleChange - FileSystem not mounted for path: {}", tokenFilePath);
             return FinderSyncExtensionServiceServer.Result.error("FileSystem not mounted");
         }
 
         try {
             String normalizedTokenFilePath = tokenFilePath.replace(mountPoint.toFile().getAbsolutePath(), "");
-            fileSystem.exchangeTokenFile(normalizedTokenFilePath);
-            LOGGER.debug("Successfully exchanged token file: {}", normalizedTokenFilePath);
+            fileSystem.changeTokenFile(normalizedTokenFilePath);
+            LOGGER.debug("Successfully changed token file: {}", normalizedTokenFilePath);
             return FinderSyncExtensionServiceServer.Result.success();
         } catch (Exception e) {
             LOGGER.error("Error exchanging token file: {}", tokenFilePath, e);
@@ -413,16 +413,21 @@ public class F1r3flyFuse extends FuseStubFS {
         }
     }
 
-    private void handleUnlockRevDirectory(String revAddress, String privateKey) {
+    private FinderSyncExtensionServiceServer.Result handleUnlockRevDirectory(String revAddress, String privateKey) {
         LOGGER.debug("Called handleUnlockRevDirectory for revAddress: {}", revAddress);
 
         if (notMounted()) {
             LOGGER.warn("handleUnlockRevDirectory - FileSystem not mounted for revAddress: {}", revAddress);
-            return;
+            return FinderSyncExtensionServiceServer.Result.error("FileSystem not mounted");
         }
-        fileSystem.unlockRootDirectory(revAddress, privateKey);
-        LOGGER.debug("Successfully unlocked directory for revAddress: {}", revAddress);
-
+        try {
+            fileSystem.unlockRootDirectory(revAddress, privateKey);
+            LOGGER.debug("Successfully unlocked directory for revAddress: {}", revAddress);
+            return FinderSyncExtensionServiceServer.Result.success();
+        } catch (Exception e) {
+            LOGGER.error("Error unlocking directory for revAddress: {}", revAddress, e);
+            return FinderSyncExtensionServiceServer.Result.error(e.getMessage());
+        }
     }
 
 }

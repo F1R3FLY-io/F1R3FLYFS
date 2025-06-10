@@ -3,7 +3,6 @@ package io.f1r3fly.f1r3drive.app;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import fr.acinq.secp256k1.Hex;
 import io.f1r3fly.f1r3drive.encryption.AESCipher;
 import io.f1r3fly.f1r3drive.blockchain.client.F1r3flyBlockchainClient;
 import io.f1r3fly.f1r3drive.fuse.struct.Utils;
@@ -40,13 +39,15 @@ public class F1R3FlyFuseTestFixture {
     protected static final Path MOUNT_POINT = new File("/tmp/f1r3flyfs/").toPath();
     protected static final File MOUNT_POINT_FILE = MOUNT_POINT.toFile();
 
-    protected static final String client1Wallet = "11112ZM9yrfaTrzCCbKjPbxBncjNCkMFsPqtcLFvhBf4Kqx6rpir2w";
-    protected static final String client1PrivateKey = "a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954";
-    protected static final File client1Directory = new File(MOUNT_POINT_FILE, client1Wallet);
+    protected static final String REV_WALLET_1 = "11112ZM9yrfaTrzCCbKjPbxBncjNCkMFsPqtcLFvhBf4Kqx6rpir2w";
+    protected static final String PRIVATE_KEY_1 = "a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954";
+    protected static final File LOCKED_WALLET_DIR_1 = new File(MOUNT_POINT_FILE, "LOCKED-REMOTE-REV-" + REV_WALLET_1);
+    protected static final File UNLOCKED_WALLET_DIR_1 = new File(MOUNT_POINT_FILE, REV_WALLET_1);
 
-    protected static final String client2Wallet = "1111AtahZeefej4tvVR6ti9TJtv8yxLebT31SCEVDCKMNikBk5r3g";
-    protected static final String client2PrivateKey = "5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657";
-    protected static final File client2Directory = new File(MOUNT_POINT_FILE, "LOCKED-REMOTE-REV-" + client2Wallet);
+    protected static final String REV_WALLET_2 = "1111AtahZeefej4tvVR6ti9TJtv8yxLebT31SCEVDCKMNikBk5r3g";
+    protected static final String PRIVATE_KEY_2 = "5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657";
+    protected static final File LOCKED_WALLET_DIR_2 = new File(MOUNT_POINT_FILE, "LOCKED-REMOTE-REV-" + REV_WALLET_2);
+    protected static final File UNLOCKED_WALLET_DIR_2 = new File(MOUNT_POINT_FILE, REV_WALLET_2);
 
     public static final DockerImageName F1R3FLY_IMAGE = DockerImageName.parse(
         "ghcr.io/f1r3fly-io/rnode:latest"
@@ -71,9 +72,6 @@ public class F1R3FlyFuseTestFixture {
         listAppender.start();
         log.addAppender(listAppender);
 
-        ConfigStorage.setPrivateKey(Hex.decode(client1PrivateKey));
-        ConfigStorage.setRevAddress(client1Wallet);
-
         // Create a network for containers to communicate
         network = Network.newNetwork();
 
@@ -97,7 +95,7 @@ public class F1R3FlyFuseTestFixture {
 
         // Use container network alias for container-to-container communication
         f1r3flyBootAddress = "rnode://17e4e1fb1540554e72dbf91abe4647b85d8bd655@" + bootAlias + "?protocol=" + PROTOCOL_PORT + "&discovery=" + DISCOVERY_PORT;
-        
+
         log.info("Using bootstrap address: {}", f1r3flyBootAddress);
 
         f1r3flyObserver = new GenericContainer<>(F1R3FLY_IMAGE)
@@ -116,6 +114,9 @@ public class F1R3FlyFuseTestFixture {
         log.info("Starting observer with bootstrap address: {}", f1r3flyBootAddress);
         f1r3flyObserver.start();
 
+        // commented b/c save the java heap memory
+        // f1r3flyBoot.followOutput(logConsumer);
+
         // Wait for both containers' GRPC ports to be available
         waitForPortToOpen("localhost", f1r3flyBoot.getMappedPort(GRPC_PORT), STARTUP_TIMEOUT);
         waitForPortToOpen("localhost", f1r3flyObserver.getMappedPort(GRPC_PORT), STARTUP_TIMEOUT);
@@ -124,17 +125,17 @@ public class F1R3FlyFuseTestFixture {
 
         AESCipher.init("/tmp/cipher.key"); // file doesn't exist, so new key will be generated there
         f1R3FlyBlockchainClient = new F1r3flyBlockchainClient(
-                                   "localhost", f1r3flyBoot.getMappedPort(GRPC_PORT), 
-                                   "localhost", f1r3flyObserver.getMappedPort(GRPC_PORT));
+            "localhost", f1r3flyBoot.getMappedPort(GRPC_PORT),
+            "localhost", f1r3flyObserver.getMappedPort(GRPC_PORT));
         f1r3flyFS = new F1r3flyFuse(f1R3FlyBlockchainClient);
 
         forceUmountAndCleanup(); // cleanup before mount
-        
+
         // Add delay before mounting to ensure previous test cleanup is complete
         Thread.sleep(1000);
-        
+
         f1r3flyFS.mount(MOUNT_POINT);
-        
+
         // Add delay after mounting to ensure mount is stable
         Thread.sleep(1000);
     }
@@ -159,13 +160,13 @@ public class F1R3FlyFuseTestFixture {
             f1r3flyObserver.stop();
             f1r3flyObserver.close();
         }
-        
+
         if (network != null) {
             network.close();
         }
-        
+
         recreateDirectories();
-        
+
         listAppender.stop();
     }
 
@@ -182,7 +183,7 @@ public class F1R3FlyFuseTestFixture {
                 f1r3flyFS.umount();
                 Thread.sleep(1000); // Wait for unmount to complete
             }
-            
+
             // Force unmount using system commands
             try {
                 MountUtils.umount(MOUNT_POINT);
@@ -190,7 +191,7 @@ public class F1R3FlyFuseTestFixture {
                 // Ignore errors from force unmount
                 log.debug("Force unmount failed (expected if not mounted): {}", e.getMessage());
             }
-            
+
             // Clean up mount point directory more carefully
             File mountPointFile = MOUNT_POINT.toFile();
             if (mountPointFile.exists()) {
@@ -217,7 +218,7 @@ public class F1R3FlyFuseTestFixture {
                     log.warn("Failed to delete mount point directory: {}", mountPointFile.getAbsolutePath());
                 }
             }
-            
+
             // Ensure mount point directory is recreated clean
             if (!mountPointFile.mkdirs()) {
                 // mkdirs() returns false if directory already exists, so check if it exists
@@ -230,17 +231,17 @@ public class F1R3FlyFuseTestFixture {
             } else {
                 log.debug("Created mount point directory: {}", mountPointFile.getAbsolutePath());
             }
-            
+
         } catch (Throwable e) {
             log.error("Error during forceUmountAndCleanup", e);
         }
     }
-    
+
     private static void deleteDirectoryRecursively(File directory) {
         if (!directory.exists()) {
             return;
         }
-        
+
         File[] children = directory.listFiles();
         if (children != null) {
             for (File child : children) {
@@ -276,26 +277,22 @@ public class F1R3FlyFuseTestFixture {
 
     protected static void simulateUnlockWalletDirectoryAction(String revAddress, String privateKey) throws FinderSyncExtensionServiceClient.WalletUnlockException {
         try (FinderSyncExtensionServiceClient client = new FinderSyncExtensionServiceClient("localhost", 54000)) {
-            client.unlockWalletFolder(revAddress, privateKey);
-        } catch (Exception e) {
-            throw e;
+            client.unlockWalletDirectory(revAddress, privateKey);
         }
     }
 
-    protected static void simulateExchangeTokenAction(String tokenPath) throws FinderSyncExtensionServiceClient.ActionSubmissionException {
+    protected static void simulateChangeTokenAction(String tokenPath) throws FinderSyncExtensionServiceClient.ActionSubmissionException {
         try (FinderSyncExtensionServiceClient client = new FinderSyncExtensionServiceClient("localhost", 54000)) {
-            client.submitAction(FinderSyncExtensionServiceOuterClass.MenuActionType.EXCHANGE, tokenPath);
-        } catch (Exception e) {
-            throw e;
+            client.submitAction(FinderSyncExtensionServiceOuterClass.MenuActionType.CHANGE, tokenPath);
         }
     }
 
     private static void waitForPortToOpen(String host, int port, Duration timeout) throws InterruptedException {
         long startTime = System.currentTimeMillis();
         long timeoutMillis = timeout.toMillis();
-        
+
         log.info("Waiting for port {}:{} to become available...", host, port);
-        
+
         while (System.currentTimeMillis() - startTime < timeoutMillis) {
             try (Socket socket = new Socket()) {
                 socket.connect(new java.net.InetSocketAddress(host, port), 1000);
@@ -306,7 +303,7 @@ public class F1R3FlyFuseTestFixture {
                 Thread.sleep(1000);
             }
         }
-        
+
         throw new RuntimeException("Timeout waiting for port " + host + ":" + port + " to become available");
     }
 } 

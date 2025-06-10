@@ -1,9 +1,8 @@
 package io.f1r3fly.f1r3drive.filesystem.deployable;
 
-import io.f1r3fly.f1r3drive.blockchain.wallet.RevWalletInfo;
 import io.f1r3fly.f1r3drive.encryption.AESCipher;
-import io.f1r3fly.f1r3drive.blockchain.client.DeployDispatcher;
 import io.f1r3fly.f1r3drive.errors.OperationNotPermitted;
+import io.f1r3fly.f1r3drive.blockchain.BlockchainContext;
 import io.f1r3fly.f1r3drive.filesystem.common.Directory;
 import io.f1r3fly.f1r3drive.filesystem.common.File;
 import io.f1r3fly.f1r3drive.blockchain.rholang.RholangExpressionConstructor;
@@ -38,12 +37,12 @@ public class BlockchainFile extends AbstractDeployablePath implements File {
     protected boolean isOtherChunksDeployed = false;
     protected Map<Integer, String> otherChunks = new ConcurrentHashMap<>();
 
-    public BlockchainFile(String name, Directory parent) {
-        this(name, parent, true);
+    public BlockchainFile(@NotNull BlockchainContext blockchainContext, @NotNull String name, @NotNull Directory parent) {
+        this(blockchainContext, name, parent, true);
     }
 
-    protected BlockchainFile(String name, @NotNull Directory parent, boolean sendToShard) {
-        super(name, parent);
+    protected BlockchainFile(@NotNull BlockchainContext blockchainContext, @NotNull String name, @NotNull Directory parent, boolean sendToShard) {
+        super(blockchainContext, name, parent);
         if (sendToShard) {
             enqueueCreatingFile();
         }
@@ -299,29 +298,6 @@ public class BlockchainFile extends AbstractDeployablePath implements File {
         return PathUtils.isDeployableFile(name);
     }
 
-    @Override
-    public DeployDispatcher getDeployDispatcher() {
-        Directory parent = getParent();
-        if (parent instanceof BlockchainDirectory) {
-            return ((BlockchainDirectory) parent).getDeployDispatcher();
-        } else if (parent == null) {
-            throw new IllegalStateException("Parent is null");
-        } else {
-            throw new IllegalStateException("deployable path %s depends on non-deployable parent %s".formatted(name, parent.getName()));
-        }
-    }
-
-    @Override
-    public RevWalletInfo getRevWalletInfo() {
-        Directory parent = getParent();
-        if (parent instanceof BlockchainDirectory) {
-            return ((BlockchainDirectory) parent).getRevWalletInfo();
-        } else if (parent == null) {
-            throw new IllegalStateException("Parent is null");
-        } else {
-            throw new IllegalStateException("deployable path %s depends on non-deployable parent %s".formatted(name, parent.getName()));
-        }
-    }
 
     @Override
     public void cleanLocalCache() {

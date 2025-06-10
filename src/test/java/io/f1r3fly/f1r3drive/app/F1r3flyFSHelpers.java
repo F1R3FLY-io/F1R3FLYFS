@@ -1,8 +1,8 @@
 package io.f1r3fly.f1r3drive.app;
 
+import io.f1r3fly.f1r3drive.errors.F1r3flyFSError;
 import io.f1r3fly.f1r3drive.errors.NoDataByPath;
 import io.f1r3fly.f1r3drive.blockchain.rholang.RholangExpressionConstructor;
-import io.f1r3fly.f1r3drive.filesystem.local.TokenDirectory;
 import org.jetbrains.annotations.NotNull;
 import rhoapi.RhoTypes;
 
@@ -154,18 +154,14 @@ public class F1r3flyFSHelpers extends F1R3FlyFuseTestFixture {
             "Deployed data should be equal to written data");
     }
 
-    /**
-     * Measures and prints test execution time
-     */
-    public static long startTimeTracking() {
-        return System.currentTimeMillis();
-    }
+    public static long checkBalance(String revAddress) {
+        String checkBalanceRho = RholangExpressionConstructor.checkBalanceRho(revAddress);
+        RhoTypes.Expr expr = f1R3FlyBlockchainClient.exploratoryDeploy(checkBalanceRho);
 
-    /**
-     * Prints the elapsed time since start
-     */
-    public static void printElapsedTime(long start) {
-        long end = System.currentTimeMillis();
-        System.out.println("Time taken: " + (end - start) / 1000 + " seconds");
+        if (!expr.hasGInt()) {
+            throw new F1r3flyFSError("Invalid balance data");
+        }
+
+        return expr.getGInt();
     }
 } 

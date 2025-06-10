@@ -1,5 +1,6 @@
 package io.f1r3fly.f1r3drive.filesystem.common;
 
+import io.f1r3fly.f1r3drive.blockchain.BlockchainContext;
 import io.f1r3fly.f1r3drive.errors.OperationNotPermitted;
 import io.f1r3fly.f1r3drive.filesystem.utils.PathUtils;
 import org.jetbrains.annotations.NotNull;
@@ -11,12 +12,14 @@ import javax.annotation.Nullable;
  */
 public abstract class AbstractPath implements Path {
 
+    @NotNull protected BlockchainContext blockchainContext;
     @NotNull protected String name;
     @Nullable protected Directory parent;
 
-    public AbstractPath(@NotNull String name, @Nullable Directory parent) {
+    public AbstractPath(@NotNull BlockchainContext blockchainContext, @NotNull String name, @Nullable Directory parent) {
         this.name = name;
         this.parent = parent;
+        this.blockchainContext = blockchainContext;
     }
 
     @Override
@@ -50,5 +53,10 @@ public abstract class AbstractPath implements Path {
     public void rename(String newName, Directory newParent) throws OperationNotPermitted {
         this.name = newName;
         this.parent = newParent;
+    }
+
+    @Override
+    public BlockchainContext getBlockchainContext() {
+        return blockchainContext;
     }
 }

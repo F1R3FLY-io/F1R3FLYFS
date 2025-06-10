@@ -52,7 +52,7 @@ public interface FileSystem {
     void flushFile(String path) throws PathNotFound, PathIsNotAFile;
 
     void unlockRootDirectory(String revAddress, String privateKey);
-    void exchangeTokenFile(String tokenFilePath) throws NoDataByPath;
+    void changeTokenFile(String tokenFilePath) throws NoDataByPath;
 
     // utils
     // TODO: hide it?

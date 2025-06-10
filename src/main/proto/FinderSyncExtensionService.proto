@@ -4,7 +4,7 @@ syntax = "proto3";
 package generic;
 
 enum MenuActionType {
-  EXCHANGE = 0;
+  CHANGE = 0;
   COMBINE = 1;
 }
 
@@ -26,12 +26,12 @@ message Response {
 
 message EmptyResponse {}
 
-message UnlockWalletFolderRequest {
+message UnlockWalletDirectoryRequest {
   string revAddress = 1;
   string privateKey = 2;
 }
 
 service FinderSyncExtensionService {
   rpc SubmitAction(MenuActionRequest) returns (Response);
-  rpc UnlockWalletFolder(UnlockWalletFolderRequest) returns (Response);
+  rpc UnlockWalletDirectory(UnlockWalletDirectoryRequest) returns (Response);
 }

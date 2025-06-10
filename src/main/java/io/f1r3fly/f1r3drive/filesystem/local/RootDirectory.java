@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import io.f1r3fly.f1r3drive.errors.OperationNotPermitted;
+import io.f1r3fly.f1r3drive.blockchain.BlockchainContext;
 import io.f1r3fly.f1r3drive.filesystem.common.Directory;
 import io.f1r3fly.f1r3drive.filesystem.common.Path;
 import org.jetbrains.annotations.NotNull;
@@ -13,7 +14,7 @@ public class RootDirectory extends AbstractLocalPath implements Directory {
     private final Set<Path> children;
 
     public RootDirectory() {
-        super("/", null);
+        super(null, "/", null);
         children = new HashSet<>();
     }
 
@@ -77,5 +78,10 @@ public class RootDirectory extends AbstractLocalPath implements Directory {
     @Override
     public Set<Path> getChildren() {
         return children;
+    }
+
+    @Override
+    public BlockchainContext getBlockchainContext() {
+        throw new UnsupportedOperationException("RootDirectory does not have a blockchain context");
     }
 }
