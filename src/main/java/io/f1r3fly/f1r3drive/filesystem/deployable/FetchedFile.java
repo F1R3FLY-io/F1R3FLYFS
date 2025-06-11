@@ -26,5 +26,9 @@ public class FetchedFile extends BlockchainFile {
         otherChunks = new ConcurrentHashMap<>(subChannels);
     }
 
+    public void updateParent(BlockchainDirectory parent) {
+        this.parent = parent;
+    }
+
 
 }

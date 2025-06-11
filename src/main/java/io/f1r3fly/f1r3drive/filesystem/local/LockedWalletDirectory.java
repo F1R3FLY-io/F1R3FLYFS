@@ -9,6 +9,7 @@ import io.f1r3fly.f1r3drive.errors.NoDataByPath;
 import io.f1r3fly.f1r3drive.errors.OperationNotPermitted;
 import io.f1r3fly.f1r3drive.blockchain.client.F1r3flyBlockchainClient;
 import io.f1r3fly.f1r3drive.blockchain.BlockchainContext;
+import io.f1r3fly.f1r3drive.filesystem.FileSystemAction;
 import io.f1r3fly.f1r3drive.filesystem.common.Path;
 import io.f1r3fly.f1r3drive.filesystem.common.ReadOnlyDirectory;
 import io.f1r3fly.f1r3drive.filesystem.deployable.BlockchainDirectory;
@@ -56,13 +57,27 @@ public class LockedWalletDirectory extends AbstractLocalPath implements ReadOnly
                 throw new IllegalStateException("Root directory is not a directory");
             }
 
-            // create a root and won't deploy it to the shard
-            return new UnlockedWalletDirectory(
-                    blockchainContext,
-                    ((FetchedDirectory) root).getChildren(),
-                    getParent() == null ? null : (RootDirectory) getParent(),
-                    false // skip deploy
+            // TODO: avoid converting RootDirectory to UnlockedWalletDirectory (rework fetchDirectoryFromShard) and delete the next lines
+
+            // convert RootDirectory to UnlockedWalletDirectory
+            UnlockedWalletDirectory unlockedWalletDirectory = new UnlockedWalletDirectory(
+                blockchainContext,
+                ((FetchedDirectory) root).getChildren(),
+                getParent() == null ? null : (RootDirectory) getParent(),
+                false // skip deploy
             );
+
+            // fix links to a new parent instance
+            for (Path child : unlockedWalletDirectory.getChildren()) {
+                if (child instanceof FetchedFile fetchedFile) {
+                    fetchedFile.updateParent(unlockedWalletDirectory);
+                }
+                if (child instanceof FetchedDirectory fetchedDirectory) {
+                    fetchedDirectory.updateParent(unlockedWalletDirectory);
+                }
+            }
+
+            return unlockedWalletDirectory;
 
         } catch (NoDataByPath e) {
             // no previous mount: need to create a new root and deploy to the shard
@@ -142,7 +157,7 @@ public class LockedWalletDirectory extends AbstractLocalPath implements ReadOnly
             }
 
         } catch (NoDataByPath e) {
-            logger.warn("No data found for path: {}", absolutePath, e);
+            logger.info("No data found for path: {}", absolutePath);
             throw e;
         } catch (Throwable e) {
             logger.error("Error fetching directory from shard for path: {}", absolutePath, e);

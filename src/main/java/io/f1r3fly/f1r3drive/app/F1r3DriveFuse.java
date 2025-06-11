@@ -1,14 +1,16 @@
 package io.f1r3fly.f1r3drive.app;
 
+import io.f1r3fly.f1r3drive.filesystem.FileSystemAction;
 import io.f1r3fly.f1r3drive.errors.*;
 import io.f1r3fly.f1r3drive.fuse.ErrorCodes;
 import io.f1r3fly.f1r3drive.fuse.FuseFillDir;
 import io.f1r3fly.f1r3drive.fuse.FuseStubFS;
 import io.f1r3fly.f1r3drive.fuse.SuccessCodes;
-import io.f1r3fly.f1r3drive.contextmenu.handler.FinderSyncExtensionServiceServer;
+import io.f1r3fly.f1r3drive.finderextensions.FinderSyncExtensionServiceServer;
 import io.f1r3fly.f1r3drive.filesystem.FileSystem;
 import io.f1r3fly.f1r3drive.blockchain.client.F1r3flyBlockchainClient;
 import io.f1r3fly.f1r3drive.filesystem.InMemoryFileSystem;
+import io.f1r3fly.f1r3drive.filesystem.OperationContext;
 import io.f1r3fly.f1r3drive.fuse.struct.FileStat;
 import io.f1r3fly.f1r3drive.fuse.struct.FuseFileInfo;
 import io.f1r3fly.f1r3drive.fuse.struct.Statvfs;
@@ -57,85 +59,97 @@ public class F1r3DriveFuse extends FuseStubFS {
         int execute() throws Exception;
     }
 
-    private int executeWithErrorHandling(String operationName, String path, FuseOperation operation) {
-        boolean isTrace = operationName.equals("Getattr") || operationName.equals("Read")
-            || operationName.equals("Write") || operationName.equals("Statfs");
-        if (isTrace) {
-            LOGGER.trace("Called {} {}", operationName, path);
-        } else {
-            LOGGER.debug("Called {} {}", operationName, path);
-        }
+    private int executeWithErrorHandling(String path, FileSystemAction action, FuseOperation operation) {
+        return OperationContext.withContext(action, path, () -> {
+            boolean isTrace = action == FileSystemAction.FUSE_GETATTR || action == FileSystemAction.FUSE_READ
+                || action == FileSystemAction.FUSE_WRITE;
+            if (isTrace) {
+                LOGGER.trace("Started {}", action);
+            } else {
+                LOGGER.debug("Started {}", action);
+            }
 
-        // Check if filesystem is mounted first
-        if (notMounted()) {
-            LOGGER.debug("{} - FileSystem not mounted for path: {}", operationName, path);
-            return -ErrorCodes.EIO();
-        }
+            // Check if filesystem is mounted first
+            if (notMounted()) {
+                LOGGER.debug("FileSystem not mounted");
+                return -ErrorCodes.EIO();
+            }
 
-        try {
-            return operation.execute();
-        } catch (FileAlreadyExists e) {
-            if (isTrace) {
-                LOGGER.trace("{} - File/Directory already exists: {}", operationName, path, e);
-            } else {
-                LOGGER.debug("{} - File/Directory already exists: {}", operationName, path, e);
+            try {
+                int result = operation.execute();
+                if (result == SuccessCodes.OK) {
+                    if (isTrace) {
+                        LOGGER.trace("Completed {} successfully", action);
+                    } else {
+                        LOGGER.debug("Completed {} successfully", action);
+                    }
+                } else {
+                    LOGGER.debug("Completed {} with result: {}", action, result);
+                }
+                return result;
+            } catch (FileAlreadyExists e) {
+                if (isTrace) {
+                    LOGGER.trace("File/Directory already exists", e);
+                } else {
+                    LOGGER.debug("File/Directory already exists", e);
+                }
+                return -ErrorCodes.EEXIST();
+            } catch (PathNotFound e) {
+                if (isTrace) {
+                    LOGGER.trace("Path not found", e);
+                } else {
+                    LOGGER.debug("Path not found", e);
+                }
+                return -ErrorCodes.ENOENT();
+            } catch (OperationNotPermitted e) {
+                if (isTrace) {
+                    LOGGER.trace("Operation not permitted");
+                } else {
+                    LOGGER.debug("Operation not permitted");
+                }
+                return -ErrorCodes.EPERM();
+            } catch (PathIsNotAFile e) {
+                if (isTrace) {
+                    LOGGER.trace("Path is not a file", e);
+                } else {
+                    LOGGER.info("Path is not a file", e);
+                }
+                return -ErrorCodes.EISDIR();
+            } catch (PathIsNotADirectory e) {
+                if (isTrace) {
+                    LOGGER.trace("Path is not a directory", e);
+                } else {
+                    LOGGER.info("Path is not a directory", e);
+                }
+                return -ErrorCodes.ENOTDIR();
+            } catch (DirectoryNotEmpty e) {
+                if (isTrace) {
+                    LOGGER.trace("Directory is not empty");
+                } else {
+                    LOGGER.info("Directory is not empty");
+                }
+                return -ErrorCodes.ENOTEMPTY();
+            } catch (IOException e) {
+                if (isTrace) {
+                    LOGGER.trace("IO error", e);
+                } else {
+                    LOGGER.warn("IO error", e);
+                }
+                return -ErrorCodes.EIO();
+            } catch (Exception e) {
+                if (isTrace) {
+                    LOGGER.trace("Unexpected error", e);
+                } else {
+                    LOGGER.error("Unexpected error", e);
+                }
+                return -ErrorCodes.EIO();
             }
-            return -ErrorCodes.EEXIST();
-        } catch (PathNotFound e) {
-            if (isTrace) {
-                LOGGER.trace("{} - Path not found: {}", operationName, path, e);
-            } else {
-                LOGGER.debug("{} - Path not found: {}", operationName, path, e);
-            }
-            return -ErrorCodes.ENOENT();
-        } catch (OperationNotPermitted e) {
-            if (isTrace) {
-                LOGGER.trace("{} - Operation not permitted: {}", operationName, path, e);
-            } else {
-                LOGGER.debug("{} - Operation not permitted: {}", operationName, path, e);
-            }
-            return -ErrorCodes.EPERM();
-        } catch (PathIsNotAFile e) {
-            if (isTrace) {
-                LOGGER.trace("{} - Path {} is not a file", operationName, path, e);
-            } else {
-                LOGGER.info("{} - Path {} is not a file", operationName, path, e);
-            }
-            return -ErrorCodes.EISDIR();
-        } catch (PathIsNotADirectory e) {
-            if (isTrace) {
-                LOGGER.trace("{} - Path {} is not a directory", operationName, path, e);
-            } else {
-                LOGGER.info("{} - Path {} is not a directory", operationName, path, e);
-            }
-            return -ErrorCodes.ENOTDIR();
-        } catch (DirectoryNotEmpty e) {
-            if (isTrace) {
-                LOGGER.trace("{} - Directory {} is not empty", operationName, path);
-            } else {
-                LOGGER.info("{} - Directory {} is not empty", operationName, path);
-            }
-            return -ErrorCodes.ENOTEMPTY();
-        } catch (IOException e) {
-            if (isTrace) {
-                LOGGER.trace("{} - IO error for path {}", operationName, path, e);
-            } else {
-                LOGGER.warn("{} - IO error for path {}", operationName, path, e);
-            }
-            return -ErrorCodes.EIO();
-        } catch (Exception e) {
-            if (isTrace) {
-                LOGGER.trace("{} - Unexpected error for path {}", operationName, path, e);
-            } else {
-                LOGGER.error("{} - Unexpected error for path {}", operationName, path, e);
-            }
-            return -ErrorCodes.EIO();
-        }
+        });
     }
 
     @Override
     public int create(String path, @mode_t long mode, FuseFileInfo fi) {
-        return executeWithErrorHandling("Create", path, () -> {
+        return executeWithErrorHandling(path, FileSystemAction.FUSE_CREATE, () -> {
             // Reject creation of Apple metadata files
             if (PathUtils.isAppleMetadataFile(path)) {
                 LOGGER.debug("Rejecting creation of Apple metadata file: {}", path);
@@ -148,7 +162,7 @@ public class F1r3DriveFuse extends FuseStubFS {
 
     @Override
     public int getattr(String path, FileStat stat) {
-        return executeWithErrorHandling("Getattr", path, () -> {
+        return executeWithErrorHandling(path, FileSystemAction.FUSE_GETATTR, () -> {
             // Explicitly reject Apple metadata files
             if (PathUtils.isAppleMetadataFile(path)) {
                 LOGGER.debug("Rejecting Apple metadata file: {}", path);
@@ -161,7 +175,7 @@ public class F1r3DriveFuse extends FuseStubFS {
 
     @Override
     public int mkdir(String path, @mode_t long mode) {
-        return executeWithErrorHandling("Mkdir", path, () -> {
+        return executeWithErrorHandling(path, FileSystemAction.FUSE_MKDIR, () -> {
             fileSystem.makeDirectory(path, mode);
             return SuccessCodes.OK;
         });
@@ -169,14 +183,14 @@ public class F1r3DriveFuse extends FuseStubFS {
 
     @Override
     public int read(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        return executeWithErrorHandling("Read", path, () -> {
+        return executeWithErrorHandling(path, FileSystemAction.FUSE_READ, () -> {
             return fileSystem.readFile(path, buf, size, offset);
         });
     }
 
     @Override
     public int readdir(String path, Pointer buf, FuseFillDir filter, @off_t long offset, FuseFileInfo fi) {
-        return executeWithErrorHandling("Readdir", path, () -> {
+        return executeWithErrorHandling(path, FileSystemAction.FUSE_READDIR, () -> {
             fileSystem.readDirectory(path, buf, filter);
             return SuccessCodes.OK;
         });
@@ -184,7 +198,7 @@ public class F1r3DriveFuse extends FuseStubFS {
 
     @Override
     public int statfs(String path, Statvfs stbuf) {
-        return executeWithErrorHandling("Statfs", path, () -> {
+        return executeWithErrorHandling(path, FileSystemAction.FUSE_READ, () -> {
             fileSystem.getFileSystemStats(path, stbuf);
             return super.statfs(path, stbuf);
         });
@@ -192,7 +206,7 @@ public class F1r3DriveFuse extends FuseStubFS {
 
     @Override
     public int rename(String path, String newName) {
-        return executeWithErrorHandling("Rename", path, () -> {
+        return executeWithErrorHandling(path, FileSystemAction.FUSE_RENAME, () -> {
             fileSystem.renameFile(path, newName);
             return SuccessCodes.OK;
         });
@@ -200,7 +214,7 @@ public class F1r3DriveFuse extends FuseStubFS {
 
     @Override
     public int rmdir(String path) {
-        return executeWithErrorHandling("Rmdir", path, () -> {
+        return executeWithErrorHandling(path, FileSystemAction.FUSE_RMDIR, () -> {
             fileSystem.removeDirectory(path);
             return SuccessCodes.OK;
         });
@@ -208,7 +222,7 @@ public class F1r3DriveFuse extends FuseStubFS {
 
     @Override
     public int truncate(String path, long offset) {
-        return executeWithErrorHandling("Truncate", path, () -> {
+        return executeWithErrorHandling(path, FileSystemAction.FUSE_TRUNCATE, () -> {
             fileSystem.truncateFile(path, offset);
             return SuccessCodes.OK;
         });
@@ -216,7 +230,7 @@ public class F1r3DriveFuse extends FuseStubFS {
 
     @Override
     public int unlink(String path) {
-        return executeWithErrorHandling("Unlink", path, () -> {
+        return executeWithErrorHandling(path, FileSystemAction.FUSE_UNLINK, () -> {
             fileSystem.unlinkFile(path);
             return SuccessCodes.OK;
         });
@@ -224,7 +238,7 @@ public class F1r3DriveFuse extends FuseStubFS {
 
     @Override
     public int open(String path, FuseFileInfo fi) {
-        return executeWithErrorHandling("Open", path, () -> {
+        return executeWithErrorHandling(path, FileSystemAction.FUSE_OPEN, () -> {
             // Reject opening Apple metadata files
             if (PathUtils.isAppleMetadataFile(path)) {
                 LOGGER.debug("Rejecting open of Apple metadata file: {}", path);
@@ -238,14 +252,14 @@ public class F1r3DriveFuse extends FuseStubFS {
 
     @Override
     public int write(String path, Pointer buf, @size_t long size, @off_t long offset, FuseFileInfo fi) {
-        return executeWithErrorHandling("Write", path, () -> {
+        return executeWithErrorHandling(path, FileSystemAction.FUSE_WRITE, () -> {
             return fileSystem.writeFile(path, buf, size, offset);
         });
     }
 
     @Override
     public int flush(String path, FuseFileInfo fi) {
-        return executeWithErrorHandling("Flush", path, () -> {
+        return executeWithErrorHandling(path, FileSystemAction.FUSE_FLUSH, () -> {
             fileSystem.flushFile(path);
             return SuccessCodes.OK;
         });

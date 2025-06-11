@@ -13,4 +13,8 @@ public class FetchedDirectory extends BlockchainDirectory {
     public void setChildren(Set<Path> children) {
         this.children = children;
     }
+
+    public void updateParent(BlockchainDirectory parent) {
+        this.parent = parent;
+    }
 }

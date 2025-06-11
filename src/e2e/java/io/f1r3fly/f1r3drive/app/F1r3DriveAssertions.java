@@ -8,7 +8,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -33,14 +35,12 @@ public class F1r3DriveAssertions extends F1R3DriveTestFixture {
 
         F1r3DriveTestHelpers.waitOnBackgroundDeployments();
 
-        // and check the deployed data:
         Set<String> children = F1r3DriveTestHelpers.getFolderChildrenFromShardDirectly(dir);
-        assertEquals(expectedChilds.length, children.size(),
-            "Should be only %s file(s) in %s".formatted(expectedChilds.length, dir.getAbsolutePath()));
+        assertEquals(expectedChilds.length, children.size(), "Should be only %d file(s) in %s".formatted(expectedChilds.length, dir.getAbsolutePath()));
+
         for (File expectedChild : expectedChilds) {
-            assertTrue(
-                children.contains(expectedChild.getName()),
-                "Expected file %s not found in list of childs (%s)".formatted(expectedChild, children));
+            String expectedChildName = expectedChild.getName();
+            assertTrue(children.contains(expectedChildName), "File %s should contain %s".formatted(dir.getAbsolutePath(), expectedChildName));
         }
     }
 
@@ -55,18 +55,17 @@ public class F1r3DriveAssertions extends F1R3DriveTestFixture {
         assertNotNull(childs, "Can't get list of files in %s".formatted(dir.getAbsolutePath()));
 
         if (F1r3DriveTestHelpers.isWalletDirectory(dir)) {
-            // remove token folder from childs
-            childs = Arrays.stream(childs).filter(c -> !c.getName().equals(TokenDirectory.NAME)).toArray(File[]::new);
+            List<File> nonTokenChildren = Arrays.stream(childs)
+                .filter(child -> !child.getName().equals(".tokens"))
+                .collect(Collectors.toList());
+            childs = nonTokenChildren.toArray(new File[0]);
         }
 
-        assertEquals(expectedChilds.length, childs.length, "Should be only %s file(s) but found %s in %s"
-            .formatted(Arrays.toString(expectedChilds), Arrays.toString(childs), dir.getAbsolutePath()));
+        assertEquals(expectedChilds.length, childs.length, "Should be only %d file(s) in %s".formatted(expectedChilds.length, dir.getAbsolutePath()));
 
         for (File expectedChild : expectedChilds) {
-            assertTrue(
-                Arrays.stream(childs).anyMatch(file -> file.getName().equals(expectedChild.getName())),
-                "Expected file %s not found in list of childs (%s)".formatted(expectedChild,
-                    Arrays.toString(childs)));
+            boolean found = Arrays.stream(childs).anyMatch(child -> child.getName().equals(expectedChild.getName()));
+            assertTrue(found, "File %s should contain %s".formatted(dir.getAbsolutePath(), expectedChild.getName()));
         }
     }
 

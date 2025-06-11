@@ -298,16 +298,13 @@ public class F1R3DriveTestFixture {
     }
 
     protected static void remount() {
-        // String mountName = f1r3DriveFuse.getMountName();
-        // f1r3DriveFuse.umount();
-        // forceUmountAndCleanup();
-        // try {
-        //     f1r3DriveFuse.mount(MOUNT_POINT); // should pass: fetch the filesystem back
-        // } catch (Exception e) {
-        //     throw new RuntimeException(e);
-        // }
-
-        //TODO: do nothing for now
+        f1r3DriveFuse.umount();
+        forceUmountAndCleanup();
+        try {
+            f1r3DriveFuse.mount(MOUNT_POINT); // should pass: fetch the filesystem back
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     protected static void simulateUnlockWalletDirectoryAction(String revAddress, String privateKey) throws FinderSyncExtensionServiceClient.WalletUnlockException {

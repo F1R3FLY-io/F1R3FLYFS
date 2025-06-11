@@ -307,4 +307,10 @@ public class BlockchainFile extends AbstractDeployablePath implements File {
             log.warn("Failed to clean local cache for file {}", cachedFile.getAbsolutePath(), t);
         }
     }
+
+    @Override
+    public synchronized void delete() {
+        cachedFile.delete();
+        super.delete();
+    }
 }

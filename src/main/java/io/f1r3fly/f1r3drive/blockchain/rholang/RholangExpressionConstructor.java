@@ -274,8 +274,13 @@ public class RholangExpressionConstructor {
             throw new IllegalArgumentException("Empty channel data");
         }
 
-        List<RhoTypes.KeyValuePair> keyValues =
-            par.getExprs(exprsCount).getEMapBody().getKvsList();
+        RhoTypes.Expr expr = par.getExprs(exprsCount);
+        
+        if (!expr.hasEMapBody()) {
+            throw new IllegalArgumentException("Expression is not an EMap");
+        }
+
+        List<RhoTypes.KeyValuePair> keyValues = expr.getEMapBody().getKvsList();
 
         return buildChannelDataFromKeyValues(keyValues);
     }

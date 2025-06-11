@@ -151,6 +151,10 @@ class F1R3DriveTest extends F1R3DriveTestFixture {
         assertContainChilds(dir, nestedFile);
 
         remount(); // umount and mount back
+        assertUnlockWalletDirectory(REV_WALLET_1, PRIVATE_KEY_1);
+
+        assertContainChilds(UNLOCKED_WALLET_DIR_1, renamedFile, dir);
+        assertContainChilds(dir, nestedFile);
 
         // check if deployed data is correct:
 
@@ -182,24 +186,32 @@ class F1R3DriveTest extends F1R3DriveTestFixture {
         assertContainChilds(UNLOCKED_WALLET_DIR_1, dir1);
 
         File renamedDir = new File(UNLOCKED_WALLET_DIR_1, "renamedDir");
+
         assertRenameFile(dir1, renamedDir);
 
         assertContainChilds(UNLOCKED_WALLET_DIR_1, renamedDir);
 
         File nestedDir1 = new File(renamedDir, "nestedDir1");
         File nestedDir2 = new File(nestedDir1, "nestedDir2");
-        assertTrue(nestedDir2.mkdirs(), "Failed to create nested directories");
+
+        boolean created = nestedDir2.mkdirs();
+        assertTrue(created, "Should be able to create nested directories");
+        assertTrue(nestedDir1.exists(), "nestedDir1 should exist after mkdirs");
+        assertTrue(nestedDir2.exists(), "nestedDir2 should exist after mkdirs");
 
         assertContainChilds(renamedDir, nestedDir1);
-        assertContainChilds(nestedDir1, nestedDir2);
 
-        assertFalse(renamedDir.delete(), "Failed to delete non-empty directory");
+        assertDeleteFile(nestedDir2);
 
-        assertDeleteDirectory(nestedDir2);
-        assertDeleteDirectory(nestedDir1);
-        assertDeleteDirectory(renamedDir);
+        assertContainChilds(nestedDir1);
 
-        assertContainChilds(UNLOCKED_WALLET_DIR_1); // empty
+        assertDeleteFile(nestedDir1);
+
+        assertContainChilds(renamedDir);
+
+        assertDeleteFile(renamedDir);
+
+        assertContainChilds(UNLOCKED_WALLET_DIR_1);
     }
 
     @Test
