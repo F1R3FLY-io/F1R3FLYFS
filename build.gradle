@@ -189,9 +189,8 @@ publishing {
     publications {
         mavenJava(MavenPublication) {
             artifactId = 'f1r3Drive'
-            from components.java
             
-            // Include the shadow JAR as the main artifact
+            // Use only the shadow JAR as the main artifact
             artifact shadowJar
 
             versionMapping {
