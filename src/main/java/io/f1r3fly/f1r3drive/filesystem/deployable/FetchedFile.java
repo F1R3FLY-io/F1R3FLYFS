@@ -9,8 +9,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class FetchedFile extends BlockchainFile {
 
-    public FetchedFile(BlockchainContext blockchainContext, String name, Directory parent) {
+    public FetchedFile(BlockchainContext blockchainContext, String name, Directory parent, Long lastUpdated) {
         super(blockchainContext, name, parent, false);
+        this.lastUpdated = lastUpdated;
     }
 
     public int initFromBytes(byte[] bytes, long offset) throws IOException {

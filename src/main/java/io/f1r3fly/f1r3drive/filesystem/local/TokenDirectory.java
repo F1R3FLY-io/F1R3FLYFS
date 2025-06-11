@@ -57,6 +57,7 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
     public TokenDirectory(BlockchainContext blockchainContext, UnlockedWalletDirectory parent) {
         super(blockchainContext, NAME, parent);
         this.parent = parent;
+        this.lastUpdated = System.currentTimeMillis() / 1000;
     }
 
     @Override

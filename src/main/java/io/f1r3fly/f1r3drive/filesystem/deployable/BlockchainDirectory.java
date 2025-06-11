@@ -28,10 +28,12 @@ public class BlockchainDirectory extends AbstractDeployablePath implements Direc
         this(blockchainContext, name, parent, true);
     }
 
-    protected BlockchainDirectory(BlockchainContext blockchainContext, String name, Directory parent, boolean sendToShard) {
+    protected BlockchainDirectory(BlockchainContext blockchainContext, String name, Directory parent,
+            boolean sendToShard) {
         super(blockchainContext, name, parent);
         if (sendToShard) {
-            String rholang = RholangExpressionConstructor.sendDirectoryIntoNewChannel(getAbsolutePath(), Set.of());
+            this.lastUpdated = System.currentTimeMillis() / 1000;
+            String rholang = RholangExpressionConstructor.sendDirectoryIntoNewChannel(getAbsolutePath(), Set.of(), getLastUpdated());
             enqueueMutation(rholang);
         }
     }
@@ -44,7 +46,8 @@ public class BlockchainDirectory extends AbstractDeployablePath implements Direc
             TokenDirectory tokenDirectoryFrom = tokenFile.getParent();
 
             if (tokenDirectoryFrom == null) {
-                throw new IllegalArgumentException("Token directory does not exist in token file %s".formatted(tokenFile.getAbsolutePath()));
+                throw new IllegalArgumentException(
+                        "Token directory does not exist in token file %s".formatted(tokenFile.getAbsolutePath()));
             }
 
             RevWalletInfo walletInfoFrom = tokenDirectoryFrom.getBlockchainContext().getWalletInfo();
@@ -54,12 +57,15 @@ public class BlockchainDirectory extends AbstractDeployablePath implements Direc
                 return;
             }
 
-            String rholang = RholangExpressionConstructor.transfer(walletInfoFrom.revAddress(), walletInfoTo.revAddress(), amount);
+            this.lastUpdated = System.currentTimeMillis() / 1000;
+            String rholang = RholangExpressionConstructor.transfer(walletInfoFrom.revAddress(),
+                    walletInfoTo.revAddress(), amount);
 
             // TODO: need to send notification revTo changed as well
             getBlockchainContext().getDeployDispatcher().enqueueDeploy(new DeployDispatcher.Deployment(
-                rholang, true, F1r3flyBlockchainClient.RHOLANG, walletInfoFrom.revAddress(),
-                walletInfoFrom.signingKey()));
+                    rholang, true, F1r3flyBlockchainClient.RHOLANG, walletInfoFrom.revAddress(),
+                    walletInfoFrom.signingKey(),
+                    System.currentTimeMillis()));
         } else {
 
             // force re-add
@@ -74,21 +80,21 @@ public class BlockchainDirectory extends AbstractDeployablePath implements Direc
             boolean added = children.add(p);
 
             if (added) {
+                this.lastUpdated = System.currentTimeMillis() / 1000;
                 enqueueUpdatingChildrenList();
             }
         }
     }
 
     private void enqueueUpdatingChildrenList() {
-        Set<String> newChildren =
-            children.stream()
+        Set<String> newChildren = children.stream()
                 .filter((x) -> x instanceof AbstractDeployablePath)
                 .map(Path::getName)
                 .collect(Collectors.toSet());
         String rholang = RholangExpressionConstructor.updateChildren(
-            getAbsolutePath(),
-            newChildren
-        );
+                getAbsolutePath(),
+                newChildren,
+                getLastUpdated());
 
         enqueueMutation(rholang);
     }
@@ -97,6 +103,7 @@ public class BlockchainDirectory extends AbstractDeployablePath implements Direc
     public synchronized void deleteChild(Path child) {
         children.remove(child);
 
+        this.lastUpdated = System.currentTimeMillis() / 1000;
         enqueueUpdatingChildrenList();
     }
 
@@ -114,7 +121,7 @@ public class BlockchainDirectory extends AbstractDeployablePath implements Direc
 
     @Override
     public Set<Path> getChildren() {
-        return children; //TODO: return immutable set?
+        return children; // TODO: return immutable set?
     }
 
 }

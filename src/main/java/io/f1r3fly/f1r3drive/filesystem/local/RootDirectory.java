@@ -16,6 +16,7 @@ public class RootDirectory extends AbstractLocalPath implements Directory {
     public RootDirectory() {
         super(null, "/", null);
         children = new HashSet<>();
+        this.lastUpdated = 0L;
     }
 
     @Override

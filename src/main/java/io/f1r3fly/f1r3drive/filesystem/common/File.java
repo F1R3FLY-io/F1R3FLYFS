@@ -22,6 +22,7 @@ public interface File extends Path {
         stat.st_size.set(getSize());
         stat.st_uid.set(fuseContext.uid.get());
         stat.st_gid.set(fuseContext.gid.get());
+        stat.st_mtim.tv_sec.set(getLastUpdated());
     }
 
     void open() throws IOException;

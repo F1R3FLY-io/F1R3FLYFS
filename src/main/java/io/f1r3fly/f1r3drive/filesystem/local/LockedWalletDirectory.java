@@ -18,6 +18,8 @@ import io.f1r3fly.f1r3drive.filesystem.deployable.FetchedFile;
 import io.f1r3fly.f1r3drive.filesystem.deployable.UnlockedWalletDirectory;
 import io.f1r3fly.f1r3drive.blockchain.rholang.RholangExpressionConstructor;
 import io.f1r3fly.f1r3drive.filesystem.utils.PathUtils;
+
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import rhoapi.RhoTypes;
@@ -34,7 +36,7 @@ public class LockedWalletDirectory extends AbstractLocalPath implements ReadOnly
 
     public LockedWalletDirectory(BlockchainContext blockchainContext, RootDirectory parent) {
         super(blockchainContext, "LOCKED-REMOTE-REV-" + blockchainContext.getWalletInfo().revAddress(), parent);
-
+        this.lastUpdated = 0L;
     }
 
     @Override
@@ -42,7 +44,8 @@ public class LockedWalletDirectory extends AbstractLocalPath implements ReadOnly
         return Set.of();
     }
 
-    public UnlockedWalletDirectory unlock(String signingKeyRaw, DeployDispatcher deployDispatcher) throws InvalidSigningKeyException {
+    public UnlockedWalletDirectory unlock(String signingKeyRaw, DeployDispatcher deployDispatcher)
+            throws InvalidSigningKeyException {
         validateKeyAndUpdateContext(signingKeyRaw, deployDispatcher);
 
         // If validation passes, proceed with unlock
@@ -57,14 +60,15 @@ public class LockedWalletDirectory extends AbstractLocalPath implements ReadOnly
                 throw new IllegalStateException("Root directory is not a directory");
             }
 
-            // TODO: avoid converting RootDirectory to UnlockedWalletDirectory (rework fetchDirectoryFromShard) and delete the next lines
+            // TODO: avoid converting RootDirectory to UnlockedWalletDirectory (rework
+            // fetchDirectoryFromShard) and delete the next lines
 
             // convert RootDirectory to UnlockedWalletDirectory
             UnlockedWalletDirectory unlockedWalletDirectory = new UnlockedWalletDirectory(
-                blockchainContext,
-                ((FetchedDirectory) root).getChildren(),
-                getParent() == null ? null : (RootDirectory) getParent(),
-                false // skip deploy
+                    blockchainContext,
+                    ((FetchedDirectory) root).getChildren(),
+                    getParent() == null ? null : (RootDirectory) getParent(),
+                    false // skip deploy
             );
 
             // fix links to a new parent instance
@@ -100,12 +104,14 @@ public class LockedWalletDirectory extends AbstractLocalPath implements ReadOnly
 
         // Validate that the private key corresponds to the REV address
         try {
-            PrivateKeyValidator.validatePrivateKeyForRevAddressOrThrow(signingKey, getBlockchainContext().getWalletInfo().revAddress());
+            PrivateKeyValidator.validatePrivateKeyForRevAddressOrThrow(signingKey,
+                    getBlockchainContext().getWalletInfo().revAddress());
         } catch (PrivateKeyValidator.InvalidPrivateKeyException e) {
             throw new InvalidSigningKeyException("Private key validation failed: " + e.getMessage(), e);
         }
 
-        this.blockchainContext = new BlockchainContext(new RevWalletInfo(getBlockchainContext().getWalletInfo().revAddress(), signingKey),
+        this.blockchainContext = new BlockchainContext(
+                new RevWalletInfo(getBlockchainContext().getWalletInfo().revAddress(), signingKey),
                 deployDispatcher);
     }
 
@@ -117,7 +123,7 @@ public class LockedWalletDirectory extends AbstractLocalPath implements ReadOnly
             RholangExpressionConstructor.ChannelData fileOrDir = RholangExpressionConstructor.parseChannelData(pars);
 
             if (fileOrDir.isDir()) {
-                FetchedDirectory dir = new FetchedDirectory(this.getBlockchainContext(), name, parent);
+                FetchedDirectory dir = new FetchedDirectory(this.getBlockchainContext(), name, parent, fileOrDir.lastUpdated());
 
                 Set<Path> children = fileOrDir.children().stream().map((childName) -> {
                     try {
@@ -135,7 +141,7 @@ public class LockedWalletDirectory extends AbstractLocalPath implements ReadOnly
 
             } else {
                 FetchedFile file = new FetchedFile(this.getBlockchainContext(), PathUtils.getFileName(absolutePath),
-                        parent);
+                        parent, fileOrDir.lastUpdated());
                 long offset = 0;
                 offset = file.initFromBytes(fileOrDir.firstChunk(), offset);
 
@@ -173,16 +179,16 @@ public class LockedWalletDirectory extends AbstractLocalPath implements ReadOnly
             RevWalletInfo walletInfoFrom = tokenFile.getBlockchainContext().getWalletInfo();
             RevWalletInfo walletInfoTo = this.getBlockchainContext().getWalletInfo();
 
-            String rholang = RholangExpressionConstructor.transfer(walletInfoFrom.revAddress(), walletInfoTo.revAddress(), amount);
+            String rholang = RholangExpressionConstructor.transfer(walletInfoFrom.revAddress(),
+                    walletInfoTo.revAddress(), amount);
 
             getBlockchainContext().getDeployDispatcher().enqueueDeploy(new DeployDispatcher.Deployment(
                     rholang, true, F1r3flyBlockchainClient.RHOLANG, walletInfoFrom.revAddress(),
-                    walletInfoFrom.signingKey()));
+                    walletInfoFrom.signingKey(),
+                    System.currentTimeMillis()));
         } else {
             throw OperationNotPermitted.instance;
         }
     }
-
-    
 
 }

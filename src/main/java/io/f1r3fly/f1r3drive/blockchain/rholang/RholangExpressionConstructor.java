@@ -60,7 +60,7 @@ public class RholangExpressionConstructor {
     }
 
     //** Creates a chanel with a file */
-    public static String sendEmptyFileIntoNewChanel(String channelName) {
+    public static String sendEmptyFileIntoNewChanel(String channelName, long lastUpdated) {
         // output looks like: @"path"!({"type":"f","firstChunk":[]}, "otherChunks":{}, "lastUpdated":123})
         return new StringBuilder()
             .append("@\"")
@@ -76,12 +76,12 @@ public class RholangExpressionConstructor {
             .append("\":{},\"")
             .append(LAST_UPDATED)
             .append("\":")
-            .append(currentTime())
+            .append(lastUpdated)
             .append("})")
             .toString();
     }
 
-    public static String sendDirectoryIntoNewChannel(String channelName, Set<String> children) {
+    public static String sendDirectoryIntoNewChannel(String channelName, Set<String> children, long lastUpdated) {
         // output looks like: @"path"!({"type":"d","children":["a","b"],"lastUpdated":123})
         return new StringBuilder()
             .append("@\"")
@@ -97,28 +97,25 @@ public class RholangExpressionConstructor {
             .append(",\"")
             .append(LAST_UPDATED)
             .append("\":")
-            .append(currentTime())
+            .append(lastUpdated)
             .append("})")
             .toString();
     }
 
     //** Consumes a value from a chanel */
     public static String forgetChanel(String chanel) {
-        // output looks like for(@v <- @"path"){v.set("lastUpdated",123)}
+        // output looks like for(@v <- @"path"){Nil}
         return new StringBuilder()
             .append("for(@v <- @\"")
             .append(chanel)
             .append("\"){")
-            .append("v.set(\"")
-            .append(LAST_UPDATED)
-            .append("\",") //TODO: this is needed to prevent 'NoNewDeploy' error (updates a map and forgets)
-            .append(currentTime()) // use Nil when fixed
-            .append(")}")
+            .append("Nil")
+            .append("}")
             .toString();
     }
 
     //** Updates a children field a chanel data */
-    public static String updateChildren(String chanel, Set<String> newChildren) {
+    public static String updateChildren(String chanel, Set<String> newChildren, long lastUpdated) {
         return new StringBuffer()
             .append("for(@v <- @\"")
             .append(chanel)
@@ -128,7 +125,7 @@ public class RholangExpressionConstructor {
             .append("\"!(v.set(\"")
             .append(LAST_UPDATED)
             .append("\",")
-            .append(currentTime())
+            .append(lastUpdated)
             .append(").set(\"")
             .append(CHILDREN)
             .append("\",")
@@ -139,7 +136,7 @@ public class RholangExpressionConstructor {
     }
 
     //** Consume a value from old chanel and send to a new one */
-    public static String renameChanel(String oldChanel, String newChanel) {
+    public static String renameChanel(String oldChanel, String newChanel, long lastUpdated) {
         // output looks like:
         // for(@v <- @"oldPath"){
         //      @"newPath"!(v)
@@ -160,7 +157,7 @@ public class RholangExpressionConstructor {
     public static String updateFileContent(String chanel, byte[] newChunk) {
         // output looks like:
         // for(@v <- @"path"){
-        //      @"path"!(v.set("lastUpdated",123).set("firstChunk", "base16encodedChunk".hexToBytes()))
+        //      @"path"!(v.set("firstChunk", "base16encodedChunk".hexToBytes()))
         // }
 
         return new StringBuilder()
@@ -170,10 +167,6 @@ public class RholangExpressionConstructor {
             .append("@\"")
             .append(chanel)
             .append("\"!(v.set(\"")
-            .append(LAST_UPDATED)
-            .append("\",")
-            .append(currentTime())
-            .append(").set(\"")
             .append(FIRST_CHUNK)
             .append("\",\"")
             .append(Hex.encodeHexString(newChunk))
@@ -184,7 +177,7 @@ public class RholangExpressionConstructor {
     public static String updateOtherChunksMap(String chanel, Map<Integer, String> otherChunks) {
         // output looks like:
         // for(@v <- @"path"){
-        //      @"path"!(v.set("lastUpdated",123).set("otherChunks", {1:"subChannel"}))
+        //      @"path"!(v.set("otherChunks", {1:"subChannel"}))
         // }
 
         return new StringBuilder()
@@ -194,10 +187,6 @@ public class RholangExpressionConstructor {
             .append("@\"")
             .append(chanel)
             .append("\"!(v.set(\"")
-            .append(LAST_UPDATED)
-            .append("\",")
-            .append(currentTime())
-            .append(").set(\"")
             .append(OTHER_CHUNKS)
             .append("\",{")
             .append(
@@ -342,10 +331,6 @@ public class RholangExpressionConstructor {
 
         return new ChannelData(type, lastUpdated, content, children, otherChunks);
     }
-
-    protected static @NotNull long currentTime() {
-        return System.currentTimeMillis();
-    }
     
     /**
      * Constructs a Rholang expression for transferring REV tokens between addresses
@@ -431,8 +416,6 @@ public class RholangExpressionConstructor {
             .append("}")
             .append("}")
             .append("}}")
-            .append("|")
-            .append(currentTime())
             .toString();
     }
 

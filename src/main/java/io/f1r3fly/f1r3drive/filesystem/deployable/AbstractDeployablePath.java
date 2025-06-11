@@ -19,29 +19,30 @@ public abstract class AbstractDeployablePath extends AbstractPath {
 
         RevWalletInfo revWalletInfo = getBlockchainContext().getWalletInfo();
         DeployDispatcher.Deployment deployment = new DeployDispatcher.Deployment(
-            rholangExpression,
-            true,
-            F1r3flyBlockchainClient.RHOLANG,
-            revWalletInfo.revAddress(),
-            revWalletInfo.signingKey()
-        );
+                rholangExpression,
+                true,
+                F1r3flyBlockchainClient.RHOLANG,
+                revWalletInfo.revAddress(),
+                revWalletInfo.signingKey(),
+                System.currentTimeMillis());
 
         getBlockchainContext().getDeployDispatcher().enqueueDeploy(deployment);
     }
 
-    
     @Override
     public synchronized void delete() {
+        this.lastUpdated = System.currentTimeMillis() / 1000;
         String rholangExpression = RholangExpressionConstructor.forgetChanel(getAbsolutePath());
         enqueueMutation(rholangExpression);
     }
-    
+
     @Override
     public void rename(String newName, Directory newParent) throws OperationNotPermitted {
         String oldPath = getAbsolutePath();
         super.rename(newName, newParent);
         String newPath = getAbsolutePath();
-        enqueueMutation(RholangExpressionConstructor.renameChanel(oldPath, newPath));
+        this.lastUpdated = System.currentTimeMillis() / 1000;
+        enqueueMutation(RholangExpressionConstructor.renameChanel(oldPath, newPath, getLastUpdated()));
     }
 
 }

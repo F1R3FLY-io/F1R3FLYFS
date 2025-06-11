@@ -15,11 +15,13 @@ public abstract class AbstractPath implements Path {
     @NotNull protected BlockchainContext blockchainContext;
     @NotNull protected String name;
     @Nullable protected Directory parent;
+    @NotNull protected Long lastUpdated;
 
     public AbstractPath(@NotNull BlockchainContext blockchainContext, @NotNull String name, @Nullable Directory parent) {
         this.name = name;
         this.parent = parent;
         this.blockchainContext = blockchainContext;
+        this.lastUpdated = System.currentTimeMillis() / 1000;
     }
 
     @Override
@@ -58,5 +60,10 @@ public abstract class AbstractPath implements Path {
     @Override
     public BlockchainContext getBlockchainContext() {
         return blockchainContext;
+    }
+
+    @Override
+    public @NotNull Long getLastUpdated() {
+        return lastUpdated;
     }
 }

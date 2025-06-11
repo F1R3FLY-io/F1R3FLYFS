@@ -14,6 +14,7 @@ public class TokenFile extends AbstractLocalPath implements File {
     public TokenFile(BlockchainContext blockchainContext, String name, TokenDirectory parent, long value) {
         super(blockchainContext, name, parent);
         this.value = value;
+        this.lastUpdated = 0L;
     }
 
     @Override

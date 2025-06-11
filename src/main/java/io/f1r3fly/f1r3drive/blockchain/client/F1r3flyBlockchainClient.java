@@ -141,7 +141,7 @@ public class F1r3flyBlockchainClient {
         }
     }
 
-    public String deploy(String rhoCode, boolean useBiggerRhloPrice, String language, byte[] signingKey) throws F1r3flyDeployError {
+    public String deploy(String rhoCode, boolean useBiggerRhloPrice, String language, byte[] signingKey, long timestamp) throws F1r3flyDeployError {
         try {
 
             int maxRholangInLogs = 2000;
@@ -154,7 +154,7 @@ public class F1r3flyBlockchainClient {
             // Make deployment
             CasperMessage.DeployDataProto deployment = CasperMessage.DeployDataProto.newBuilder()
                 .setTerm(rhoCode)
-                .setTimestamp(0)
+                .setTimestamp(timestamp)
                 .setPhloPrice(1)
                 .setPhloLimit(phloLimit)
                 .setShardId("root")

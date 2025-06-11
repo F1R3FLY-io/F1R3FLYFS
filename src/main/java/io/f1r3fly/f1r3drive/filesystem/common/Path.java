@@ -38,6 +38,8 @@ public interface Path {
 
     @NotNull String getAbsolutePath();
 
+    @NotNull Long getLastUpdated();
+
     @Nullable
     Directory getParent();
 

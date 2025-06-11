@@ -31,7 +31,8 @@ public class DeployDispatcher {
 
     private final ConcurrentLinkedQueue<Deployment> queue;
 
-    public record Deployment(String rhoOrMettaExpression, boolean useBiggerPhloLimit, String language, String revAddress, byte[] signingKey) {
+    public record Deployment(String rhoOrMettaExpression, boolean useBiggerPhloLimit, String language,
+            String revAddress, byte[] signingKey, long timestamp) {
     }
 
     private final StateChangeEventsManager stateChangeEventsManager;
@@ -56,7 +57,8 @@ public class DeployDispatcher {
         private void doDeploy(Deployment deployment) {
             try {
                 isDeploying = true;
-                f1R3FlyBlockchainClient.deploy(deployment.rhoOrMettaExpression, deployment.useBiggerPhloLimit, deployment.language, deployment.signingKey);
+                f1R3FlyBlockchainClient.deploy(deployment.rhoOrMettaExpression, deployment.useBiggerPhloLimit,
+                        deployment.language, deployment.signingKey, deployment.timestamp);
                 stateChangeEventsManager.addEvent(new StateChangeEvents.WalletBalanceChanged(deployment.revAddress));
                 retryCount = 0;
                 isDeploying = false;
@@ -80,7 +82,8 @@ public class DeployDispatcher {
         }
     }
 
-    public DeployDispatcher(F1r3flyBlockchainClient f1R3FlyBlockchainClient, StateChangeEventsManager stateChangeEventsManager) {
+    public DeployDispatcher(F1r3flyBlockchainClient f1R3FlyBlockchainClient,
+            StateChangeEventsManager stateChangeEventsManager) {
         this.f1R3FlyBlockchainClient = f1R3FlyBlockchainClient;
         this.stateChangeEventsManager = stateChangeEventsManager;
         queue = new ConcurrentLinkedQueue<>();
@@ -91,8 +94,7 @@ public class DeployDispatcher {
     public void enqueueDeploy(Deployment deployment) {
         // dont trim if log level is not enabled
         if (logger.isDebugEnabled()) {
-            String smaller =
-                deployment.rhoOrMettaExpression.length() > MAX_EXPRESSION_LENGTH_IN_LOG
+            String smaller = deployment.rhoOrMettaExpression.length() > MAX_EXPRESSION_LENGTH_IN_LOG
                     ? deployment.rhoOrMettaExpression.substring(0, MAX_EXPRESSION_LENGTH_IN_LOG) + "..."
                     : deployment.rhoOrMettaExpression;
 
@@ -111,12 +113,13 @@ public class DeployDispatcher {
         }
     }
 
-
     public void waitOnEmptyQueue() {
-        logger.info("Waiting for the queue to be empty. Queue size: " + queue.size() + ". Is deploying: " + isDeploying);
+        logger.info(
+                "Waiting for the queue to be empty. Queue size: " + queue.size() + ". Is deploying: " + isDeploying);
         while ((!queue.isEmpty() || isDeploying) && lastDeployError.get() == null) {
             try {
-                logger.debug("Waiting for the queue to be empty. Queue size: " + queue.size() + ". Is deploying: " + isDeploying);
+                logger.debug("Waiting for the queue to be empty. Queue size: " + queue.size() + ". Is deploying: "
+                        + isDeploying);
                 Thread.sleep(WAITING_STEP_MS);
             } catch (InterruptedException e) {
                 e.printStackTrace();

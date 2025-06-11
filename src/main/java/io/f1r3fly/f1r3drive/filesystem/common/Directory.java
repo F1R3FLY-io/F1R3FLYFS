@@ -61,6 +61,7 @@ public interface Directory extends Path {
         stat.st_mode.set(FileStat.S_IFDIR | 0777);
         stat.st_uid.set(fuseContext.uid.get());
         stat.st_gid.set(fuseContext.gid.get());
+        stat.st_mtim.tv_sec.set(getLastUpdated());
     }
 
     default boolean isEmpty() {
