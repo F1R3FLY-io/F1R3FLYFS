@@ -265,6 +265,36 @@ public class F1r3DriveFuse extends FuseStubFS {
         });
     }
 
+    public void mountAndUnlockRootDirectory(Path mountPoint, boolean blocking, String revAddress, String privateKey) {
+        // Run unlock in background after waiting for mount to complete
+        Thread unlockThread = new Thread(() -> {
+            try {
+                // Wait for filesystem to be mounted
+                LOGGER.debug("Background thread waiting for filesystem to be mounted...");
+                while (notMounted()) {
+                    Thread.sleep(100); // Check every 100ms
+                }
+                LOGGER.debug("Filesystem is now mounted, proceeding with unlock operation");
+                
+                // Now unlock the directory
+                fileSystem.unlockRootDirectory(revAddress, privateKey);
+            } catch (InterruptedException e) {
+                LOGGER.warn("Unlock background thread was interrupted", e);
+                Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                LOGGER.error("Error in background unlock thread for revAddress: {}", revAddress, e);
+            }
+
+        });
+        
+        unlockThread.setName("UnlockDirectory-" + revAddress);
+        unlockThread.setDaemon(true); // Don't prevent JVM shutdown
+        unlockThread.start();
+        
+        LOGGER.debug("Started background unlock thread for revAddress: {}", revAddress);
+        mount(mountPoint, blocking);
+    }
+
     @Override
     public void mount(Path mountPoint, boolean blocking, boolean debug, String[] fuseOpts) {
         LOGGER.debug("Called Mounting F1r3DriveFuse on {} with opts {}", mountPoint, Arrays.toString(fuseOpts));

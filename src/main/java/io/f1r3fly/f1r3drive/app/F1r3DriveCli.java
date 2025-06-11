@@ -32,6 +32,12 @@ class F1r3DriveCli implements Callable<Integer> {
     @Parameters(index = "0", description = "The path at which to mount the filesystem.")
     private Path mountPoint;
 
+    @Option(names = {"-ra", "--rev-address"}, description = "The rev address of the wallet to unlock.")
+    private String revAddress;
+
+    @Option(names = {"-pk", "--private-key"}, description = "The private key of the wallet to unlock.")
+    private String privateKey;
+
     private F1r3DriveFuse f1r3DriveFuse;
 
 
@@ -51,7 +57,11 @@ class F1r3DriveCli implements Callable<Integer> {
         );
 
         try {
-            f1r3DriveFuse.mount(mountPoint, true);
+            if (revAddress != null && privateKey != null) { 
+                f1r3DriveFuse.mountAndUnlockRootDirectory(mountPoint, true, revAddress, privateKey);
+            } else {
+                f1r3DriveFuse.mount(mountPoint, true);
+            }
         } finally {
             f1r3DriveFuse.umount();
         }
