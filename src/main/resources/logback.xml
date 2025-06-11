@@ -1,16 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    
+    <!-- Console appender with MDC pattern -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-<!--            <pattern>%d{"yyyy-MM-dd HH:mm:ss"} [%thread] %-5level %logger{36} - %msg%n</pattern>-->
-            <pattern>%d{"yyyy-MM-dd HH:mm:ss"} [%thread] %-5level %logger{16} - %msg%n</pattern>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{20} [%X{operationId:-}] [%X{action:-}] [%X{path:-}] - %msg%n</pattern>
         </encoder>
     </appender>
+    
+    <!-- File appender for detailed logging -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/f1r3drive.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/f1r3drive.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} [OP:%X{operationId:-none}] [ACTION:%X{action:-none}] [PATH:%X{path:-none}] - %msg%n</pattern>
+        </encoder>
+    </appender>
+    
+    <!-- Logger for F1r3Drive components -->
+    <logger name="io.f1r3fly.f1r3drive" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+    
+    <!-- Logger specifically for blockchain operations -->
+    <logger name="io.f1r3fly.f1r3drive.blockchain" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+    
+    <!-- Logger for FUSE operations -->
+    <logger name="io.f1r3fly.f1r3drive.app.F1r3DriveFuse" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
 
-    <logger name="io.f1r3fly.fs" level="DEBUG"/>
-
+    <!-- Root logger -->
     <root level="INFO">
-        <appender-ref ref="STDOUT" />
+        <appender-ref ref="CONSOLE"/>
     </root>
-
+    
 </configuration>

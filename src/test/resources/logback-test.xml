@@ -15,6 +15,6 @@
     <logger name="com.github.dockerjava" level="WARN"/>
     <logger name="com.github.dockerjava.zerodep.shaded.org.apache.hc.client5.http.wire" level="OFF"/>
 
-    <logger name="io.f1r3fly.fs" level="DEBUG"/> <!-- Set to DEBUG for more detailed logs -->
+    <logger name="io.f1r3fly.f1r3drive" level="DEBUG"/> <!-- Set to DEBUG for more detailed logs -->
 </configuration>
 
