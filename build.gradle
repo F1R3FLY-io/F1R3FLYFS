@@ -37,16 +37,11 @@ sourceSets {
     main {
         proto {
             // Include the 'src/main/proto' directory for proto files
-            //srcDir 'src/main/proto'
-            // Include the 'src/main/protobuf_external' directory for proto files
-            //srcDir 'src/main/protobuf_external'
-            srcDir '../f1r3fly/node/target/protobuf_external'
-            srcDir '../f1r3fly/models/src/main/protobuf'
-            srcDir '../f1r3fly/node/target/protobuf_external/scalapb'
-
-
-            // integration with Finder Sync Extension
             srcDir 'src/main/proto'
+            // Include local copies of external protobuf files
+            srcDir 'src/main/protobuf_external'
+            srcDir 'src/main/protobuf_models'
+            srcDir 'src/main/protobuf_external/scalapb'
         }
 
         java {
@@ -77,8 +72,14 @@ java {
 
 shadowJar {
     mergeServiceFiles()
-    archiveClassifier = 'shadow'
+    archiveClassifier = '' // Remove classifier to make this the main JAR
     relocate 'org.objectweb.asm', 'org.objectweb.asm.shaded'
+    
+    manifest {
+        attributes(
+                'Main-Class': 'io.f1r3fly.f1r3drive.app.F1r3DriveCli'
+        )
+    }
 }
 
 jar {
@@ -178,14 +179,20 @@ compileJava {
 release {
     newVersionCommitMessage = '[f1r3Drive release] - '
     preTagCommitMessage = '[f1r3Drive release] - pre tag commit: '
-    buildTasks = ['clean', 'assemble']
+    buildTasks = ['clean', 'assemble', 'shadowJar']
 }
+
+// Make build depend on shadowJar
+build.dependsOn shadowJar
 
 publishing {
     publications {
         mavenJava(MavenPublication) {
             artifactId = 'f1r3Drive'
             from components.java
+            
+            // Include the shadow JAR as the main artifact
+            artifact shadowJar
 
             versionMapping {
                 usage('java-api') {
@@ -219,6 +226,15 @@ publishing {
             // allowing easy verification of published artifacts
             name = 'projectLocal'
             url = file("${buildDir}/repo")
+        }
+        
+        maven {
+            name = "GitHubPackages"
+            url = "https://maven.pkg.github.com/${System.getenv("GITHUB_REPOSITORY")}"
+            credentials {
+                username = System.getenv("GITHUB_ACTOR")
+                password = System.getenv("GITHUB_TOKEN")
+            }
         }
     }
 }
