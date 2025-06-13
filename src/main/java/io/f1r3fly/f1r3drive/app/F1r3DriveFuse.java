@@ -23,10 +23,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.UUID;
 import java.io.File;
+import jnr.posix.util.Platform;
 
 public class F1r3DriveFuse extends FuseStubFS {
 
@@ -49,6 +53,35 @@ public class F1r3DriveFuse extends FuseStubFS {
     public F1r3DriveFuse(F1r3flyBlockchainClient f1R3FlyBlockchainClient) {
         super(); // no need to call Fuse constructor?
         this.f1R3FlyBlockchainClient = f1R3FlyBlockchainClient; // doesnt have a state, so can be reused between mounts
+    }
+
+    /**
+     * Extract the F1r3fly icon from JAR resources to a temporary file for use as volume icon
+     * @return Path to the extracted icon file, or null if extraction failed
+     */
+    private String extractIconFromJar() {
+        try {
+            // Create a temporary file to store the icon
+            Path tempIconPath = Files.createTempFile("f1r3fly-icon", ".icns");
+            
+            // Copy the icon from the JAR to the temporary file
+            try (InputStream is = getClass().getResourceAsStream("/icons/f1r3fly.icns")) {
+                if (is == null) {
+                    LOGGER.warn("F1r3fly icon file not found in JAR resources at /icons/f1r3fly.icns");
+                    return null;
+                }
+                Files.copy(is, tempIconPath, StandardCopyOption.REPLACE_EXISTING);
+                LOGGER.debug("Successfully extracted icon to: {}", tempIconPath);
+            }
+            
+            // Mark for deletion on exit
+            tempIconPath.toFile().deleteOnExit();
+            
+            return tempIconPath.toString();
+        } catch (IOException e) {
+            LOGGER.error("Failed to extract F1r3fly icon from JAR", e);
+            return null;
+        }
     }
 
     /**
@@ -316,9 +349,30 @@ public class F1r3DriveFuse extends FuseStubFS {
             }
             LOGGER.debug("Mount point verified: {}", mountPoint);
 
-            // combine fuseOpts and MOUNT_OPTIONS
-            String[] allFuseOpts = Arrays.copyOf(fuseOpts, fuseOpts.length + MOUNT_OPTIONS.length);
-            System.arraycopy(MOUNT_OPTIONS, 0, allFuseOpts, fuseOpts.length, MOUNT_OPTIONS.length);
+            // Extract icon and prepare mount options with icon if on macOS
+            String[] allFuseOpts;
+            if (Platform.IS_MAC) {
+                String iconPath = extractIconFromJar();
+                if (iconPath != null) {
+                    // Combine existing options with volicon
+                    allFuseOpts = Arrays.copyOf(fuseOpts, fuseOpts.length + MOUNT_OPTIONS.length + 2);
+                    System.arraycopy(fuseOpts, 0, allFuseOpts, 0, fuseOpts.length);
+                    System.arraycopy(MOUNT_OPTIONS, 0, allFuseOpts, fuseOpts.length, MOUNT_OPTIONS.length);
+                    allFuseOpts[allFuseOpts.length - 2] = "-o";
+                    allFuseOpts[allFuseOpts.length - 1] = "volicon=" + iconPath;
+                    LOGGER.debug("Added volume icon option: volicon={}", iconPath);
+                } else {
+                    // No icon available, use standard options
+                    allFuseOpts = Arrays.copyOf(fuseOpts, fuseOpts.length + MOUNT_OPTIONS.length);
+                    System.arraycopy(fuseOpts, 0, allFuseOpts, 0, fuseOpts.length);
+                    System.arraycopy(MOUNT_OPTIONS, 0, allFuseOpts, fuseOpts.length, MOUNT_OPTIONS.length);
+                }
+            } else {
+                // Not macOS, use standard options
+                allFuseOpts = Arrays.copyOf(fuseOpts, fuseOpts.length + MOUNT_OPTIONS.length);
+                System.arraycopy(fuseOpts, 0, allFuseOpts, 0, fuseOpts.length);
+                System.arraycopy(MOUNT_OPTIONS, 0, allFuseOpts, fuseOpts.length, MOUNT_OPTIONS.length);
+            }
 
             LOGGER.debug("Creating InMemoryFileSystem...");
             this.fileSystem = new InMemoryFileSystem(f1R3FlyBlockchainClient);
