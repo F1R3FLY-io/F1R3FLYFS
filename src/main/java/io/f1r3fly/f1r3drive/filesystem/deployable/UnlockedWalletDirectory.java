@@ -20,7 +20,7 @@ public class UnlockedWalletDirectory extends BlockchainDirectory {
         }
 
         if (sendToShard) {
-            this.lastUpdated = System.currentTimeMillis() / 1000;
+            refreshLastUpdated();
             String rholang = RholangExpressionConstructor.sendDirectoryIntoNewChannel(getAbsolutePath(), Set.of(), getLastUpdated());
             enqueueMutation(rholang);
         }

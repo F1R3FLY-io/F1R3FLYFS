@@ -57,7 +57,7 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
     public TokenDirectory(BlockchainContext blockchainContext, UnlockedWalletDirectory parent) {
         super(blockchainContext, NAME, parent);
         this.parent = parent;
-        this.lastUpdated = System.currentTimeMillis() / 1000;
+        refreshLastUpdated();
     }
 
     @Override
@@ -82,6 +82,7 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
 
     public void recreateTokenFiles() {
         children.removeIf(c -> c instanceof TokenFile);
+        refreshLastUpdated(); // Update timestamp when recreating children
 
         long balance;
         try {
@@ -131,6 +132,9 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
             TokenFile tokenFile = new TokenFile(getBlockchainContext(), tokenName, this, denomination);
             children.add(tokenFile);
         }
+        if (N > 0) {
+            refreshLastUpdated(); // Update timestamp when adding tokens
+        }
     }
 
     @Override
@@ -165,6 +169,7 @@ public class TokenDirectory extends AbstractLocalPath implements Directory {
     public void change(TokenFile tokenFile) {
         long amount = tokenFile.value;
         this.deleteChild(tokenFile);
+        refreshLastUpdated(); // Update timestamp when modifying children
 
         // Extract original denomination from token name
         String originalName = tokenFile.getName();

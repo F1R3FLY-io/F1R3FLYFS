@@ -21,6 +21,10 @@ public abstract class AbstractPath implements Path {
         this.name = name;
         this.parent = parent;
         this.blockchainContext = blockchainContext;
+        refreshLastUpdated();
+    }
+
+    protected void refreshLastUpdated() {
         this.lastUpdated = System.currentTimeMillis() / 1000;
     }
 
@@ -55,6 +59,7 @@ public abstract class AbstractPath implements Path {
     public void rename(String newName, Directory newParent) throws OperationNotPermitted {
         this.name = newName;
         this.parent = newParent;
+        refreshLastUpdated();
     }
 
     @Override

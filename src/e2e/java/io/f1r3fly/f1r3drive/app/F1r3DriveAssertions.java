@@ -182,4 +182,190 @@ public class F1r3DriveAssertions extends F1R3DriveTestFixture {
         Files.writeString(file.toPath(), data, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
         assertWrittenData(file, data.getBytes(), true, "Read data should be equal to written data");
     }
+
+    /**
+     * Asserts that the last modified time of a file/directory was updated after a specific operation
+     * @param file The file or directory to check
+     * @param initialTime The initial last modified time before the operation (in milliseconds)
+     * @param operation Description of the operation that should have updated the time
+     */
+    public static void assertLastModifiedTimeUpdated(File file, long initialTime, String operation) {
+        assertTrue(file.exists(), "File/directory should exist before checking last modified time: " + file.getAbsolutePath());
+        long currentTime = file.lastModified();
+        long timeDifference = currentTime - initialTime;
+        String fileType = file.isDirectory() ? "Directory" : "File";
+        String fileSize = file.isFile() ? " (size: " + file.length() + " bytes)" : "";
+        
+        assertTrue(currentTime > initialTime, 
+            String.format("%s last modified time validation FAILED after operation: '%s'\n" +
+            "  → File: %s%s\n" +
+            "  → Expected: last modified time should be AFTER initial time\n" +
+            "  → Initial time: %d (%s)\n" +
+            "  → Current time: %d (%s)\n" +
+            "  → Time difference: %d ms\n" +
+            "  → Result: Current time is %s than initial time",
+                fileType, operation, file.getAbsolutePath(), fileSize,
+                initialTime, new java.util.Date(initialTime).toString(),
+                currentTime, new java.util.Date(currentTime).toString(),
+                timeDifference,
+                currentTime > initialTime ? "NEWER" : "OLDER OR SAME"
+            ));
+    }
+
+    /**
+     * Asserts that the last modified time of a file/directory is after a specific timestamp
+     * @param file The file or directory to check
+     * @param afterTime The timestamp that the last modified time should be after (in milliseconds)
+     * @param message Custom error message
+     */
+    public static void assertLastModifiedTimeAfter(File file, long afterTime, String message) {
+        assertTrue(file.exists(), "File/directory should exist before timestamp validation: " + file.getAbsolutePath());
+        long lastModified = file.lastModified();
+        long timeDifference = lastModified - afterTime;
+        String fileType = file.isDirectory() ? "Directory" : "File";
+        String fileSize = file.isFile() ? " (size: " + file.length() + " bytes)" : "";
+        
+        assertTrue(lastModified > afterTime, 
+            String.format("%s timestamp validation FAILED: %s\n" +
+            "  → File: %s%s\n" +
+            "  → Expected: last modified time should be AFTER reference time\n" +
+            "  → Reference time: %d (%s)\n" +
+            "  → Actual last modified: %d (%s)\n" +
+            "  → Time difference: %d ms\n" +
+            "  → Validation status: %s",
+                fileType, message, file.getAbsolutePath(), fileSize,
+                afterTime, new java.util.Date(afterTime).toString(),
+                lastModified, new java.util.Date(lastModified).toString(),
+                timeDifference,
+                lastModified > afterTime ? "PASSED" : "FAILED - last modified is NOT after reference time"
+            ));
+    }
+
+    /**
+     * Asserts that the last modified time of a file/directory is approximately equal to expected time
+     * Allows for a small tolerance (1 second) due to filesystem precision
+     * @param file The file or directory to check
+     * @param expectedTime The expected last modified time (in milliseconds)
+     * @param message Custom error message
+     */
+    public static void assertLastModifiedTimeApproximately(File file, long expectedTime, String message) {
+        assertTrue(file.exists(), "File/directory should exist before approximate timestamp validation: " + file.getAbsolutePath());
+        long lastModified = file.lastModified();
+        
+        // Use larger tolerance for remount operations, especially for directories
+        // Remount operations involve complete filesystem unmount/mount cycles which can affect timestamps
+        long tolerance = message.contains("remount") ? 10000 : 1000; // 10 seconds for remount, 1 second otherwise
+        
+        long diff = Math.abs(lastModified - expectedTime);
+        String fileType = file.isDirectory() ? "Directory" : "File";
+        String fileSize = file.isFile() ? " (size: " + file.length() + " bytes)" : "";
+        
+        assertTrue(diff <= tolerance, 
+            String.format("%s approximate timestamp validation FAILED: %s\n" +
+            "  → File: %s%s\n" +
+            "  → Expected: last modified time within ±%d ms tolerance\n" +
+            "  → Expected time: %d (%s)\n" +
+            "  → Actual last modified: %d (%s)\n" +
+            "  → Absolute difference: %d ms\n" +
+            "  → Tolerance limit: %d ms\n" +
+            "  → Validation status: %s (difference %s tolerance)",
+                fileType, message, file.getAbsolutePath(), fileSize, tolerance,
+                expectedTime, new java.util.Date(expectedTime).toString(),
+                lastModified, new java.util.Date(lastModified).toString(),
+                diff, tolerance,
+                diff <= tolerance ? "PASSED" : "FAILED",
+                diff <= tolerance ? "within" : "exceeds"
+            ));
+    }
+
+    /**
+     * Asserts that the last modified time of a file/directory is approximately equal to expected time
+     * with a custom tolerance
+     * @param file The file or directory to check
+     * @param expectedTime The expected last modified time (in milliseconds)
+     * @param toleranceMs Custom tolerance in milliseconds
+     * @param message Custom error message
+     */
+    public static void assertLastModifiedTimeApproximately(File file, long expectedTime, long toleranceMs, String message) {
+        assertTrue(file.exists(), "File/directory should exist before approximate timestamp validation: " + file.getAbsolutePath());
+        long lastModified = file.lastModified();
+        long diff = Math.abs(lastModified - expectedTime);
+        String fileType = file.isDirectory() ? "Directory" : "File";
+        String fileSize = file.isFile() ? " (size: " + file.length() + " bytes)" : "";
+        
+        assertTrue(diff <= toleranceMs, 
+            String.format("%s approximate timestamp validation FAILED: %s\n" +
+            "  → File: %s%s\n" +
+            "  → Expected: last modified time within ±%d ms tolerance\n" +
+            "  → Expected time: %d (%s)\n" +
+            "  → Actual last modified: %d (%s)\n" +
+            "  → Absolute difference: %d ms\n" +
+            "  → Tolerance limit: %d ms\n" +
+            "  → Validation status: %s (difference %s tolerance)",
+                fileType, message, file.getAbsolutePath(), fileSize, toleranceMs,
+                expectedTime, new java.util.Date(expectedTime).toString(),
+                lastModified, new java.util.Date(lastModified).toString(),
+                diff, toleranceMs,
+                diff <= toleranceMs ? "PASSED" : "FAILED",
+                diff <= toleranceMs ? "within" : "exceeds"
+            ));
+    }
+
+    /**
+     * Asserts that two files/directories have different last modified times
+     * @param file1 First file or directory
+     * @param file2 Second file or directory
+     * @param message Custom error message
+     */
+    public static void assertDifferentLastModifiedTimes(File file1, File file2, String message) {
+        assertTrue(file1.exists(), "First file/directory should exist before timestamp comparison: " + file1.getAbsolutePath());
+        assertTrue(file2.exists(), "Second file/directory should exist before timestamp comparison: " + file2.getAbsolutePath());
+        long time1 = file1.lastModified();
+        long time2 = file2.lastModified();
+        long timeDifference = Math.abs(time1 - time2);
+        String file1Type = file1.isDirectory() ? "Directory" : "File";
+        String file2Type = file2.isDirectory() ? "Directory" : "File";
+        String file1Size = file1.isFile() ? " (size: " + file1.length() + " bytes)" : "";
+        String file2Size = file2.isFile() ? " (size: " + file2.length() + " bytes)" : "";
+        
+        assertNotEquals(time1, time2, 
+            String.format("Different timestamp validation FAILED: %s\n" +
+            "  → Expected: Two files should have DIFFERENT last modified times\n" +
+            "  → %s 1: %s%s\n" +
+            "    └─ Last modified: %d (%s)\n" +
+            "  → %s 2: %s%s\n" +
+            "    └─ Last modified: %d (%s)\n" +
+            "  → Time difference: %d ms\n" +
+            "  → Validation status: %s",
+                message,
+                file1Type, file1.getAbsolutePath(), file1Size,
+                time1, new java.util.Date(time1).toString(),
+                file2Type, file2.getAbsolutePath(), file2Size,
+                time2, new java.util.Date(time2).toString(),
+                timeDifference,
+                time1 != time2 ? "PASSED - timestamps are different" : "FAILED - timestamps are IDENTICAL"
+            ));
+    }
+
+    /**
+     * Gets the current timestamp and waits for at least 1 second to ensure different timestamps
+     * This is useful for testing last modified time changes since they are typically in seconds
+     * @return The timestamp before the wait (in milliseconds)
+     */
+    public static long waitForTimestampChange() {
+        long beforeTime = System.currentTimeMillis();
+        try {
+            log.info("Waiting for timestamp change - Before: {} ({})", beforeTime, new java.util.Date(beforeTime));
+            Thread.sleep(2000); // Wait 2 seconds to ensure significant timestamp difference
+            long afterTime = System.currentTimeMillis();
+            log.info("Timestamp change complete - After: {} ({}) - Delta: {} ms", 
+                afterTime, new java.util.Date(afterTime), (afterTime - beforeTime));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail("Test execution was interrupted while waiting for timestamp change to ensure proper time difference validation. " +
+                 "This wait is necessary because filesystem timestamps typically have second-level precision. " +
+                 "Interruption occurred at: " + new java.util.Date(System.currentTimeMillis()));
+        }
+        return beforeTime;
+    }
 } 

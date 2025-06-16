@@ -32,7 +32,6 @@ public class BlockchainDirectory extends AbstractDeployablePath implements Direc
             boolean sendToShard) {
         super(blockchainContext, name, parent);
         if (sendToShard) {
-            this.lastUpdated = System.currentTimeMillis() / 1000;
             String rholang = RholangExpressionConstructor.sendDirectoryIntoNewChannel(getAbsolutePath(), Set.of(), getLastUpdated());
             enqueueMutation(rholang);
         }
@@ -57,7 +56,6 @@ public class BlockchainDirectory extends AbstractDeployablePath implements Direc
                 return;
             }
 
-            this.lastUpdated = System.currentTimeMillis() / 1000;
             String rholang = RholangExpressionConstructor.transfer(walletInfoFrom.revAddress(),
                     walletInfoTo.revAddress(), amount);
 
@@ -80,7 +78,7 @@ public class BlockchainDirectory extends AbstractDeployablePath implements Direc
             boolean added = children.add(p);
 
             if (added) {
-                this.lastUpdated = System.currentTimeMillis() / 1000;
+                this.refreshLastUpdated();
                 enqueueUpdatingChildrenList();
             }
         }
@@ -103,7 +101,7 @@ public class BlockchainDirectory extends AbstractDeployablePath implements Direc
     public synchronized void deleteChild(Path child) {
         children.remove(child);
 
-        this.lastUpdated = System.currentTimeMillis() / 1000;
+        refreshLastUpdated();
         enqueueUpdatingChildrenList();
     }
 

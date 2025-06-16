@@ -352,4 +352,147 @@ class F1R3DriveTest extends F1R3DriveTestFixture {
             "Balance of wallet 2 should be increased. Balance before: " + revBalance2Before + ", balance after: " + revBalance2Actual);
 
     }
+
+    @Test
+    @DisplayName("Should properly track and update last modified dates for files and directories")
+    void shouldTrackLastModifiedDatesForFilesAndDirectories() throws IOException {
+        assertUnlockWalletDirectory(REV_WALLET_1, PRIVATE_KEY_1);
+
+        // Test file creation and last modified time
+        File testFile = new File(UNLOCKED_WALLET_DIR_1, "testFile.txt");
+        long beforeFileCreation = waitForTimestampChange();
+        
+        assertCreateNewFile(testFile);
+        
+        long afterFileCreation = System.currentTimeMillis();
+        assertLastModifiedTimeAfter(testFile, beforeFileCreation, 
+            "File creation operation should set last modified time to creation timestamp");
+        assertTrue(testFile.lastModified() <= afterFileCreation, 
+            "File last modified time validation failed - timestamp should not be in the future. " +
+            "File: " + testFile.getAbsolutePath() + ", " +
+            "Last modified: " + testFile.lastModified() + " (" + new java.util.Date(testFile.lastModified()) + "), " +
+            "After creation: " + afterFileCreation + " (" + new java.util.Date(afterFileCreation) + ")");
+
+        // Wait and modify file content
+        long beforeContentModification = waitForTimestampChange();
+        String initialContent = "Initial content";
+        assertWriteStringData(testFile, initialContent);
+        
+        assertLastModifiedTimeUpdated(testFile, beforeContentModification, "writing initial content to file");
+
+        // Test directory creation and last modified time
+        File testDir = new File(UNLOCKED_WALLET_DIR_1, "testDirectory");
+        long beforeDirCreation = waitForTimestampChange();
+        
+        assertCreateNewDirectory(testDir);
+        
+        assertLastModifiedTimeUpdated(testDir, beforeDirCreation, "directory creation");
+
+        // Test that adding files to directory updates directory's last modified time
+        long dirInitialTime = testDir.lastModified();
+        long beforeAddingFileToDir = waitForTimestampChange();
+        
+        File fileInDir = new File(testDir, "fileInDirectory.txt");
+        assertCreateNewFile(fileInDir);
+        
+        // Note: Directory last modified time behavior may vary by filesystem
+        // Some filesystems update parent directory time when files are added
+        long dirTimeAfterAddingFile = testDir.lastModified();
+        log.info("Directory timestamp tracking - Dir: {}, Before adding file: {} ({}), After: {} ({}), Changed: {}", 
+            testDir.getAbsolutePath(),
+            dirInitialTime, new java.util.Date(dirInitialTime),
+            dirTimeAfterAddingFile, new java.util.Date(dirTimeAfterAddingFile),
+            dirTimeAfterAddingFile != dirInitialTime);
+
+        // Test file rename updates last modified time
+        long beforeRename = waitForTimestampChange();
+        File renamedFile = new File(UNLOCKED_WALLET_DIR_1, "renamedFile.txt");
+        
+        assertRenameFile(testFile, renamedFile);
+        
+        // Wait after rename to ensure timestamp is properly set
+        try {
+            Thread.sleep(100); // Short wait to ensure filesystem operations complete
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        
+        // Renamed file should have updated last modified time
+        assertLastModifiedTimeUpdated(renamedFile, beforeRename, "file rename operation");
+
+        // Test directory rename updates last modified time
+        long beforeDirRename = waitForTimestampChange();
+        File renamedDir = new File(UNLOCKED_WALLET_DIR_1, "renamedDirectory");
+        
+        assertRenameFile(testDir, renamedDir);
+        
+        // Wait after directory rename to ensure timestamp is properly set
+        try {
+            Thread.sleep(100); // Short wait to ensure filesystem operations complete
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        
+        assertLastModifiedTimeUpdated(renamedDir, beforeDirRename, "directory rename operation");
+
+        // Test that different files have different last modified times
+        File anotherFile = new File(UNLOCKED_WALLET_DIR_1, "anotherFile.txt");
+        waitForTimestampChange();
+        assertCreateNewFile(anotherFile);
+        
+        // Wait after file creation to ensure timestamp is properly set
+        try {
+            Thread.sleep(100); // Short wait to ensure filesystem operations complete
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        
+        assertDifferentLastModifiedTimes(renamedFile, anotherFile, 
+            "Sequential file operations at different time points should result in distinct timestamps");
+
+        // Test file content modification updates time
+        String originalContent = Files.readString(renamedFile.toPath());
+        long beforeContentUpdate = waitForTimestampChange();
+        String updatedContent = originalContent + " - UPDATED";
+        
+        assertWriteStringData(renamedFile, updatedContent);
+        
+        // Wait after content update to ensure timestamp is properly set
+        try {
+            Thread.sleep(100); // Short wait to ensure filesystem operations complete
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        
+        assertLastModifiedTimeUpdated(renamedFile, beforeContentUpdate, "file content modification");
+
+        // Verify content was actually updated
+        String readContent = Files.readString(renamedFile.toPath());
+        assertEquals(updatedContent, readContent, 
+            "File content validation failed after modification. " +
+            "Expected content length: " + updatedContent.length() + " bytes, " +
+            "Actual content length: " + readContent.length() + " bytes, " +
+            "File: " + renamedFile.getAbsolutePath());
+
+        // Test persistence after remount
+        long fileTimeBeforeRemount = renamedFile.lastModified();
+        long dirTimeBeforeRemount = renamedDir.lastModified();
+        long anotherFileTimeBeforeRemount = anotherFile.lastModified();
+
+        remount();
+        assertUnlockWalletDirectory(REV_WALLET_1, PRIVATE_KEY_1);
+
+        // Files should still exist and have the same last modified times after remount
+        assertTrue(renamedFile.exists(), "Post-remount validation failed: Renamed file should still exist - " + renamedFile.getAbsolutePath());
+        assertTrue(renamedDir.exists(), "Post-remount validation failed: Renamed directory should still exist - " + renamedDir.getAbsolutePath());
+        assertTrue(anotherFile.exists(), "Post-remount validation failed: Another file should still exist - " + anotherFile.getAbsolutePath());
+
+        assertLastModifiedTimeApproximately(renamedFile, fileTimeBeforeRemount, 
+            "Persistence validation for renamed file after filesystem remount operation");
+        assertLastModifiedTimeApproximately(renamedDir, dirTimeBeforeRemount, 
+            "Persistence validation for renamed directory after filesystem remount operation");
+        assertLastModifiedTimeApproximately(anotherFile, anotherFileTimeBeforeRemount, 
+            "Persistence validation for additional file after filesystem remount operation");
+
+    }
 }

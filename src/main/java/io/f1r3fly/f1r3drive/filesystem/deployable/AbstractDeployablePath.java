@@ -31,7 +31,7 @@ public abstract class AbstractDeployablePath extends AbstractPath {
 
     @Override
     public synchronized void delete() {
-        this.lastUpdated = System.currentTimeMillis() / 1000;
+        refreshLastUpdated();
         String rholangExpression = RholangExpressionConstructor.forgetChanel(getAbsolutePath());
         enqueueMutation(rholangExpression);
     }
@@ -41,7 +41,6 @@ public abstract class AbstractDeployablePath extends AbstractPath {
         String oldPath = getAbsolutePath();
         super.rename(newName, newParent);
         String newPath = getAbsolutePath();
-        this.lastUpdated = System.currentTimeMillis() / 1000;
         enqueueMutation(RholangExpressionConstructor.renameChanel(oldPath, newPath, getLastUpdated()));
     }
 
