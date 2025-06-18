@@ -20,6 +20,21 @@ F1r3flyFS is a FUSE implementation in java using Java Native Runtime (JNR) and F
 6. Install [jnr-fuse](https://github.com/SerCeMan/jnr-fuse/blob/master/INSTALLATION.md).
    - Also see [macfuse](https://github.com/macfuse/macfuse/wiki/Getting-Started) which is the same library for MacOS. This contains installation steps and troubleshooting solutions for MacOS.
 
-## Usage
+## Running F1r3flyFS
 
-See [Demo.md](./Demo.md) for a step-by-step guide on how to run F1r3flyFS.
+You can either download the pre-built application or build it from source.
+
+### Using the pre-built JAR
+
+Download the latest `f1r3drive-*.jar` from the [GitHub Releases page](https://github.com/f1r3fly/F1R3FLYFS/releases).
+
+### Building from source
+
+You can build the project using Gradle:
+
+```bash
+./gradlew shadowJar -x test
+```
+The JAR file will be located in `build/libs/f1r3drive-*.jar`.
+
+Once you have the JAR file, see [Demo.md](./Demo.md) for a step-by-step guide on how to run F1r3flyFS.

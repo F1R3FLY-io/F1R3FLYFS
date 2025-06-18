@@ -26,13 +26,20 @@ Local shard will be configured with the following configurations:
 
 # Run F1r3Drive app
 
-1. Download Jar or build F1r3Drive locally
-```sh
-./gradlew shadowJar -x test
-```
+1. Download the latest `f1r3drive-*.jar` from the [GitHub Releases page](https://github.com/f1r3fly/F1R3FLYFS/releases).
+
 2. Run F1r3Drive app with REV Address and Private key. That must be assosiated with some REV address from [wallets.txt](./data/genesis//wallets.txt):
+- If you build the jar locally, run:
 ```sh
 java -jar ./build/libs/f1r3drive-0.1.0.jar ~/demo-f1r3drive \
+   --cipher-key-path ~/cipher.key \
+   --validator-host localhost --validator-port 40402 \
+   --observer-host localhost --observer-port 40412 \
+   --rev-address 11112ZM9yrfaTrzCCbKjPbxBncjNCkMFsPqtcLFvhBf4Kqx6rpir2w --private-key a8cf01d889cc6ef3119ecbd57301036a52c41ae6e44964e098cb2aefa4598954
+```
+- If you downloaded the JAR to your `~/Downloads` folder, run:
+```sh
+java -jar ~/Downloads/f1r3drive-0.1.0.jar ~/demo-f1r3drive \
    --cipher-key-path ~/cipher.key \
    --validator-host localhost --validator-port 40402 \
    --observer-host localhost --observer-port 40412 \
