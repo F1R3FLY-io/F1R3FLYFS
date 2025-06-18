@@ -26,7 +26,7 @@ Local shard will be configured with the following configurations:
 
 # Run F1r3Drive app
 
-1. Download the latest `f1r3drive-*.jar` from the [GitHub Releases page](https://github.com/f1r3fly/F1R3FLYFS/releases).
+1. Download the latest `f1r3drive-*.jar` from the [GitHub Releases page](https://github.com/f1r3fly-io/F1R3FLYFS/releases).
 
 2. Run F1r3Drive app with REV Address and Private key. That must be assosiated with some REV address from [wallets.txt](./data/genesis//wallets.txt):
 - If you build the jar locally, run:
