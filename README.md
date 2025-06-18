@@ -1,26 +1,28 @@
-# F1r3flyFS
+# F1r3Drive
 
-F1r3flyFS is a FUSE implementation in java using Java Native Runtime (JNR) and F1r3fly Node.
+F1r3Drive is a FUSE implementation in java using Java Native Runtime (JNR) and F1r3fly Node.
+
+## Prerequisites
+
+To build and run F1r3Drive, you'll need the following:
+
+- [Nix](https://nixos.org/download/)
+- [direnv](https://direnv.net/#basic-installation)
+- [Protobuf Compiler](https://grpc.io/docs/protoc-installation/)
+- [Docker and Docker Compose](https://www.docker.com/)
+- [jnr-fuse](https://github.com/SerCeMan/jnr-fuse/blob/master/INSTALLATION.md) (or [macFUSE](https://github.com/macfuse/macfuse/wiki/Getting-Started) on macOS)
 
 ## Installation
 
-1. Install Nix: https://nixos.org/download/
-   - For more information about Nix and how it works see: https://nixos.org/guides/how-nix-works/
+1.  Clone this repository and `cd` into it.
+2.  Run `direnv allow`. This will configure your shell for the project.
+3.  Start a local F1r3fly test shard using Docker:
+    ```bash
+    docker-compose up -d
+    ```
+    This command starts a small, 2-node shard (one validator and one observer) that's sufficient for trying out F1r3Drive locally.
 
-2. Install direnv: https://direnv.net/#basic-installation
-   - For more information about direnv and how it works see: https://direnv.net/
-  
-3. Install protobuf compiler: https://grpc.io/docs/protoc-installation/
-
-4. Clone this repository and after entering the repository, run `direnv allow`. There should be a message asking you to do this. 
-   - This will do a one-time compile of all our libraries which will take a couple of minutes. After completion, your environment will be setup.
-
-5. Install `f1r3fly` as per the instructions in the [F1r3fly repository](https://github.com/F1R3FLY-io/f1r3fly/tree/preston/rholang_rust?tab=readme-ov-file#installation).
-
-6. Install [jnr-fuse](https://github.com/SerCeMan/jnr-fuse/blob/master/INSTALLATION.md).
-   - Also see [macfuse](https://github.com/macfuse/macfuse/wiki/Getting-Started) which is the same library for MacOS. This contains installation steps and troubleshooting solutions for MacOS.
-
-## Running F1r3flyFS
+## Running F1r3Drive
 
 You can either download the pre-built application or build it from source.
 
@@ -37,4 +39,4 @@ You can build the project using Gradle:
 ```
 The JAR file will be located in `build/libs/f1r3drive-*.jar`.
 
-Once you have the JAR file, see [Demo.md](./Demo.md) for a step-by-step guide on how to run F1r3flyFS.
+Once you have the JAR file, see [Demo.md](./Demo.md) for a step-by-step guide on how to run F1r3Drive.
