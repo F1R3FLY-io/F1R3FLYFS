@@ -79,3 +79,4 @@ logs/
 tmp/
 temp/
 local-shard/data/
+.mcp.json
