@@ -49,20 +49,9 @@ class InMemoryFileSystemIntegrationTest {
     }
 
     private void setupBasicMocks() throws Exception {
-        // Create minimal real protobuf objects to avoid mocking final classes
-        casper.DeployServiceCommon.DeployInfo deployInfo =
-            casper.DeployServiceCommon.DeployInfo.newBuilder()
-                .setTerm("revVaultInitCh!(\"test-address\")")
-                .build();
-
-        casper.DeployServiceCommon.BlockInfo genesisBlock =
-            casper.DeployServiceCommon.BlockInfo.newBuilder()
-                .addDeploys(deployInfo)
-                .build();
-
-        org.mockito.Mockito.when(
-            mockBlockchainClient.getGenesisBlock()
-        ).thenReturn(genesisBlock);
+        // Note: the filesystem no longer parses the genesis block during
+        // construction (wallet directories are created on-demand), so no
+        // getGenesisBlock() stub is required here.
 
         // Setup basic context mocks
         org.mockito.Mockito.when(mockContext.getUid()).thenReturn(1000L);
@@ -215,13 +204,17 @@ class InMemoryFileSystemIntegrationTest {
     @Test
     @DisplayName("Blockchain client integration is established")
     void testBlockchainClientIntegration() {
-        // Verify that blockchain client was used during initialization
-        org.mockito.Mockito.verify(
-            mockBlockchainClient,
-            org.mockito.Mockito.atLeastOnce()
-        ).getGenesisBlock();
+        // The filesystem now creates wallet directories on-demand (during
+        // unlockRootDirectory) rather than eagerly parsing the genesis block at
+        // construction time. As a result, no blockchain client method is invoked
+        // during initialization, so there is nothing to verify on the mock here.
+        //
+        // Instead, confirm that construction completed successfully while holding
+        // the real blockchain client (wired into the DeployDispatcher), which is
+        // what establishes the integration.
+        assertNotNull(fileSystem);
 
-        // This confirms that the filesystem is properly integrated
-        // with blockchain operations, not just using mock data
+        // No blockchain interactions are expected purely from initialization.
+        org.mockito.Mockito.verifyNoInteractions(mockBlockchainClient);
     }
 }

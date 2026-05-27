@@ -122,7 +122,9 @@ class CommandSecurityTest {
         Path targetWalletDir = targetLocked.getWalletPath();
         assertTrue(Files.exists(targetWalletDir));
         assertTrue(Files.exists(targetWalletDir.resolve(".locked")));
-        assertTrue(Files.exists(targetWalletDir.resolve("README.md")));
+        // The wallet creates the .wallet_info metadata file (README.md is no
+        // longer generated).
+        assertTrue(Files.exists(targetWalletDir.resolve(".wallet_info")));
         assertTrue(
             targetWalletDir.getFileName().toString().startsWith("locked_")
         );

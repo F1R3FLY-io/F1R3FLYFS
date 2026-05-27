@@ -40,7 +40,6 @@ class FolderTokenManagerTest {
     @Mock
     private DeployDispatcher mockDeployDispatcher;
 
-    @Mock
     private RevWalletInfo mockWalletInfo;
 
     private FolderTokenManager folderTokenManager;
@@ -53,9 +52,9 @@ class FolderTokenManagerTest {
         // Setup mock behavior
         when(mockBlockchainContext.getBlockchainClient()).thenReturn(mockBlockchainClient);
         when(mockBlockchainContext.getDeployDispatcher()).thenReturn(mockDeployDispatcher);
+        // RevWalletInfo is a record (final); Mockito 4.x cannot mock it, so use a real instance.
+        mockWalletInfo = new RevWalletInfo(TEST_WALLET_ADDRESS, new byte[32]);
         when(mockBlockchainContext.getWalletInfo()).thenReturn(mockWalletInfo);
-        when(mockWalletInfo.revAddress()).thenReturn(TEST_WALLET_ADDRESS);
-        when(mockWalletInfo.signingKey()).thenReturn(new byte[32]);
 
         // Create test directory structure
         createTestDirectory();

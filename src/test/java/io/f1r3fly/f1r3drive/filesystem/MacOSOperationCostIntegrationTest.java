@@ -2,6 +2,11 @@ package io.f1r3fly.f1r3drive.filesystem;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import io.f1r3fly.f1r3drive.background.state.StateChangeEventsManager;
 import io.f1r3fly.f1r3drive.blockchain.BlockchainContext;
 import io.f1r3fly.f1r3drive.blockchain.client.DeployDispatcher;
 import io.f1r3fly.f1r3drive.blockchain.client.F1r3flyBlockchainClient;
@@ -37,8 +42,26 @@ public class MacOSOperationCostIntegrationTest {
         // Reset operation costs
         TokenDirectory.resetWalletCosts(TEST_WALLET_ADDRESS);
 
-        // Initialize file system with null blockchain client for testing
-        fileSystem = new InMemoryFileSystem(null);
+        // Mock the blockchain client so balance queries succeed without a live node.
+        // TokenDirectory queries the wallet balance via exploratoryDeploy during
+        // construction; return a positive REV balance so token files are created.
+        blockchainClient = mock(F1r3flyBlockchainClient.class);
+        RhoTypes.Expr balanceExpr = RhoTypes.Expr.newBuilder()
+            .setGInt(1000L)
+            .build();
+        when(blockchainClient.exploratoryDeploy(anyString())).thenReturn(
+            balanceExpr
+        );
+
+        // Real DeployDispatcher backed by the mock client. A non-null dispatcher is
+        // required because blockchain directory mutations enqueue deployments.
+        deployDispatcher = new DeployDispatcher(
+            blockchainClient,
+            new StateChangeEventsManager()
+        );
+
+        // Initialize file system with the mock blockchain client for testing
+        fileSystem = new InMemoryFileSystem(blockchainClient);
 
         walletPath = "/" + TEST_WALLET_ADDRESS;
     }
@@ -269,7 +292,7 @@ public class MacOSOperationCostIntegrationTest {
         );
         BlockchainContext context = new BlockchainContext(
             walletInfo,
-            null // No deploy dispatcher needed for test
+            deployDispatcher
         );
 
         // Create unlocked wallet directory

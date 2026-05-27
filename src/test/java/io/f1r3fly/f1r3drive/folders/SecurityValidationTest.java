@@ -208,12 +208,18 @@ class SecurityValidationTest {
     void testIntegrationLayerSecurity() throws Exception {
         LOGGER.info("=== Testing Integration Layer Security ===");
 
+        // Set up the wallets through the SAME manager that the integration
+        // layer uses to execute operations. BlockchainFolderIntegration owns
+        // its own PhysicalWalletManager, so wallets created on the standalone
+        // manager would be invisible to executeWalletFileOperation(...).
+        PhysicalWalletManager integrationManager = folderIntegration.getWalletManager();
+
         // Setup target wallet (unlocked) and other wallets (locked)
-        walletManager.createLockedWallet(targetRevAddress).get();
-        walletManager.unlockPhysicalWallet(targetRevAddress, privateKey).get();
+        integrationManager.createLockedWallet(targetRevAddress).get();
+        integrationManager.unlockPhysicalWallet(targetRevAddress, privateKey).get();
 
         for (String address : otherAddresses) {
-            walletManager.createLockedWallet(address).get();
+            integrationManager.createLockedWallet(address).get();
         }
 
         // Test through integration layer

@@ -196,15 +196,17 @@ class WalletLockTest {
         assertTrue(Files.isDirectory(walletPath));
 
         // Verify basic structure was created
-        assertTrue(Files.exists(walletPath.resolve("README.md")));
-        assertTrue(Files.exists(walletPath.resolve("tokens")));
-        assertTrue(Files.exists(walletPath.resolve("folders")));
+        // Note: the wallet intentionally creates only the .tokens dir, the
+        // .wallet_info metadata file, and the .locked status file. README.md
+        // and the folders/blockchain_files dirs are no longer created.
+        assertTrue(Files.exists(walletPath.resolve(".tokens")));
+        assertTrue(Files.exists(walletPath.resolve(".wallet_info")));
         assertTrue(Files.exists(walletPath.resolve(".locked")));
 
         // Test reading existing files works even on locked wallet
-        byte[] readmeContent = lockedWallet.readFile("README.md");
-        assertNotNull(readmeContent);
-        assertTrue(readmeContent.length > 0);
+        byte[] walletInfoContent = lockedWallet.readFile(".wallet_info");
+        assertNotNull(walletInfoContent);
+        assertTrue(walletInfoContent.length > 0);
 
         // Test directory listing works
         String[] contents = lockedWallet.listDirectory("");

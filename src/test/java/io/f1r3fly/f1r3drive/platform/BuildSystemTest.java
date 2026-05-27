@@ -5,6 +5,8 @@ import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 
 import java.io.InputStream;
+import java.net.URL;
+import java.util.Enumeration;
 import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -14,6 +16,45 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests that platform-specific resources are correctly included in builds.
  */
 public class BuildSystemTest {
+
+    /**
+     * Loads the {@code platform.properties} for a specific platform.
+     *
+     * <p>The test runtime classpath intentionally contains BOTH the macOS and Linux
+     * source-set outputs (see {@code sourceSets.test} in build.gradle), so there are
+     * TWO resources named {@code platform.properties} at the classpath root:
+     * one for Linux (platform.type=linux) and one for macOS (platform.type=darwin).
+     * A plain {@code getResourceAsStream("platform.properties")} resolves this
+     * ambiguously and returns whichever happens to be first on the classpath, so it
+     * cannot be relied upon to identify a specific platform. (In production this
+     * collision never occurs: each per-platform shadowJar bundles only one platform's
+     * resources.)
+     *
+     * <p>To disambiguate, we enumerate ALL {@code platform.properties} resources via
+     * {@link ClassLoader#getResources(String)} and return the one whose
+     * {@code platform.type} matches the requested platform.
+     */
+    private Properties loadPlatformProperties(String expectedType) throws Exception {
+        Enumeration<URL> resources =
+            getClass().getClassLoader().getResources("platform.properties");
+        assertTrue(resources.hasMoreElements(),
+                  "platform.properties should be available in classpath");
+
+        while (resources.hasMoreElements()) {
+            URL url = resources.nextElement();
+            Properties props = new Properties();
+            try (InputStream is = url.openStream()) {
+                props.load(is);
+            }
+            if (expectedType.equals(props.getProperty("platform.type"))) {
+                return props;
+            }
+        }
+
+        fail("No platform.properties found on the test classpath with platform.type="
+            + expectedType);
+        return null; // unreachable
+    }
 
     @Test
     public void testPlatformPropertiesAvailable() throws Exception {
@@ -39,11 +80,9 @@ public class BuildSystemTest {
     @Test
     @EnabledOnOs(OS.MAC)
     public void testMacOSPropertiesContent() throws Exception {
-        InputStream propertiesStream = getClass().getClassLoader().getResourceAsStream("platform.properties");
-        assertNotNull(propertiesStream, "platform.properties should be available");
-
-        Properties props = new Properties();
-        props.load(propertiesStream);
+        // Select the macOS resource explicitly: the test classpath also contains the
+        // Linux platform.properties, so a plain getResourceAsStream would be ambiguous.
+        Properties props = loadPlatformProperties("darwin");
 
         assertEquals("macOS", props.getProperty("platform.name"));
         assertEquals("darwin", props.getProperty("platform.type"));
@@ -51,18 +90,15 @@ public class BuildSystemTest {
         assertEquals("libf1r3drive-fsevents.dylib", props.getProperty("native.library.name"));
         assertEquals("true", props.getProperty("fileprovider.enabled"));
         assertEquals("true", props.getProperty("fsevents.enabled"));
-
-        propertiesStream.close();
     }
 
     @Test
     @EnabledOnOs(OS.LINUX)
     public void testLinuxPropertiesContent() throws Exception {
-        InputStream propertiesStream = getClass().getClassLoader().getResourceAsStream("platform.properties");
-        assertNotNull(propertiesStream, "platform.properties should be available");
-
-        Properties props = new Properties();
-        props.load(propertiesStream);
+        // Select the Linux resource explicitly: the test classpath also contains the
+        // macOS platform.properties, so a plain getResourceAsStream would be ambiguous
+        // and could resolve to the macOS (darwin) copy, breaking these assertions.
+        Properties props = loadPlatformProperties("linux");
 
         assertEquals("Linux", props.getProperty("platform.name"));
         assertEquals("linux", props.getProperty("platform.type"));
@@ -71,8 +107,6 @@ public class BuildSystemTest {
         assertEquals("true", props.getProperty("fuse.enabled"));
         assertEquals("true", props.getProperty("inotify.enabled"));
         assertEquals("/dev/fuse", props.getProperty("fuse.device.path"));
-
-        propertiesStream.close();
     }
 
     @Test
