@@ -101,8 +101,8 @@ class PlatformIntegrationLogicTest {
         // Create a simple implementation
         FileChangeCallback callback = new FileChangeCallback() {
             @Override
-            public byte[] loadFileContent(String path) {
-                return ("Content for " + path).getBytes();
+            public java.util.concurrent.CompletableFuture<byte[]> loadFileContent(String path) {
+                return java.util.concurrent.CompletableFuture.completedFuture(("Content for " + path).getBytes());
             }
 
             @Override
@@ -147,7 +147,7 @@ class PlatformIntegrationLogicTest {
 
         // Test the callback methods
         assertDoesNotThrow(() -> {
-            byte[] content = callback.loadFileContent("/test/file.txt");
+            byte[] content = callback.loadFileContent("/test/file.txt").join();
             assertNotNull(content);
             assertTrue(content.length > 0);
 
@@ -176,8 +176,8 @@ class PlatformIntegrationLogicTest {
         assertDoesNotThrow(() -> {
             FileChangeCallback testCallback = new FileChangeCallback() {
                 @Override
-                public byte[] loadFileContent(String path) {
-                    return "test".getBytes();
+                public java.util.concurrent.CompletableFuture<byte[]> loadFileContent(String path) {
+                    return java.util.concurrent.CompletableFuture.completedFuture("test".getBytes());
                 }
 
                 @Override
