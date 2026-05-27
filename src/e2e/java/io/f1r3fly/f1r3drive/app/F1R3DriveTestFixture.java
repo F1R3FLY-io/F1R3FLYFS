@@ -12,13 +12,13 @@ import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.LoggerFactory;
-import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+import org.testcontainers.utility.MountableFile;
 
 import java.io.File;
 import java.io.IOException;
@@ -26,6 +26,7 @@ import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 
 @Testcontainers
@@ -34,7 +35,6 @@ public class F1R3DriveTestFixture {
     protected static final int PROTOCOL_PORT = 40400;
     protected static final int DISCOVERY_PORT = 40404;
     protected static final String MAX_BLOCK_LIMIT = "1000";
-    protected static final int MAX_MESSAGE_SIZE = 1024 * 1024 * 1024; // ~1G
     protected static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
     protected static final String validatorPrivateKey = "5f668a7ee96d944a4494cc947e4005e172d7ab3461ee5538f1f2a45a835e9657"; // Bootstrap
     protected static final Path MOUNT_POINT = new File("/tmp/f1r3drive/").toPath();
@@ -45,13 +45,13 @@ public class F1R3DriveTestFixture {
     protected static final File LOCKED_WALLET_DIR_1 = new File(MOUNT_POINT_FILE, "LOCKED-REMOTE-REV-" + REV_WALLET_1);
     protected static final File UNLOCKED_WALLET_DIR_1 = new File(MOUNT_POINT_FILE, REV_WALLET_1);
 
-    protected static final String REV_WALLET_2 = "1111ocWgUJb5QqnYCvKiPtzcmMyfvD3gS5Eg84NtaLkUtRfw3TDS8"; // AutoProposer
-    protected static final String PRIVATE_KEY_2 = "61e594124ca6af84a5468d98b34a4f3431ef39c54c6cf07fe6fbf8b079ef64f6"; // AutoProposer
+    protected static final String REV_WALLET_2 = "1111ocWgUJb5QqnYCvKiPtzcmMyfvD3gS5Eg84NtaLkUtRfw3TDS8"; // Wallet_2
+    protected static final String PRIVATE_KEY_2 = "61e594124ca6af84a5468d98b34a4f3431ef39c54c6cf07fe6fbf8b079ef64f6"; // Wallet_2
     protected static final File LOCKED_WALLET_DIR_2 = new File(MOUNT_POINT_FILE, "LOCKED-REMOTE-REV-" + REV_WALLET_2);
     protected static final File UNLOCKED_WALLET_DIR_2 = new File(MOUNT_POINT_FILE, REV_WALLET_2);
 
     public static final DockerImageName F1R3FLY_IMAGE = DockerImageName.parse(
-        "f1r3flyindustries/f1r3fly-scala-node:latest");
+        "f1r3flyindustries/f1r3fly-rust-node:latest");
 
     protected static GenericContainer<?> f1r3flyBoot;
     protected static String f1r3flyBootAddress;
@@ -65,10 +65,10 @@ public class F1R3DriveTestFixture {
     protected static F1r3DriveFuse f1r3DriveFuse;
     protected static F1r3flyBlockchainClient f1R3FlyBlockchainClient;
 
-    protected static AutoProposer autoProposer;
+
 
     @BeforeEach
-    void setupContainers() throws InterruptedException {
+    void setUp() throws InterruptedException {
         deleteDirectories();
 
         listAppender.start();
@@ -76,33 +76,73 @@ public class F1R3DriveTestFixture {
 
         // Create a network for containers to communicate
         network = Network.newNetwork();
+    }
 
+    /**
+     * Starts the boot and observer Docker containers.
+     *
+     * @param heartbeatEnabled if true, enables the node's built-in Heartbeat proposer
+     *                         with aggressive intervals for fast test feedback.
+     *                         Use true for auto-propose tests, false for manual-propose tests.
+     */
+    void startContainers(boolean heartbeatEnabled) throws InterruptedException {
         String bootAlias = "f1r3fly-boot";
         String observerAlias = "f1r3fly-observer";
+
+        // Build boot node command args (Rust node CLI flags)
+        java.util.List<String> bootCommand = new java.util.ArrayList<>(java.util.Arrays.asList(
+            "run", "--standalone", "--no-upnp", "--allow-private-addresses",
+            "--host", bootAlias,
+            "--api-host", "0.0.0.0",
+            "--api-max-blocks-limit", String.valueOf(MAX_BLOCK_LIMIT),
+            "--required-signatures", "0",
+            "--synchrony-constraint-threshold", "0.0",
+            "--max-number-of-parents", "9",
+            "--validator-private-key", validatorPrivateKey
+        ));
+
+        if (heartbeatEnabled) {
+            bootCommand.addAll(java.util.Arrays.asList(
+                "--heartbeat-enabled",
+                "--heartbeat-check-interval", "5s",
+                "--heartbeat-max-lfb-age", "10s"
+            ));
+            log.info("Heartbeat proposer ENABLED (check=5s, max-lfb-age=10s)");
+        } else {
+            bootCommand.addAll(java.util.Arrays.asList(
+                "--heartbeat-disabled"
+            ));
+            log.info("Heartbeat proposer DISABLED (manual propose mode)");
+        }
+
         f1r3flyBoot = new GenericContainer<>(F1R3FLY_IMAGE)
-            // Bootstrap-specific configuration (ceremony master)
-            .withFileSystemBind("local-shard/conf/bootstrap-ceremony.conf", "/var/lib/rnode/rnode.conf", BindMode.READ_ONLY)
-            .withFileSystemBind("local-shard/genesis/wallets.txt", "/var/lib/rnode/genesis/wallets.txt", BindMode.READ_ONLY)
-            .withFileSystemBind("local-shard/genesis/singleton-bonds.txt", "/var/lib/rnode/genesis/bonds.txt", BindMode.READ_ONLY)
-            .withFileSystemBind("local-shard/conf/logback.xml", "/var/lib/rnode/logback.xml", BindMode.READ_ONLY)
-            // Node-specific volumes
-            .withFileSystemBind("local-shard/data/bootstrap", "/var/lib/rnode/", BindMode.READ_WRITE)
-            .withFileSystemBind("local-shard/certs/bootstrap/node.certificate.pem", "/var/lib/rnode/node.certificate.pem", BindMode.READ_ONLY)
-            .withFileSystemBind("local-shard/certs/bootstrap/node.key.pem", "/var/lib/rnode/node.key.pem", BindMode.READ_ONLY)
+            // Stage config files + init script (Docker volume at /var/lib/rnode hides files copied there)
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/scripts/boot-init.sh").getAbsolutePath(), 0777), "/opt/rnode-staging/init.sh")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/conf/bootstrap-ceremony-test.conf").getAbsolutePath(), 0777), "/opt/rnode-staging/rnode.conf")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/genesis/wallets.txt").getAbsolutePath(), 0777), "/opt/rnode-staging/genesis/wallets.txt")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/genesis/singleton-bonds.txt").getAbsolutePath(), 0777), "/opt/rnode-staging/genesis/bonds.txt")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/conf/logback.xml").getAbsolutePath(), 0777), "/opt/rnode-staging/logback.xml")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/certs/bootstrap/node.certificate.pem").getAbsolutePath(), 0777), "/opt/rnode-staging/node.certificate.pem")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/certs/bootstrap/node.key.pem").getAbsolutePath(), 0777), "/opt/rnode-staging/node.key.pem")
             .withExposedPorts(GRPC_PORT, PROTOCOL_PORT, DISCOVERY_PORT)
-            .withCommand("run -s --no-upnp --allow-private-addresses"
-                + " --host " + bootAlias
-                + " --api-max-blocks-limit " + MAX_BLOCK_LIMIT
-                + " --api-grpc-max-recv-message-size " + MAX_MESSAGE_SIZE
-                + " --required-signatures 0"
-                + " --synchrony-constraint-threshold=0.0 --validator-private-key " + validatorPrivateKey)
-            .withEnv("JAVA_TOOL_OPTIONS", "-Xmx1g")
+            .withCreateContainerCmdModifier(cmd -> {
+                // Init script copies config from staging into volume, then execs rnode with "$@"
+                cmd.withEntrypoint("/opt/rnode-staging/init.sh");
+                cmd.withUser("root");
+                // Docker-managed volume for /var/lib/rnode (writable, no VirtioFS bind mount)
+                cmd.getHostConfig().withMounts(java.util.Arrays.asList(
+                    new com.github.dockerjava.api.model.Mount()
+                        .withType(com.github.dockerjava.api.model.MountType.VOLUME)
+                        .withTarget("/var/lib/rnode")
+                ));
+            })
+            .withCommand(bootCommand.toArray(new String[0]))
             .waitingFor(Wait.forListeningPorts(GRPC_PORT))
             .withNetwork(network)
             .withNetworkAliases(bootAlias)
             .withStartupTimeout(STARTUP_TIMEOUT);
 
-        f1r3flyBoot.start(); // Manually start the container
+        f1r3flyBoot.start();
 
         // Use container network alias for container-to-container communication
         f1r3flyBootAddress = "rnode://1e780e5dfbe0a3d9470a2b414f502d59402e09c2@" + bootAlias + "?protocol="
@@ -111,14 +151,23 @@ public class F1R3DriveTestFixture {
         log.info("Using bootstrap address: {}", f1r3flyBootAddress);
 
         f1r3flyObserver = new GenericContainer<>(F1R3FLY_IMAGE)
-            .withFileSystemBind("local-shard/conf/logback.xml", "/var/lib/rnode/logback.xml", BindMode.READ_ONLY)
-            .withFileSystemBind("local-shard/data/observer/", "/var/lib/rnode/", BindMode.READ_WRITE)
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/scripts/observer-init.sh").getAbsolutePath(), 0777), "/opt/rnode-staging/init.sh")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/conf/logback.xml").getAbsolutePath(), 0777), "/opt/rnode-staging/logback.xml")
             .withExposedPorts(GRPC_PORT)
-            .withCommand("run -b " + f1r3flyBootAddress + " --allow-private-addresses --no-upnp" +
-                " --host " + observerAlias +
-                " --approve-duration 10seconds --approve-interval 10seconds" +
-                " --fork-choice-check-if-stale-interval 30seconds --fork-choice-stale-threshold 30seconds")
-            .withEnv("JAVA_TOOL_OPTIONS", "-Xmx1g")
+            .withCreateContainerCmdModifier(cmd -> {
+                cmd.withEntrypoint("/opt/rnode-staging/init.sh");
+                cmd.withUser("root");
+                cmd.getHostConfig().withMounts(java.util.Arrays.asList(
+                    new com.github.dockerjava.api.model.Mount()
+                        .withType(com.github.dockerjava.api.model.MountType.VOLUME)
+                        .withTarget("/var/lib/rnode")
+                ));
+            })
+            .withCommand("run", "--bootstrap", f1r3flyBootAddress, "--allow-private-addresses", "--no-upnp",
+                "--host", observerAlias,
+                "--api-host", "0.0.0.0",
+                "--approve-duration", "10s", "--approve-interval", "10s",
+                "--fork-choice-check-if-stale-interval", "30s", "--fork-choice-stale-threshold", "30s")
             .waitingFor(Wait.forListeningPorts(GRPC_PORT))
             .withNetwork(network)
             .withNetworkAliases(observerAlias)
@@ -127,22 +176,35 @@ public class F1R3DriveTestFixture {
         log.info("Starting observer with bootstrap address: {}", f1r3flyBootAddress);
         f1r3flyObserver.start();
 
-        // commented b/c save the java heap memory
-        // f1r3flyBoot.followOutput(logConsumer);
+        f1r3flyBoot.followOutput(new Slf4jLogConsumer(LoggerFactory.getLogger("BOOT")));
+        f1r3flyObserver.followOutput(new Slf4jLogConsumer(LoggerFactory.getLogger("OBSERVER")));
 
         // Wait for both containers' GRPC ports to be available
         waitForPortToOpen("localhost", f1r3flyBoot.getMappedPort(GRPC_PORT), STARTUP_TIMEOUT);
         waitForPortToOpen("localhost", f1r3flyObserver.getMappedPort(GRPC_PORT), STARTUP_TIMEOUT);
     }
 
+    /**
+     * Starts containers and mounts F1R3Drive.
+     *
+     * @param manualPropose if true, manual propose mode (no heartbeat).
+     *                      if false, auto propose mode (heartbeat enabled on the node).
+     */
     void mountF1r3Drive(boolean manualPropose) throws InterruptedException {
+        // Start containers with heartbeat enabled for auto-propose tests
+        startContainers(!manualPropose);
+
         new File("/tmp/cipher.key").delete(); // remove key file if exists
 
         AESCipher.init("/tmp/cipher.key"); // file doesn't exist, so new key will be generated there
         f1R3FlyBlockchainClient = new F1r3flyBlockchainClient(
             "localhost", f1r3flyBoot.getMappedPort(GRPC_PORT),
             "localhost", f1r3flyObserver.getMappedPort(GRPC_PORT),
-            manualPropose); // Enable manual propose for tests to test the full flow
+            manualPropose);
+
+        // Poll for the Observer node to finish processing the Genesis Block
+        waitForGenesisBlock(120_000);
+
         f1r3DriveFuse = new F1r3DriveFuse(f1R3FlyBlockchainClient);
 
         forceUmountAndCleanup(); // cleanup before mount
@@ -156,19 +218,26 @@ public class F1R3DriveTestFixture {
         Thread.sleep(1000);
     }
 
-    void startAutoProposer() {
-        autoProposer = new AutoProposer(
-            "localhost", f1r3flyBoot.getMappedPort(GRPC_PORT),
-            PRIVATE_KEY_2);
-
-        autoProposer.start();
-    }
-
-    @AfterEach
-    void stopAutoProposer() {
-        if (autoProposer != null) {
-            autoProposer.shutdown();
-            autoProposer = null;
+    private void waitForGenesisBlock(long timeoutMs) throws InterruptedException {
+        long startTime = System.currentTimeMillis();
+        long waitTime = 1000;
+        int attempts = 0;
+        log.info("Polling for genesis block availability (timeout: {}ms)...", timeoutMs);
+        while (true) {
+            attempts++;
+            try {
+                f1R3FlyBlockchainClient.getGenesisBlock();
+                log.info("Genesis block available after {} attempts", attempts);
+                return;
+            } catch (Exception e) {
+                if (System.currentTimeMillis() - startTime > timeoutMs) {
+                    throw new RuntimeException("Timeout after " + timeoutMs + "ms and " + attempts
+                        + " attempts waiting for genesis block: " + e.getMessage(), e);
+                }
+                log.info("Genesis block not yet available (attempt {}), retrying in {}ms: {}", attempts, waitTime, e.getMessage());
+                Thread.sleep(waitTime);
+                waitTime = Math.min(waitTime * 2, 5000);
+            }
         }
     }
 
