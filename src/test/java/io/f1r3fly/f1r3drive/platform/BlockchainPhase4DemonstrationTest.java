@@ -13,12 +13,20 @@ import io.f1r3fly.f1r3drive.filesystem.common.File;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 
 /**
  * Demonstration test for Phase 4 Blockchain FileSystem Integration.
  * Shows how the mock implementation has been replaced with full blockchain functionality.
  */
 @DisplayName("Phase 4 Blockchain FileSystem Demonstration")
+// setUp() uses ChangeWatcherFactory.createChangeWatcher(), which on macOS builds the
+// FSEvents-backed watcher whose static initializer calls System.loadLibrary("f1r3drive-fsevents")
+// — a native lib not on the test JVM's java.library.path, so it throws. This demonstration
+// targets the Linux watcher (see setUp) and exercises platform-agnostic blockchain-filesystem
+// logic, so gate it to Linux where it runs on CI rather than failing on a macOS-only native dep.
+@EnabledOnOs(OS.LINUX)
 public class BlockchainPhase4DemonstrationTest {
 
     private ChangeWatcher changeWatcher;
