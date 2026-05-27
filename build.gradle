@@ -72,7 +72,7 @@ java {
 
 shadowJar {
     mergeServiceFiles()
-    archiveClassifier = '' // Remove classifier to make this the main JAR
+    archiveFileName = 'f1r3drive-app.jar' // Use specific name to avoid collision with standard jar
     relocate 'org.objectweb.asm', 'org.objectweb.asm.shaded'
 
     manifest {
@@ -251,4 +251,8 @@ publishing {
 
 tasks.named('processResources') {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE // or EXCLUDE, depending on desired behavior
+}
+
+tasks.named('processE2eResources') {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }
