@@ -4,10 +4,10 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import generic.FinderSyncExtensionServiceOuterClass;
+import io.f1r3fly.f1r3drive.app.linux.fuse.F1r3DriveFuse;
 import io.f1r3fly.f1r3drive.blockchain.client.F1r3flyBlockchainClient;
 import io.f1r3fly.f1r3drive.encryption.AESCipher;
 import io.f1r3fly.f1r3drive.finderextensions.client.FinderSyncExtensionServiceClient;
-import io.f1r3fly.f1r3drive.fuse.utils.MountUtils;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -117,13 +117,13 @@ public class F1R3DriveTestFixture {
 
         f1r3flyBoot = new GenericContainer<>(F1R3FLY_IMAGE)
             // Stage config files + init script (Docker volume at /var/lib/rnode hides files copied there)
-            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/scripts/boot-init.sh").getAbsolutePath(), 0777), "/opt/rnode-staging/init.sh")
-            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/conf/bootstrap-ceremony-test.conf").getAbsolutePath(), 0777), "/opt/rnode-staging/rnode.conf")
-            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/genesis/wallets.txt").getAbsolutePath(), 0777), "/opt/rnode-staging/genesis/wallets.txt")
-            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/genesis/singleton-bonds.txt").getAbsolutePath(), 0777), "/opt/rnode-staging/genesis/bonds.txt")
-            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/conf/logback.xml").getAbsolutePath(), 0777), "/opt/rnode-staging/logback.xml")
-            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/certs/bootstrap/node.certificate.pem").getAbsolutePath(), 0777), "/opt/rnode-staging/node.certificate.pem")
-            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/certs/bootstrap/node.key.pem").getAbsolutePath(), 0777), "/opt/rnode-staging/node.key.pem")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("src/e2e/resources/local-shard/scripts/boot-init.sh").getAbsolutePath(), 0777), "/opt/rnode-staging/init.sh")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("src/e2e/resources/local-shard/conf/bootstrap-ceremony-test.conf").getAbsolutePath(), 0777), "/opt/rnode-staging/rnode.conf")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("src/e2e/resources/local-shard/genesis/wallets.txt").getAbsolutePath(), 0777), "/opt/rnode-staging/genesis/wallets.txt")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("src/e2e/resources/local-shard/genesis/singleton-bonds.txt").getAbsolutePath(), 0777), "/opt/rnode-staging/genesis/bonds.txt")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("src/e2e/resources/local-shard/conf/logback.xml").getAbsolutePath(), 0777), "/opt/rnode-staging/logback.xml")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("src/e2e/resources/local-shard/certs/bootstrap/node.certificate.pem").getAbsolutePath(), 0777), "/opt/rnode-staging/node.certificate.pem")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("src/e2e/resources/local-shard/certs/bootstrap/node.key.pem").getAbsolutePath(), 0777), "/opt/rnode-staging/node.key.pem")
             .withExposedPorts(GRPC_PORT, PROTOCOL_PORT, DISCOVERY_PORT)
             .withCreateContainerCmdModifier(cmd -> {
                 // Init script copies config from staging into volume, then execs rnode with "$@"
@@ -151,8 +151,8 @@ public class F1R3DriveTestFixture {
         log.info("Using bootstrap address: {}", f1r3flyBootAddress);
 
         f1r3flyObserver = new GenericContainer<>(F1R3FLY_IMAGE)
-            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/scripts/observer-init.sh").getAbsolutePath(), 0777), "/opt/rnode-staging/init.sh")
-            .withCopyFileToContainer(MountableFile.forHostPath(new File("local-shard/conf/logback.xml").getAbsolutePath(), 0777), "/opt/rnode-staging/logback.xml")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("src/e2e/resources/local-shard/scripts/observer-init.sh").getAbsolutePath(), 0777), "/opt/rnode-staging/init.sh")
+            .withCopyFileToContainer(MountableFile.forHostPath(new File("src/e2e/resources/local-shard/conf/logback.xml").getAbsolutePath(), 0777), "/opt/rnode-staging/logback.xml")
             .withExposedPorts(GRPC_PORT)
             .withCreateContainerCmdModifier(cmd -> {
                 cmd.withEntrypoint("/opt/rnode-staging/init.sh");
@@ -317,7 +317,7 @@ public class F1R3DriveTestFixture {
 
     protected static void deleteDirectories() {
         deleteDirectory(MOUNT_POINT_FILE);
-        deleteDirectory(new File("local-shard/data"));
+        deleteDirectory(new File("src/e2e/resources/local-shard/data"));
     }
 
     protected static void forceUmountAndCleanup() {
@@ -339,9 +339,10 @@ public class F1R3DriveTestFixture {
                     // If we reach here without exception, check if our mount point is still in the output
                     // For simplicity in tests, we'll skip the detailed check and just attempt force unmount
                     log.debug("Attempting force unmount as safety measure");
-                    boolean forceUnmountSuccess = MountUtils.umount(MOUNT_POINT);
-                    if (!forceUnmountSuccess) {
-                        log.warn("Force unmount via MountUtils reported failure");
+                    Process unmountProcess = new ProcessBuilder("umount", MOUNT_POINT.toString()).start();
+                    int exitCode = unmountProcess.waitFor();
+                    if (exitCode != 0) {
+                        log.warn("Force unmount via system command reported failure with exit code: {}", exitCode);
                     }
                 } catch (Exception e) {
                     // Ignore errors from force unmount - this is expected if already unmounted

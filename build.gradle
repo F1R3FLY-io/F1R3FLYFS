@@ -4,6 +4,7 @@ plugins {
     id 'net.researchgate.release' version '2.8.1'
     id 'maven-publish'
     id "com.google.protobuf" version "0.9.4"
+    id "com.diffplug.spotless" version "6.25.0"
 }
 
 def protobufVersion = '3.25.2'
@@ -70,9 +71,28 @@ java {
     }
 }
 
+spotless {
+    // Only enforce formatting on files changed relative to the current HEAD,
+    // so introducing Spotless does not require reformatting the whole codebase.
+    // Run `./gradlew spotlessApply` to format a wider baseline, then consider
+    // switching this to a trunk ref (e.g. 'origin/main').
+    ratchetFrom 'HEAD'
+
+    java {
+        // Hand-written sources only; never touch generated protobuf/gRPC code.
+        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/e2e/java/**/*.java'
+        targetExclude 'build/**'
+
+        googleJavaFormat('1.22.0')
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
+
 shadowJar {
     mergeServiceFiles()
-    archiveClassifier = '' // Remove classifier to make this the main JAR
+    archiveFileName = 'f1r3drive-app.jar' // Use specific name to avoid collision with standard jar
     relocate 'org.objectweb.asm', 'org.objectweb.asm.shaded'
     
     manifest {
@@ -127,9 +147,13 @@ configurations {
 }
 
 dependencies {
-    api 'com.github.jnr:jnr-ffi:2.2.15'
-    api 'com.github.jnr:jnr-posix:3.1.18'
+    api 'com.github.jnr:jnr-ffi:2.2.17'
+    api 'com.github.jnr:jnr-posix:3.1.19'
     api 'com.github.jnr:jnr-constants:0.10.4'
+
+    implementation 'com.github.serceman:jnr-fuse:0.5.8'
+    implementation 'com.github.jnr:jffi:1.3.10'
+    implementation 'com.github.jnr:jffi:1.3.10:native'
 
     implementation group: 'javax.annotation', name: 'javax.annotation-api', version: '1.3.2'
 
@@ -244,4 +268,8 @@ publishing {
 
 tasks.named('processResources') {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE // or EXCLUDE, depending on desired behavior
+}
+
+tasks.named('processE2eResources') {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }
