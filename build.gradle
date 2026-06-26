@@ -4,6 +4,7 @@ plugins {
     id 'net.researchgate.release' version '2.8.1'
     id 'maven-publish'
     id "com.google.protobuf" version "0.9.4"
+    id "com.diffplug.spotless" version "6.25.0"
 }
 
 def protobufVersion = '3.25.2'
@@ -67,6 +68,25 @@ java {
 //    withJavadocJar()
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+spotless {
+    // Only enforce formatting on files changed relative to the current HEAD,
+    // so introducing Spotless does not require reformatting the whole codebase.
+    // Run `./gradlew spotlessApply` to format a wider baseline, then consider
+    // switching this to a trunk ref (e.g. 'origin/main').
+    ratchetFrom 'HEAD'
+
+    java {
+        // Hand-written sources only; never touch generated protobuf/gRPC code.
+        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/e2e/java/**/*.java'
+        targetExclude 'build/**'
+
+        googleJavaFormat('1.22.0')
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
     }
 }
 

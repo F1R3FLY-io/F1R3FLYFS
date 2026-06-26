@@ -127,6 +127,26 @@ For a step-by-step demo walkthrough, see **[Demo.md](Demo.md)**.
 ./gradlew e2eTest --rerun-tasks
 ```
 
+## Git Hooks
+
+This repo ships git hooks under [`.githooks/`](.githooks). They are **opt-in** — run the installer once per clone:
+
+```bash
+./scripts/setup-hooks.sh           # recommended: sets core.hooksPath = .githooks
+./scripts/setup-hooks.sh --copy    # alternative: copy into .git/hooks/
+./scripts/setup-hooks.sh --status  # show current configuration
+./scripts/setup-hooks.sh --remove  # uninstall
+```
+
+What they run:
+
+| Hook | Checks | Bypass |
+|------|--------|--------|
+| **pre-commit** | `./gradlew spotlessCheck` (google-java-format). Spotless uses `ratchetFrom 'HEAD'`, so only files in the current commit are checked. Fix with `./gradlew spotlessApply`. | `SKIP_SPOTLESS=1` / `git commit --no-verify` |
+| **pre-push** | `./gradlew test` (unit tests) + `./gradlew shadowJar` (build). The e2e suite is *not* run — it needs a live shard. | `SKIP_TESTS=1`, `SKIP_BUILD=1` / `git push --no-verify` |
+
+Add `VERBOSE=1` to either to see full output.
+
 ## License
 
 [MIT](LICENSE)
