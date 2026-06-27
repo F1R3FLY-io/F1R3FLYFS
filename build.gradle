@@ -72,11 +72,11 @@ java {
 }
 
 spotless {
-    // Only enforce formatting on files changed relative to the current HEAD,
-    // so introducing Spotless does not require reformatting the whole codebase.
-    // Run `./gradlew spotlessApply` to format a wider baseline, then consider
-    // switching this to a trunk ref (e.g. 'origin/main').
-    ratchetFrom 'HEAD'
+    // Enforce formatting on files that differ from the trunk (main). The whole
+    // codebase was baseline-formatted once with `./gradlew spotlessApply`, so
+    // both the pre-commit hook and CI (spotlessCheck runs via Gradle `check`)
+    // enforce google-java-format on any file that differs from main.
+    ratchetFrom 'origin/main'
 
     java {
         // Hand-written sources only; never touch generated protobuf/gRPC code.
