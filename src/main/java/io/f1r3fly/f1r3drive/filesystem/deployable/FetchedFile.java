@@ -15,12 +15,7 @@ public class FetchedFile extends BlockchainFile {
     }
 
     public int initFromBytes(byte[] bytes, long offset) throws IOException {
-        open();
-        synchronized (this) {
-            rif.seek(offset);
-            rif.write(bytes);
-        }
-        return bytes.length;
+        return super.initFromBytes(bytes, offset);
     }
 
     public void initSubChannels(Map<Integer, String> subChannels) {
