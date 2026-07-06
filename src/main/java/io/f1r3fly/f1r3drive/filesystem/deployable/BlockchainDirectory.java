@@ -118,8 +118,8 @@ public class BlockchainDirectory extends AbstractDeployablePath implements Direc
     }
 
     @Override
-    public Set<Path> getChildren() {
-        return children; // TODO: return immutable set?
+    public synchronized Set<Path> getChildren() {
+        return Set.copyOf(children);
     }
 
 }
