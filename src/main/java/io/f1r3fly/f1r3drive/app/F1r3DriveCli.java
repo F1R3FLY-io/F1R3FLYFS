@@ -19,23 +19,7 @@ import picocli.CommandLine.Parameters;
 class F1r3DriveCli implements Callable<Integer> {
 
   private static String[] getMountOptions() {
-    String os = System.getProperty("os.name").toLowerCase();
-    if (os.contains("mac")) {
-      return new String[] {
-        "-o", "fsname=f1r3drive",
-        "-o", "volname=F1r3Drive",
-        "-o", "local",
-        "-o", "noappledouble",
-        "-o", "noatime",
-        "-s"
-      };
-    } else {
-      return new String[] {
-        "-o", "fsname=f1r3drive",
-        "-o", "noatime",
-        "-s"
-      };
-    }
+    return F1r3DriveFuse.getDefaultMountOptions();
   }
 
   // --- Blockchain connection ---

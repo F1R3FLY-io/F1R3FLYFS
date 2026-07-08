@@ -19,7 +19,8 @@ public class DeployDispatcher {
     private final int MAX_EXPRESSION_LENGTH_IN_LOG = 1000;
     private final int POLL_INTERVAL_MS = 5000;
     private final int WAITING_STEP_MS = 5000;
-    private final int MAX_RETRIES = 10;
+    private final long WAIT_ON_EMPTY_QUEUE_TIMEOUT_MS = 300_000L;
+    private final int MAX_RETRIES = 3;
     private final int RETRY_INTERVAL_MS = 15000;
 
     // BACKGROUND:
@@ -116,13 +117,19 @@ public class DeployDispatcher {
     public void waitOnEmptyQueue() {
         logger.info(
                 "Waiting for the queue to be empty. Queue size: " + queue.size() + ". Is deploying: " + isDeploying);
+        long startTime = System.currentTimeMillis();
         while ((!queue.isEmpty() || isDeploying) && lastDeployError.get() == null) {
+            if (System.currentTimeMillis() - startTime > WAIT_ON_EMPTY_QUEUE_TIMEOUT_MS) {
+                throw new RuntimeException("Timeout waiting for deployment queue to drain. Queue size: " + queue.size()
+                        + ". Is deploying: " + isDeploying);
+            }
             try {
                 logger.debug("Waiting for the queue to be empty. Queue size: " + queue.size() + ". Is deploying: "
                         + isDeploying);
                 Thread.sleep(WAITING_STEP_MS);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Interrupted while waiting for deployment queue to drain", e);
             }
         }
 

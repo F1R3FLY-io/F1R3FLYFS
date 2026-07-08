@@ -68,7 +68,10 @@ user_flow: FLOW-001
 tasks:
   - id: TASK-001-1
     title: "Full F1r3Drive file sharing on compatible Linux systems via libfuse"
-    status: pending
+    status: complete
+    claimed_by: pi-session
+    claimed_at: 2026-07-07T19:13:22Z
+    completed_at: 2026-07-08T00:00:00Z
     acceptance:
       - "Mount, create/read/write/rename/delete, wallet unlock, and token transfer work on a libfuse Linux host"
       - "Existing e2e suite passes on Linux against a live shard"

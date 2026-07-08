@@ -9,7 +9,7 @@ plugins {
 
 def protobufVersion = '3.25.2'
 def secpVersion     = '0.13.0'
-def tcVersion       = '1.19.4'
+def tcVersion       = '1.21.3'
 def junitVersion    = '5.10.1'
 
 repositories {
@@ -121,6 +121,10 @@ tasks.withType(Javadoc).configureEach {
     options.addStringOption('Xdoclint:none', '-quiet')
 }
 
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
 test {
     useJUnitPlatform()
     maxHeapSize = '4096m'
@@ -131,6 +135,8 @@ task e2eTest(type: Test) {
     group = 'verification'
     testClassesDirs = sourceSets.e2e.output.classesDirs
     classpath = sourceSets.e2e.runtimeClasspath
+    environment 'DOCKER_API_VERSION', System.getenv('DOCKER_API_VERSION') ?: '1.44'
+    systemProperty 'api.version', System.getProperty('api.version') ?: '1.44'
     
     useJUnitPlatform()
     maxHeapSize = '4096m'

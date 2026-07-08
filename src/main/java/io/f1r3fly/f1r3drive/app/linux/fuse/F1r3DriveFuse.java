@@ -42,6 +42,31 @@ public class F1r3DriveFuse extends FuseStubFS {
         f1R3FlyBlockchainClient; // doesnt have a state, so can be reused between mounts
   }
 
+  public static String[] getDefaultMountOptions() {
+    String os = System.getProperty("os.name").toLowerCase();
+    if (os.contains("mac")) {
+      return new String[] {
+        "-o", "fsname=f1r3drive",
+        "-o", "volname=F1r3Drive",
+        "-o", "local",
+        "-o", "noappledouble",
+        "-o", "noatime",
+        "-o", "attr_timeout=0",
+        "-o", "entry_timeout=0",
+        "-o", "negative_timeout=0",
+        "-s"
+      };
+    }
+    return new String[] {
+      "-o", "fsname=f1r3drive",
+      "-o", "noatime",
+      "-o", "attr_timeout=0",
+      "-o", "entry_timeout=0",
+      "-o", "negative_timeout=0",
+      "-s"
+    };
+  }
+
   /**
    * Extract the F1r3fly icon from JAR resources to a temporary file for use as volume icon
    *
@@ -368,6 +393,11 @@ public class F1r3DriveFuse extends FuseStubFS {
 
     LOGGER.debug("Started background unlock thread for revAddress: {}", revAddress);
     mount(mountPoint, blocking, debug, mountOptions);
+  }
+
+  @Override
+  public void mount(Path mountPoint) {
+    mount(mountPoint, false, false, getDefaultMountOptions());
   }
 
   public void mount(Path mountPoint, boolean blocking, boolean debug, String[] mountOptions) {
