@@ -10,13 +10,23 @@ Installation
 sudo apt-get install libfuse-dev
 ``` 
 
-## MacOS
+## macOS
 
-[`osxfuse`](https://osxfuse.github.io) needs to be installed.
+[`macFUSE`](https://github.com/macfuse/macfuse/wiki/Getting-Started) needs to be installed.
 
 ```bash
-brew cask install osxfuse
+brew install --cask macfuse
 ```
+
+After installation, open **System Settings → Privacy & Security** and allow the macFUSE system extension if macOS prompts for approval. A reboot may be required before FUSE mounts are available.
+
+F1r3Drive uses macOS-specific mount options so the volume appears in Finder and avoids writing Apple metadata files to the blockchain:
+
+- `volname=F1r3Drive`
+- `local`
+- `noappledouble`
+- `noatime`
+- `attr_timeout=0`, `entry_timeout=0`, `negative_timeout=0`
 
 ## Windows
 
