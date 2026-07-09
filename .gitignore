@@ -82,3 +82,6 @@ temp/
 **/rnode.log
 **/*.mdb
 local-shard/data/
+
+# Phase 3 Archive - Documentation and demo files
+docs/phase3-archive/
