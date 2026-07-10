@@ -85,7 +85,10 @@ tasks:
 
   - id: TASK-001-3
     title: "Full F1r3Drive file sharing on Windows via WSL (Windows Subsystem for Linux)"
-    status: pending
+    status: complete
+    claimed_by: pi-session
+    claimed_at: 2026-07-09T22:57:56Z
+    completed_at: 2026-07-10T06:44:04Z
     blocked_by: [TASK-001-1]
     acceptance:
       - "F1r3Drive mounts and operates inside WSL2 using the Linux/libfuse build"
