@@ -10,20 +10,17 @@ import org.junit.jupiter.api.Test;
 
 class BlockchainDirectoryTest {
 
-    @Test
-    void getChildrenReturnsImmutableSet() {
-        BlockchainDirectory directory = new BlockchainDirectory(
-                mock(BlockchainContext.class),
-                "directory",
-                null,
-                false);
-        Path child = mock(Path.class);
-        directory.children.add(child);
+  @Test
+  void getChildrenReturnsImmutableSet() {
+    BlockchainDirectory directory =
+        new BlockchainDirectory(mock(BlockchainContext.class), "directory", null, false);
+    Path child = mock(Path.class);
+    directory.children.add(child);
 
-        Set<Path> children = directory.getChildren();
+    Set<Path> children = directory.getChildren();
 
-        assertThrows(UnsupportedOperationException.class, () -> children.add(mock(Path.class)));
-        assertThrows(UnsupportedOperationException.class, () -> children.remove(child));
-        assertThrows(UnsupportedOperationException.class, children::clear);
-    }
+    assertThrows(UnsupportedOperationException.class, () -> children.add(mock(Path.class)));
+    assertThrows(UnsupportedOperationException.class, () -> children.remove(child));
+    assertThrows(UnsupportedOperationException.class, children::clear);
+  }
 }
