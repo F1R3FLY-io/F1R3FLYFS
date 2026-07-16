@@ -57,7 +57,7 @@ mr_status:
 ---
 epic_id: EPIC-001
 title: "Multi-OS file sharing on Windows (WSL), macOS (macFUSE), and Linux (libfuse)"
-status: pending
+status: in_progress
 priority: p0
 user_story: US-001
 blocked_by: []
@@ -97,7 +97,10 @@ tasks:
 
   - id: TASK-001-4
     title: "Fully synchronized on-chain storage via f1r3node-rust"
-    status: pending
+    status: complete
+    claimed_by: pi-session
+    claimed_at: 2026-07-11T23:45:20Z
+    completed_at: 2026-07-11T23:49:40Z
     acceptance:
       - "F1r3Drive deploys to and reads from a f1r3node-rust shard (../f1r3node-rust) with full synchronization"
       - "Data written on one OS/mount is readable from another mount after sync"
