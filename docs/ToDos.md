@@ -78,7 +78,10 @@ tasks:
 
   - id: TASK-001-2
     title: "Full F1r3Drive file sharing on macOS via macFUSE"
-    status: pending
+    status: complete
+    claimed_by: pi-session
+    claimed_at: 2026-07-09T17:57:57Z
+    completed_at: 2026-07-09T00:00:00Z
     acceptance:
       - "Mount, create/read/write/rename/delete, wallet unlock, and token transfer work on macOS with macFUSE"
       - "Existing e2e suite passes on macOS against a live shard"
