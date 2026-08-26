@@ -145,7 +145,29 @@ task e2eTest(type: Test) {
     shouldRunAfter test
 }
 
-// E2e tests will only run when explicitly called with the e2eTest task
+task multiOsIntegrationTest(type: Test) {
+    description = 'Runs the focused multi-OS integration suite against OCI f1r3node-rust containers'
+    group = 'verification'
+    testClassesDirs = sourceSets.e2e.output.classesDirs
+    classpath = sourceSets.e2e.runtimeClasspath
+    environment 'DOCKER_API_VERSION', System.getenv('DOCKER_API_VERSION') ?: '1.44'
+    environment 'F1R3DRIVE_PLATFORM_PROFILE', System.getenv('F1R3DRIVE_PLATFORM_PROFILE') ?: 'linux-libfuse'
+    systemProperty 'api.version', System.getProperty('api.version') ?: '1.44'
+    systemProperty 'f1r3drive.platform.profile', System.getProperty('f1r3drive.platform.profile') ?: (System.getenv('F1R3DRIVE_PLATFORM_PROFILE') ?: 'linux-libfuse')
+
+    useJUnitPlatform()
+    maxHeapSize = '4096m'
+
+    filter {
+        includeTestsMatching 'io.f1r3fly.f1r3drive.app.F1R3DriveTest.shouldCreateRenameGetDeleteFiles'
+        includeTestsMatching 'io.f1r3fly.f1r3drive.app.F1R3DriveTest.shouldSupportTokenFileOperations'
+        includeTestsMatching 'io.f1r3fly.f1r3drive.app.F1R3DriveSynchronizationTest.shouldReadF1r3nodeRustDataFromFreshMountAfterSync'
+    }
+
+    shouldRunAfter test
+}
+
+// E2e tests will only run when explicitly called with the e2eTest or multiOsIntegrationTest task
 
 configurations {
     e2eImplementation.extendsFrom testImplementation

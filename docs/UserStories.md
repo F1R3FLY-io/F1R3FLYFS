@@ -40,14 +40,14 @@ Stories below are candidates for future epics. Move to "Completed Stories" when 
 **Implemented in:** EPIC-001
 **User Flow:** FLOW-001
 
-**Status:** Planned
+**Status:** Implemented
 
 **Acceptance Criteria:**
-- [ ] Full F1r3Drive file sharing works on Windows via WSL (Windows Subsystem for Linux)
-- [ ] Full F1r3Drive file sharing works on macOS via macFUSE
-- [ ] Full F1r3Drive file sharing works on compatible Linux systems via libfuse
+- [x] Full F1r3Drive file sharing works on Windows via WSL (Windows Subsystem for Linux)
+- [x] Full F1r3Drive file sharing works on macOS via macFUSE
+- [x] Full F1r3Drive file sharing works on compatible Linux systems via libfuse
 - [x] Fully synchronized support using f1r3node-rust (../f1r3node-rust) with on-chain storage
-- [ ] Multi-OS integration test suite runs in OCI containers covering all supported platforms
+- [x] Multi-OS integration test suite runs in OCI containers covering all supported platforms
 
 ---
 

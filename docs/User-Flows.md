@@ -43,12 +43,12 @@ reference them by name from each flow's `Personas:` field.
 
 ### FLOW-001: Multi-OS File Sharing via Mounted F1r3Drive
 
-**Status:** Planned
+**Status:** Implemented
 **Implemented in:** EPIC-001
 **Related Stories:** US-001
 **Related Flows:** None
 **Personas:** F1r3Drive user on multiple operating systems (Windows, macOS, Linux)
-**Integration Tests:** None
+**Integration Tests:** `./gradlew multiOsIntegrationTest`, `.github/workflows/multi-os-integration.yml`
 
 **Journey:** Install FUSE prerequisites -> Mount drive -> Unlock wallet -> Create/edit files -> Background on-chain sync -> Access same files from another OS
 

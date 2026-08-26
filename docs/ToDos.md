@@ -57,7 +57,7 @@ mr_status:
 ---
 epic_id: EPIC-001
 title: "Multi-OS file sharing on Windows (WSL), macOS (macFUSE), and Linux (libfuse)"
-status: in_progress
+status: complete
 priority: p0
 user_story: US-001
 blocked_by: []
@@ -110,7 +110,10 @@ tasks:
 
   - id: TASK-001-5
     title: "Multi-OS integration test suite in OCI containers"
-    status: pending
+    status: complete
+    claimed_by: pi-session
+    claimed_at: 2026-07-17T16:34:15Z
+    completed_at: 2026-07-17T16:39:37Z
     blocked_by: [TASK-001-1, TASK-001-4]
     acceptance:
       - "OCI-based integration test suite exercises file sharing across all supported platforms"
