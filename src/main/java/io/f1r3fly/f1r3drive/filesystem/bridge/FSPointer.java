@@ -1,5 +1,7 @@
 package io.f1r3fly.f1r3drive.filesystem.bridge;
 
+import jnr.ffi.Pointer;
+
 /**
  * Abstraction for pointer/buffer operations. Isolates filesystem code from FUSE-specific buffer
  * types.
@@ -40,4 +42,28 @@ public interface FSPointer {
    * @param value The byte value to write
    */
   void putByte(long offset, byte value);
+
+  static FSPointer fromJnrPointer(Pointer pointer) {
+    return new FSPointer() {
+      @Override
+      public void put(long offset, byte[] bytes, int start, int length) {
+        pointer.put(offset, bytes, start, length);
+      }
+
+      @Override
+      public void get(long offset, byte[] bytes, int start, int length) {
+        pointer.get(offset, bytes, start, length);
+      }
+
+      @Override
+      public byte getByte(long offset) {
+        return pointer.getByte(offset);
+      }
+
+      @Override
+      public void putByte(long offset, byte value) {
+        pointer.putByte(offset, value);
+      }
+    };
+  }
 }

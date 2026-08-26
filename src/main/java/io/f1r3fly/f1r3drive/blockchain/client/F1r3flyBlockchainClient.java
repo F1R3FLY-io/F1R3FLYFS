@@ -20,6 +20,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Security;
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +37,7 @@ public class F1r3flyBlockchainClient {
   private static final Duration MAX_DELAY = Duration.ofSeconds(5);
   private static final int RETRIES = 10;
   private static final int MAX_MESSAGE_SIZE = Integer.MAX_VALUE; // ~2 GB
+  private static final long RPC_DEADLINE_SECONDS = 120;
 
   private final DeployServiceGrpc.DeployServiceBlockingStub validatorDeployService;
   private final ProposeServiceGrpc.ProposeServiceBlockingStub validatorProposeService;
@@ -75,6 +77,18 @@ public class F1r3flyBlockchainClient {
     this.manualPropose = manualPropose;
   }
 
+  private DeployServiceGrpc.DeployServiceBlockingStub validatorDeploy() {
+    return validatorDeployService.withDeadlineAfter(RPC_DEADLINE_SECONDS, TimeUnit.SECONDS);
+  }
+
+  private ProposeServiceGrpc.ProposeServiceBlockingStub validatorPropose() {
+    return validatorProposeService.withDeadlineAfter(RPC_DEADLINE_SECONDS, TimeUnit.SECONDS);
+  }
+
+  private DeployServiceGrpc.DeployServiceBlockingStub observerDeploy() {
+    return observerDeployService.withDeadlineAfter(RPC_DEADLINE_SECONDS, TimeUnit.SECONDS);
+  }
+
   private String gatherErrors(ServiceErrorOuterClass.ServiceError error) {
     ProtocolStringList messages = error.getMessagesList();
     return messages.stream().collect(Collectors.joining("\n"));
@@ -84,11 +98,12 @@ public class F1r3flyBlockchainClient {
     try {
       LOGGER.info("Getting genesis block");
       java.util.Iterator<DeployServiceV1.BlockInfoResponse> responseIterator =
-          observerDeployService.getBlocksByHeights(
-              DeployServiceCommon.BlocksQueryByHeight.newBuilder()
-                  .setStartBlockNumber(0)
-                  .setEndBlockNumber(0)
-                  .build());
+          observerDeploy()
+              .getBlocksByHeights(
+                  DeployServiceCommon.BlocksQueryByHeight.newBuilder()
+                      .setStartBlockNumber(0)
+                      .setEndBlockNumber(0)
+                      .build());
 
       if (!responseIterator.hasNext()) {
         LOGGER.warn("No blocks found");
@@ -99,7 +114,7 @@ public class F1r3flyBlockchainClient {
 
       // Get the full block info using the hash from the light block
       DeployServiceCommon.BlockInfo block =
-          observerDeployService
+          observerDeploy()
               .getBlock(
                   DeployServiceCommon.BlockQuery.newBuilder()
                       .setHash(lightBlock.getBlockHash())
@@ -109,7 +124,7 @@ public class F1r3flyBlockchainClient {
       while (block.getBlockInfo().getBlockNumber() > 0) {
         LOGGER.info("Getting block {}", block.getBlockInfo().getParentsHashList(0));
         block =
-            observerDeployService
+            observerDeploy()
                 .getBlock(
                     DeployServiceCommon.BlockQuery.newBuilder()
                         .setHash(block.getBlockInfo().getParentsHashList(0))
@@ -127,8 +142,8 @@ public class F1r3flyBlockchainClient {
   public DeployServiceCommon.BlockInfo getLastFinalizedBlockFromValidator() throws F1r3DriveError {
     try {
       DeployServiceV1.LastFinalizedBlockResponse response =
-          validatorDeployService.lastFinalizedBlock(
-              DeployServiceCommon.LastFinalizedBlockQuery.newBuilder().build());
+          validatorDeploy()
+              .lastFinalizedBlock(DeployServiceCommon.LastFinalizedBlockQuery.newBuilder().build());
       return response.getBlockInfo();
     } catch (Exception e) {
       LOGGER.error("Error retrieving last finalized block from validator", e);
@@ -139,8 +154,8 @@ public class F1r3flyBlockchainClient {
   public DeployServiceCommon.BlockInfo getLastFinalizedBlockFromObserver() throws F1r3DriveError {
     try {
       DeployServiceV1.LastFinalizedBlockResponse response =
-          observerDeployService.lastFinalizedBlock(
-              DeployServiceCommon.LastFinalizedBlockQuery.newBuilder().build());
+          observerDeploy()
+              .lastFinalizedBlock(DeployServiceCommon.LastFinalizedBlockQuery.newBuilder().build());
       return response.getBlockInfo();
     } catch (Exception e) {
       LOGGER.error("Error retrieving last finalized block from observer", e);
@@ -196,7 +211,7 @@ public class F1r3flyBlockchainClient {
 
       // Deploy
       DeployServiceV1.ExploratoryDeployResponse deployResponse =
-          observerDeployService.exploratoryDeploy(exploratoryDeploy);
+          observerDeploy().exploratoryDeploy(exploratoryDeploy);
 
       LOGGER.trace("Exploratory deploy code {}. Response {}", rhoCode, deployResponse);
 
@@ -275,7 +290,7 @@ public class F1r3flyBlockchainClient {
       CasperMessage.DeployDataProto signed = signDeploy(deployment, signingKey);
 
       // Deploy
-      DeployServiceV1.DeployResponse deployResponse = validatorDeployService.doDeploy(signed);
+      DeployServiceV1.DeployResponse deployResponse = validatorDeploy().doDeploy(signed);
       if (deployResponse.hasError()) {
         throw new F1r3flyDeployError(rhoCode, gatherErrors(deployResponse.getError()));
       }
@@ -292,8 +307,8 @@ public class F1r3flyBlockchainClient {
 
       // Propose
       casper.v1.ProposeServiceV1.ProposeResponse proposeResponse =
-          validatorProposeService.propose(
-              ProposeServiceCommon.ProposeQuery.newBuilder().setIsAsync(false).build());
+          validatorPropose()
+              .propose(ProposeServiceCommon.ProposeQuery.newBuilder().setIsAsync(false).build());
       if (proposeResponse.hasError()) {
         throw new F1r3flyDeployError(rhoCode, gatherErrors(proposeResponse.getError()));
       }
@@ -301,8 +316,9 @@ public class F1r3flyBlockchainClient {
       // Find deploy
       ByteString b64 = ByteString.copyFrom(Hex.decode(deployId));
       DeployServiceV1.FindDeployResponse findResponse =
-          validatorDeployService.findDeploy(
-              DeployServiceCommon.FindDeployQuery.newBuilder().setDeployId(b64).build());
+          validatorDeploy()
+              .findDeploy(
+                  DeployServiceCommon.FindDeployQuery.newBuilder().setDeployId(b64).build());
       if (findResponse.hasError()) {
         throw new F1r3flyDeployError(rhoCode, gatherErrors(findResponse.getError()));
       }
@@ -314,8 +330,9 @@ public class F1r3flyBlockchainClient {
       for (int attempt = 0; attempt < RETRIES; attempt++) {
         try {
           DeployServiceV1.IsFinalizedResponse isFinalizedResponse =
-              validatorDeployService.isFinalized(
-                  DeployServiceCommon.IsFinalizedQuery.newBuilder().setHash(blockHash).build());
+              validatorDeploy()
+                  .isFinalized(
+                      DeployServiceCommon.IsFinalizedQuery.newBuilder().setHash(blockHash).build());
 
           LOGGER.debug("isFinalizedResponse {}", isFinalizedResponse);
 

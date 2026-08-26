@@ -1,22 +1,10 @@
 ---
 doc_type: user_stories
 version: "1.0"
-last_updated: "[DATE]"
+last_updated: "2026-07-06"
 ---
 
 # User Stories
-
-<!--
-TEMPLATE USAGE INSTRUCTIONS:
-0. Update frontmatter: set last_updated to current date, increment version for structural changes
-1. Add completed stories under "Completed Stories" section
-2. Add planned stories under "Planned Stories" section
-3. Move completed stories from "Planned" to "Completed" sections
-4. Update epic links when implementation begins
-5. Check acceptance criteria as features are verified
-6. (Optional) Update reference URLs if using a fork with modified standards
-7. Remove these usage instruction comments before committing
--->
 
 This document captures user stories that drive feature development. User stories are reverse-engineered from completed epics and updated as new features are planned.
 
@@ -44,6 +32,22 @@ This document captures user stories that drive feature development. User stories
 Stories below are candidates for future epics. Move to "Completed Stories" when implemented.
 
 <!-- Add planned user stories here -->
+
+#### US-001: Multi-OS file sharing (Windows/WSL, macOS/FUSE, Linux)
+
+> As a **F1r3Drive user on multiple operating systems (Windows, macOS, Linux)**, I want **to share files through F1r3Drive with full capability on Windows (via WSL), macOS (via FUSE), and compatible Linux systems** so that **multi-OS file sharing is delivered as the core value proposition of F1r3Drive**.
+
+**Implemented in:** EPIC-001
+**User Flow:** FLOW-001
+
+**Status:** Implemented
+
+**Acceptance Criteria:**
+- [x] Full F1r3Drive file sharing works on Windows via WSL (Windows Subsystem for Linux)
+- [x] Full F1r3Drive file sharing works on macOS via macFUSE
+- [x] Full F1r3Drive file sharing works on compatible Linux systems via libfuse
+- [x] Fully synchronized support using f1r3node-rust (../f1r3node-rust) with on-chain storage
+- [x] Multi-OS integration test suite runs in OCI containers covering all supported platforms
 
 ---
 

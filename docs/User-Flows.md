@@ -40,6 +40,38 @@ reference them by name from each flow's `Personas:` field.
 
 ---
 
+
+### FLOW-001: Multi-OS File Sharing via Mounted F1r3Drive
+
+**Status:** Implemented
+**Implemented in:** EPIC-001
+**Related Stories:** US-001
+**Related Flows:** None
+**Personas:** F1r3Drive user on multiple operating systems (Windows, macOS, Linux)
+**Integration Tests:** `./gradlew multiOsIntegrationTest`, `.github/workflows/multi-os-integration.yml`
+
+**Journey:** Install FUSE prerequisites -> Mount drive -> Unlock wallet -> Create/edit files -> Background on-chain sync -> Access same files from another OS
+
+**Steps:**
+1. **Install and Mount** - User installs the platform prerequisite (macFUSE on macOS, libfuse on Linux, WSL2 on Windows) and mounts F1r3Drive against a running f1r3node-rust shard
+2. **Unlock Wallet** - User unlocks the LOCKED-REMOTE-REV-* directory with a valid REV address and private key, exposing the wallet directory
+3. **Create and Edit Files** - User creates directories and files in the mounted drive; writes are acknowledged locally and staged for deployment
+4. **On-Chain Sync** - DeployDispatcher deploys file chunks and directory updates to the shard in the background until state is finalized
+5. **Cross-OS Access** - The same wallet is unlocked from a mount on a different OS and the shared files are read back
+
+**Key Interactions:**
+- Mount succeeds on Linux (libfuse), macOS (macFUSE), and Windows via WSL2
+- Wallet unlock with valid credentials exposes wallet contents; invalid credentials leave the directory locked
+- A file written on one OS mount is readable byte-identical from a mount on a different OS after sync
+- Files survive unmount/remount, served from on-chain state
+
+**Success Metrics:**
+- Mount completes in <30s on every supported platform
+- Cross-OS read-after-sync succeeds in <60s after deploy finalization
+- Multi-OS e2e suite passes in OCI CI on all three platforms
+
+---
+
 ## Planned Flows
 
 (Empty)
