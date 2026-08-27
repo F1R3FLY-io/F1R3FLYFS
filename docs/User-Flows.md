@@ -1,8 +1,3 @@
----
-doc_type: user_flows
-version: "1.0"
----
-
 # User Flows
 
 Detailed user interaction patterns for this project. Each flow captures the
@@ -39,7 +34,6 @@ reference them by name from each flow's `Personas:` field.
 <!-- Created flows are inserted above the "Planned Flows" section below. -->
 
 ---
-
 
 ### FLOW-001: Multi-OS File Sharing via Mounted F1r3Drive
 
