@@ -117,6 +117,31 @@ java -jar build/libs/f1r3drive-app.jar <mount-point> \
 
 ---
 
+## f1r3node-rust: cost accounting and File I/O
+
+The `fileio-phase-1-2` line of f1r3node-rust (the Rust shard used for synchronized storage, EPIC-001) changes two things a F1r3Drive client must know about. Terms are defined in the [Glossary](Glossary.md).
+
+### Cost accounting
+
+The phlo gas market is removed. Deploy capacity is derived by the protocol from the signer's REV custody in the `SystemVault` — the wallet F1r3Drive unlocks is also what funds its deploys.
+
+- `phloPrice` and `phloLimit` are **removed from the wire** (`DeployDataProto` reserves their field tags). The deploy path must not set them against a fileio-era shard.
+- The `cost` reported for a processed deploy is a scalar (COMM count + canonical byte cost), **not** the physical REV debit. Settlement proof lives in the new deploy-response evidence: funding certificate, cost witness, pre/post state hashes, admission status.
+- A deploy whose budget exhausts fails deterministically with `out_of_phlogistons` and all its effects revert — for F1r3Drive this means a write that was locally acknowledged never reaches the chain until the wallet is funded and the deploy retried.
+- `POST /api/estimate-cost` previews cost; pass the real deployer key or the estimate can be far lower than the real charge.
+
+### File I/O
+
+The shard now hosts a capability-secured POSIX filesystem that Rholang deploys reach through the genesis-published `Fs` capability (`openFile`/`openDir` by logical name). Client-relevant facts:
+
+- **No new gRPC surface.** The `DeployService` RPCs are unchanged; File I/O is used entirely from Rholang deploy source. F1r3Drive's channel-based storage model keeps working as-is; File I/O is an additional capability future storage can target.
+- Capabilities run in **oracular** (node-local) or **consensus** mode (WAL-journaled, snapshotted in 4 MiB Merkle-anchored chunks, replayed identically by every validator).
+- The shard operator must provision logical names via the `storage { *-static-files/dirs }` config buckets; unprovisioned names return `FSERR_UNSUPPORTED`. Consensus buckets additionally require `consensus-fs-snapshot-dir` and `consensus-fs-snapshot-retain >= 2`.
+- Every File I/O syscall carries a consensus-fixed cost weight (reads charge on the requested byte count; writes charge double per byte for the WAL append), so file operations draw down the same wallet REV as ordinary deploys.
+- Nodes append a consensus-runtime fingerprint to `network_id` (`#cf<hex>`); shard nodes built with different consensus constants refuse to peer — mixed-build demo shards will not form.
+
+---
+
 ## Fresh remount behavior
 
 In the current implementation, remote on-chain state is fetched when a wallet is mounted and unlocked. Existing mounts may not immediately live-refresh files written by another platform.
@@ -171,4 +196,6 @@ Successful verification indicates that the file content read from the mounted fi
 | `Could not deploy, casper instance was not available yet` | Shard is not ready to accept deploys | Wait for shard readiness or restart the demo shard |
 | `Checksum mismatch` | File content and `.sha256` file differ, or stale label was reused | Use a fresh label or regenerate checksum after edits |
 | `Unable to resolve host` | Remote platform cannot resolve shard hostname | Use the shard IP or configure hostname resolution |
+| `out_of_phlogistons` deploy failure | Signer wallet's REV custody cannot cover the deploy's compute + byte cost (f1r3node-rust) | Fund the wallet's REV balance and retry the deploy |
+| `FSERR_UNSUPPORTED` from `Fs.openFile`/`openDir` | Logical name not provisioned in the shard's `storage { *-static-* }` buckets, or a mode upgrade was requested | Provision the name/mode in the shard operator config |
 
