@@ -66,7 +66,8 @@ Proto sources live in `src/main/proto` plus vendored copies in `src/main/protobu
 - App version is declared in **two** places that must stay in sync: `gradle.properties` and the `@Command(version = ...)` annotation in `F1r3DriveCli.java`.
 - Releases use the `net.researchgate.release` plugin; commit messages for releases are prefixed `[f1r3Drive release]`.
 - Branch model: work on `dev`; `main` is the PR target.
-- **Git hooks** (opt-in, install with `./scripts/setup-hooks.sh`): `.githooks/pre-commit` runs `./gradlew spotlessCheck` (Spotless + google-java-format, `ratchetFrom 'HEAD'` so only changed files are checked — fix with `./gradlew spotlessApply`); `.githooks/pre-push` runs `./gradlew test` + `shadowJar`. e2e tests are excluded from hooks (need a live shard).
+- **Formatting**: Spotless + google-java-format (`./gradlew spotlessApply` to fix, `spotlessCheck` to verify). `ratchetFrom 'origin/main'` so only files differing from `main` are enforced; `spotlessCheck` is wired into Gradle `check`, so CI enforces it too. Generated protobuf is excluded.
+- **Git hooks** (opt-in, install with `./scripts/setup-hooks.sh`): `.githooks/pre-commit` runs `./gradlew spotlessCheck`; `.githooks/pre-push` runs `./gradlew test` + `shadowJar`. e2e tests are excluded from hooks (need a live shard).
 
 ### Key Principles
 

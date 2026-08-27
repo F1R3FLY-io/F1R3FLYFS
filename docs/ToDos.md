@@ -1,25 +1,13 @@
 ---
 doc_type: todos
 version: "1.0"
-last_updated: [DATE]
+last_updated: 2026-07-06
 mr_status:
   ready: false
   target_branch: main
 ---
 
 # Tasks and Epics
-
-<!--
-TEMPLATE USAGE INSTRUCTIONS:
-0. Update the frontmatter date when modifying this file
-   (Update version only for significant structural changes to template)
-1. Replace all [PROJECT_NAME] and [PROJECT_SPECIFIC] markers
-2. Add new epics using the YAML frontmatter format below
-3. Move completed epics to docs/CompletedTasks.md
-4. Use /nextTask to find the next task to work on
-5. Use /implement to execute tasks with full context
-6. Remove these usage instruction comments before committing
--->
 
 This document tracks implementation work through **epics** (logical groupings of related tasks).
 
@@ -63,44 +51,86 @@ mr_status:
 
 ---
 
-### EPIC-001: [PROJECT_SPECIFIC: Epic Title]
+### EPIC-001: Multi-OS File Sharing (Windows/WSL, macOS/FUSE, Linux)
 
 ```yaml
 ---
 epic_id: EPIC-001
-title: "[PROJECT_SPECIFIC: Epic Title]"
-status: pending          # pending | in_progress | blocked | review | complete
-priority: p1             # p0 (critical) | p1 (high) | p2 (medium) | p3 (low)
-user_story: US-XXX       # Link to user story in docs/UserStories.md
-blocked_by: []           # List of blocking epic IDs
-created_at: [DATE]
-claimed_by: null         # Implementer ID: human-{email}, {tool}-session[-{id}], or {team}/{role}
+title: "Multi-OS file sharing on Windows (WSL), macOS (macFUSE), and Linux (libfuse)"
+status: complete
+priority: p0
+user_story: US-001
+blocked_by: []
+created_at: 2026-07-06
+claimed_by: null
 claimed_at: null
+user_flow: FLOW-001
 tasks:
   - id: TASK-001-1
-    title: "[PROJECT_SPECIFIC: Task 1 title]"
-    status: pending      # pending | in_progress | complete | blocked
+    title: "Full F1r3Drive file sharing on compatible Linux systems via libfuse"
+    status: complete
+    claimed_by: pi-session
+    claimed_at: 2026-07-07T19:13:22Z
+    completed_at: 2026-07-08T00:00:00Z
     acceptance:
-      - "[PROJECT_SPECIFIC: Acceptance criterion 1]"
-      - "[PROJECT_SPECIFIC: Acceptance criterion 2]"
+      - "Mount, create/read/write/rename/delete, wallet unlock, and token transfer work on a libfuse Linux host"
+      - "Existing e2e suite passes on Linux against a live shard"
 
   - id: TASK-001-2
-    title: "[PROJECT_SPECIFIC: Task 2 title]"
-    status: pending
-    blocked_by: [TASK-001-1]  # Optional: task dependencies
+    title: "Full F1r3Drive file sharing on macOS via macFUSE"
+    status: complete
+    claimed_by: pi-session
+    claimed_at: 2026-07-09T17:57:57Z
+    completed_at: 2026-07-09T00:00:00Z
     acceptance:
-      - "[PROJECT_SPECIFIC: Acceptance criterion 1]"
+      - "Mount, create/read/write/rename/delete, wallet unlock, and token transfer work on macOS with macFUSE"
+      - "Existing e2e suite passes on macOS against a live shard"
+
+  - id: TASK-001-3
+    title: "Full F1r3Drive file sharing on Windows via WSL (Windows Subsystem for Linux)"
+    status: complete
+    claimed_by: pi-session
+    claimed_at: 2026-07-09T22:57:56Z
+    completed_at: 2026-07-10T06:44:04Z
+    blocked_by: [TASK-001-1]
+    acceptance:
+      - "F1r3Drive mounts and operates inside WSL2 using the Linux/libfuse build"
+      - "Mounted drive contents are reachable from the Windows side (e.g. \\\\wsl$ / Explorer)"
+      - "Install/run procedure for WSL documented in INSTALLATION.md"
+
+  - id: TASK-001-4
+    title: "Fully synchronized on-chain storage via f1r3node-rust"
+    status: complete
+    claimed_by: pi-session
+    claimed_at: 2026-07-11T23:45:20Z
+    completed_at: 2026-07-11T23:49:40Z
+    acceptance:
+      - "F1r3Drive deploys to and reads from a f1r3node-rust shard (../f1r3node-rust) with full synchronization"
+      - "Data written on one OS/mount is readable from another mount after sync"
+
+  - id: TASK-001-5
+    title: "Multi-OS integration test suite in OCI containers"
+    status: complete
+    claimed_by: pi-session
+    claimed_at: 2026-07-17T16:34:15Z
+    completed_at: 2026-07-17T16:39:37Z
+    blocked_by: [TASK-001-1, TASK-001-4]
+    acceptance:
+      - "OCI-based integration test suite exercises file sharing across all supported platforms"
+      - "Suite runs in CI and gates merges to main"
 ---
 ```
 
-**Context:** [PROJECT_SPECIFIC: Why is this epic needed? What problem does it solve?]
+**Context:** Multi-OS file sharing is the core value proposition of F1r3Drive (US-001). Today the FUSE mount targets macOS/Linux hosts individually; this epic delivers verified, synchronized file sharing across Windows (via WSL), macOS (via macFUSE), and compatible Linux systems, backed by on-chain storage through f1r3node-rust.
 
 **Scope:**
-- [PROJECT_SPECIFIC: What's included]
-- [PROJECT_SPECIFIC: What's explicitly excluded]
+- Included: platform support/verification on Linux (libfuse), macOS (macFUSE), and Windows via WSL2; f1r3node-rust shard integration for synchronized on-chain storage; OCI-container multi-OS integration test suite in CI.
+- Excluded: native Windows (WinFsp) support without WSL; mobile platforms; performance tuning beyond functional parity.
 
 **Notes:**
-- [PROJECT_SPECIFIC: Implementation notes, gotchas, references]
+- f1r3node-rust lives at `../f1r3node-rust` in the workspace.
+- Existing e2e tests (`src/e2e/java`, Testcontainers) are the baseline for per-platform verification; the OCI suite extends them across OSes.
+- A user flow will be associated via `/user-flow` (see US-001).
 
 ---
 

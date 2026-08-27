@@ -4,52 +4,58 @@ import io.f1r3fly.f1r3drive.errors.*;
 import io.f1r3fly.f1r3drive.filesystem.bridge.*;
 import io.f1r3fly.f1r3drive.filesystem.common.Directory;
 import io.f1r3fly.f1r3drive.filesystem.common.File;
-
-import javax.annotation.Nullable;
 import java.io.IOException;
+import javax.annotation.Nullable;
 
 public interface FileSystem {
 
-    File getFile(String path);
-    Directory getDirectory(String path);
+  File getFile(String path);
 
-    boolean isRootPath(String path);
+  Directory getDirectory(String path);
 
-    @Nullable
-    String getParentPath(String path);
+  boolean isRootPath(String path);
 
-    void createFile(String path, long mode) throws PathNotFound, FileAlreadyExists, OperationNotPermitted;
+  @Nullable
+  String getParentPath(String path);
 
-    void getAttributes(String path, FSFileStat stat, FSContext context) throws PathNotFound;
+  void createFile(String path, long mode)
+      throws PathNotFound, FileAlreadyExists, OperationNotPermitted;
 
-    void makeDirectory(String path, long mode) throws PathNotFound, FileAlreadyExists, OperationNotPermitted;
+  void getAttributes(String path, FSFileStat stat, FSContext context) throws PathNotFound;
 
-    int readFile(String path, FSPointer buf, long size, long offset) throws PathNotFound, PathIsNotAFile, IOException;
+  void makeDirectory(String path, long mode)
+      throws PathNotFound, FileAlreadyExists, OperationNotPermitted;
 
-    void readDirectory(String path, FSFillDir filter) throws PathNotFound, PathIsNotADirectory;
+  int readFile(String path, FSPointer buf, long size, long offset)
+      throws PathNotFound, PathIsNotAFile, IOException;
 
-    void getFileSystemStats(String path, FSStatVfs stbuf);
+  void readDirectory(String path, FSFillDir filter) throws PathNotFound, PathIsNotADirectory;
 
-    void renameFile(String path, String newName) throws PathNotFound, OperationNotPermitted;
+  void getFileSystemStats(String path, FSStatVfs stbuf);
 
-    void removeDirectory(String path) throws PathNotFound, PathIsNotADirectory, DirectoryNotEmpty, OperationNotPermitted;
+  void renameFile(String path, String newName) throws PathNotFound, OperationNotPermitted;
 
-    void truncateFile(String path, long offset) throws PathNotFound, PathIsNotAFile, IOException;
+  void removeDirectory(String path)
+      throws PathNotFound, PathIsNotADirectory, DirectoryNotEmpty, OperationNotPermitted;
 
-    void unlinkFile(String path) throws PathNotFound, OperationNotPermitted;
+  void truncateFile(String path, long offset) throws PathNotFound, PathIsNotAFile, IOException;
 
-    void openFile(String path) throws PathNotFound, PathIsNotAFile, IOException;
+  void unlinkFile(String path) throws PathNotFound, OperationNotPermitted;
 
-    int writeFile(String path, FSPointer buf, long size, long offset) throws PathNotFound, PathIsNotAFile, IOException;
+  void openFile(String path) throws PathNotFound, PathIsNotAFile, IOException;
 
-    void flushFile(String path) throws PathNotFound, PathIsNotAFile;
+  int writeFile(String path, FSPointer buf, long size, long offset)
+      throws PathNotFound, PathIsNotAFile, IOException;
 
-    void unlockRootDirectory(String revAddress, String privateKey);
-    void changeTokenFile(String tokenFilePath) throws NoDataByPath;
+  void flushFile(String path) throws PathNotFound, PathIsNotAFile;
 
-    // utils
-    // TODO: hide it?
-    void terminate();
-    void waitOnBackgroundDeploy();
+  void unlockRootDirectory(String revAddress, String privateKey);
 
+  void changeTokenFile(String tokenFilePath) throws NoDataByPath;
+
+  // utils
+  // TODO: hide it?
+  void terminate();
+
+  void waitOnBackgroundDeploy();
 }
