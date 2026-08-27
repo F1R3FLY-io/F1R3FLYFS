@@ -66,7 +66,8 @@ Proto sources live in `src/main/proto` plus vendored copies in `src/main/protobu
 - App version is declared in **two** places that must stay in sync: `gradle.properties` and the `@Command(version = ...)` annotation in `F1r3DriveCli.java`.
 - Releases use the `net.researchgate.release` plugin; commit messages for releases are prefixed `[f1r3Drive release]`.
 - Branch model: work on `dev`; `main` is the PR target.
-- **Git hooks** (opt-in, install with `./scripts/setup-hooks.sh`): `.githooks/pre-commit` runs `./gradlew spotlessCheck` (Spotless + google-java-format, `ratchetFrom 'HEAD'` so only changed files are checked — fix with `./gradlew spotlessApply`); `.githooks/pre-push` runs `./gradlew test` + `shadowJar`. e2e tests are excluded from hooks (need a live shard).
+- **Formatting**: Spotless + google-java-format (`./gradlew spotlessApply` to fix, `spotlessCheck` to verify). `ratchetFrom 'origin/main'` so only files differing from `main` are enforced; `spotlessCheck` is wired into Gradle `check`, so CI enforces it too. Generated protobuf is excluded.
+- **Git hooks** (opt-in, install with `./scripts/setup-hooks.sh`): `.githooks/pre-commit` runs `./gradlew spotlessCheck`; `.githooks/pre-push` runs `./gradlew test` + `shadowJar`. e2e tests are excluded from hooks (need a live shard).
 
 ### Key Principles
 
@@ -148,6 +149,8 @@ next_steps:
 - Use HTML when delivering to stakeholders or for living documents (engagement).
 
 **Output guidance:** When creating artifacts, ask whether HTML interactivity is needed. Default to clean Markdown with embedded Mermaid unless specified.
+
+<!-- ste-policy: required -->
 
 ## UI Test Assertions
 
@@ -234,8 +237,7 @@ This applies to all slash commands and scripts that create configuration files.
 - `/harmonize` - Sync workspace policies into this repo
 - `/multi-repo-sync` - Workspace-wide sync orchestration
 
-- `/work-tasks` - Work through tasks in `docs/ToDos.md` autonomously
-- `/story` - Create and link user stories in `docs/UserStories.md`
+[OPTIONAL_COMMANDS]
 
 ## PII Guidelines for Contributors
 
@@ -281,6 +283,44 @@ tools. It is recommended but never required. Nothing here is harness-specific -
 substitute your tool's equivalents for the generic actions described below.
 Setup (with the privacy-first local Ollama embedder as default) lives in the
 CLI Setup guide's "Optional: Semantic Code Search (grepai)" section.
+
+## Simplified Technical English
+<!-- ste-policy: full -->
+
+Smart Assets uses ASD-STE100 Simplified Technical English, Issue 9, dated January 2025, for applicable English technical prose.
+
+This policy is a Smart Assets applicability profile. The ASD standard remains the authoritative source for its rules and controlled dictionary.
+
+Get the current standard from the [official ASD-STE100 website](https://www.asd-ste100.org/) or its [official downloads page](https://www.asd-ste100.org/STE_downloads.html).
+
+ASD owns the standard and the ASD-STE100 trademark. Do not copy its controlled dictionary, examples, or substantial rule text into this repository.
+
+## Worktree Policy
+
+Git worktrees are an **agentic-mode-only** tool in this workspace. In safe /
+interactive mode:
+
+- **NEVER create a git worktree** unless the user explicitly asks for one in
+  their own words. This covers every creation path equally: `git worktree add`,
+  harness-native tools (e.g. an `EnterWorktree` tool, subagent
+  `isolation: "worktree"`, workflow worktree isolation), and any script that
+  wraps them.
+- All work happens in the single main checkout on the current branch.
+- `git worktree list` is read-only and permitted.
+- `git worktree remove` and `git worktree prune` require explicit user
+  confirmation.
+
+**Why:** worktrees fragment local state, are invisible to `/recursive-push`
+repository discovery, and were the root cause of an accidental push to a
+protected branch. A worktree created silently by an assistant is a worktree
+nobody pushes, cleans up, or audits.
+
+**Exception:** In agentic mode (`claude-agentic`), all restrictions are lifted.
+YOLO mode runs *inside* a worktree the human created; running in a worktree
+never authorizes creating more of them.
+
+Canonical policy: [Git Interaction Policy](https://gitlab.com/smart-assets.io/gitlab-profile/-/blob/master/docs/common/git-interaction-policy.md)
+(Worktrees section).
 
 # important-instruction-reminders
 Do what has been asked; nothing more, nothing less.

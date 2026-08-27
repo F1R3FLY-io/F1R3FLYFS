@@ -142,7 +142,7 @@ What they run:
 
 | Hook | Checks | Bypass |
 |------|--------|--------|
-| **pre-commit** | `./gradlew spotlessCheck` (google-java-format). Spotless uses `ratchetFrom 'HEAD'`, so only files in the current commit are checked. Fix with `./gradlew spotlessApply`. | `SKIP_SPOTLESS=1` / `git commit --no-verify` |
+| **pre-commit** | `./gradlew spotlessCheck` (google-java-format). Spotless uses `ratchetFrom 'origin/main'`, so any file that differs from `main` is checked. Fix with `./gradlew spotlessApply`. | `SKIP_SPOTLESS=1` / `git commit --no-verify` |
 | **pre-push** | `./gradlew test` (unit tests) + `./gradlew shadowJar` (build). The e2e suite is *not* run — it needs a live shard. | `SKIP_TESTS=1`, `SKIP_BUILD=1` / `git push --no-verify` |
 
 Add `VERBOSE=1` to either to see full output.

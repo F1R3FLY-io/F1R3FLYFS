@@ -3,7 +3,8 @@
 # pre-push hook - Run unit tests and build before pushing
 #
 # Runs the JUnit unit test suite and assembles the shaded JAR to prevent
-# pushing code that fails tests or no longer builds.
+# pushing code that fails tests or no longer builds. If Git reports no ref
+# updates (nothing to push), the hook exits before invoking Gradle.
 #
 # The e2e suite (./gradlew e2eTest) is intentionally NOT run here: it requires
 # a live F1r3fly shard and cannot run unconditionally. Run it manually when a
@@ -35,6 +36,30 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 SKIP_TESTS="${SKIP_TESTS:-0}"
 SKIP_BUILD="${SKIP_BUILD:-0}"
 VERBOSE="${VERBOSE:-0}"
+
+is_zero_oid() {
+    [[ "${1:-}" =~ ^0+$ ]]
+}
+
+# Git supplies the refs it is about to update on stdin. If there are no ref
+# updates (or only branch/tag deletions), there is nothing new to validate, so
+# skip the Gradle test/build work.
+HAS_PUSH_UPDATES=0
+while IFS=' ' read -r local_ref local_oid remote_ref remote_oid; do
+    if [[ -z "${local_ref:-}" ]]; then
+        continue
+    fi
+
+    if ! is_zero_oid "$local_oid" && [[ "$local_oid" != "$remote_oid" ]]; then
+        HAS_PUSH_UPDATES=1
+    fi
+done
+
+if [[ "$HAS_PUSH_UPDATES" -eq 0 ]]; then
+    echo ""
+    echo -e "${CYAN}No new commits or refs to push. Skipping pre-push checks.${NC}"
+    exit 0
+fi
 
 cd "$REPO_ROOT"
 

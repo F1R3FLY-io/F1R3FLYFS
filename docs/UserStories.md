@@ -1,9 +1,3 @@
----
-doc_type: user_stories
-version: "1.0"
-last_updated: "[DATE]"
----
-
 # User Stories
 
 <!--
@@ -44,6 +38,22 @@ This document captures user stories that drive feature development. User stories
 Stories below are candidates for future epics. Move to "Completed Stories" when implemented.
 
 <!-- Add planned user stories here -->
+
+#### US-001: Multi-OS file sharing (Windows/WSL, macOS/FUSE, Linux)
+
+> As a **F1r3Drive user on multiple operating systems (Windows, macOS, Linux)**, I want **to share files through F1r3Drive with full capability on Windows (via WSL), macOS (via FUSE), and compatible Linux systems** so that **multi-OS file sharing is delivered as the core value proposition of F1r3Drive**.
+
+**Implemented in:** EPIC-001
+**User Flow:** FLOW-001
+
+**Status:** Implemented
+
+**Acceptance Criteria:**
+- [x] Full F1r3Drive file sharing works on Windows via WSL (Windows Subsystem for Linux)
+- [x] Full F1r3Drive file sharing works on macOS via macFUSE
+- [x] Full F1r3Drive file sharing works on compatible Linux systems via libfuse
+- [x] Fully synchronized support using f1r3node-rust (../f1r3node-rust) with on-chain storage
+- [x] Multi-OS integration test suite runs in OCI containers covering all supported platforms
 
 ---
 

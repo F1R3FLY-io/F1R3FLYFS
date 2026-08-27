@@ -5,6 +5,7 @@
 # Runs Spotless (google-java-format) in check mode to catch style issues
 # before they enter the repository. Spotless is configured with
 # `ratchetFrom 'HEAD'`, so only files changed in this commit are checked.
+# If there are no staged changes, the hook exits before invoking Gradle.
 #
 # To bypass (use sparingly): git commit --no-verify
 #
@@ -28,6 +29,14 @@ SKIP_SPOTLESS="${SKIP_SPOTLESS:-0}"
 VERBOSE="${VERBOSE:-0}"
 
 cd "$REPO_ROOT"
+
+# Git can invoke pre-commit before reporting that there is nothing to commit.
+# Avoid paying the Gradle startup/test cost when the index is empty.
+if git diff --cached --quiet --exit-code --; then
+    echo ""
+    echo -e "${CYAN}No staged changes to commit. Skipping pre-commit checks.${NC}"
+    exit 0
+fi
 
 FAILED=0
 
