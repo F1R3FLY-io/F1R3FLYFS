@@ -319,7 +319,7 @@ nobody pushes, cleans up, or audits.
 YOLO mode runs *inside* a worktree the human created; running in a worktree
 never authorizes creating more of them.
 
-Canonical policy: [Git Interaction Policy](docs/common/git-interaction-policy.md)
+Canonical policy: [Git Interaction Policy](https://gitlab.com/smart-assets.io/gitlab-profile/-/blob/master/docs/common/git-interaction-policy.md)
 (Worktrees section).
 
 # important-instruction-reminders

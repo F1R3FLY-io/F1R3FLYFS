@@ -18,7 +18,7 @@ This document tracks implementation work through **epics** (logical groupings of
 - Backlog: `docs/Backlog.md`
 
 **For LLM assistance in multi-repo workspace:**
-See [Task Tracking Standard]([RELATIVE_PATH]/top-level-gitlab-profile/docs/common/task-tracking-standard.md)
+See [Task Tracking Standard](https://gitlab.com/smart-assets.io/gitlab-profile/-/blob/master/docs/common/task-tracking-standard.md)
 
 **For reference (GitLab):**
 [Task Tracking Standard](https://gitlab.com/smart-assets.io/gitlab-profile/-/blob/master/docs/common/task-tracking-standard.md)
@@ -279,7 +279,7 @@ tasks:
 ## Workflow
 
 1. **Find next task**: Use `/nextTask` to identify the highest priority unclaimed task
-2. **Claim task**: Set `claimed_by` using [Implementer Identification](../common/stigmergic-collaboration.md#implementer-identification) format and `status: in_progress`
+2. **Claim task**: Set `claimed_by` using [Implementer Identification](https://gitlab.com/smart-assets.io/gitlab-profile/-/blob/master/docs/common/stigmergic-collaboration.md#implementer-identification) format and `status: in_progress`
 3. **Implement**: Use `/implement` to execute with full context
 4. **Complete**: Mark `status: complete` when acceptance criteria met
 5. **Move epic**: When all tasks complete, move epic to `docs/CompletedTasks.md`
@@ -291,4 +291,4 @@ tasks:
 - **User Stories:** `docs/UserStories.md`
 - **Completed Work:** `docs/CompletedTasks.md`
 - **Backlog:** `docs/Backlog.md`
-- **MR/PR Tracking Standard:** [docs/common/todos-mr_pr-tracking-standard.md]([RELATIVE_PATH]/top-level-gitlab-profile/docs/common/todos-mr_pr-tracking-standard.md)
+- **MR/PR Tracking Standard:** [docs/common/todos-mr_pr-tracking-standard.md](https://gitlab.com/smart-assets.io/gitlab-profile/-/blob/master/docs/common/todos-mr_pr-tracking-standard.md)

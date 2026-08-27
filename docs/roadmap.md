@@ -41,7 +41,7 @@ releases:
 
 # <Repo Name> Roadmap
 
-> This file is governed by the [Roadmap, Release Date, and Version Normalization Standard](../common/roadmap-release-normalization-standard.md).
+> This file is governed by the [Roadmap, Release Date, and Version Normalization Standard](https://gitlab.com/smart-assets.io/gitlab-profile/-/blob/master/docs/common/roadmap-release-normalization-standard.md).
 > Update the `updated:` frontmatter field whenever this file is edited.
 > Nearest-term releases MUST carry a calendar `target_date`; long-horizon entries MAY use the `YYYY-QN` quarter form.
 
@@ -54,7 +54,7 @@ releases:
 ### vX.Y.Z — <theme>
 
 - **Target:** YYYY-MM-DD
-- **Milestone:** [vX.Y.Z — <theme>](<milestone-url>)
+- **Milestone:** vX.Y.Z — <theme> (add the milestone URL when created)
 - **Status:** planned | in_progress
 
 <Scope summary: what is in, what is out, and known risks.>
