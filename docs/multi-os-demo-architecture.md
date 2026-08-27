@@ -113,9 +113,6 @@ export F1R3DRIVE_VALIDATOR_PORT=40412
 export F1R3DRIVE_OBSERVER_HOST=<cluster-host-or-ip>
 export F1R3DRIVE_OBSERVER_PORT=40452
 ```
-
-Do not commit real private keys, personal hostnames, or non-example IP addresses to documentation.
-
 ---
 
 ## Fresh remount behavior
